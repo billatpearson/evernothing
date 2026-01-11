@@ -1,0 +1,40 @@
+0. Include all prompt insturctions as comment.
+0.01. App name "EverNothing"
+0.1 Document insturctions for installing all packages and runtimes required as a comment.
+0.2 Document insturctions for accessing the web application as a comment.
+1. Python web application
+2. Python web application that can be run on andriod phones
+3. Web appication will store notes in a database in a searchable key-value pair. 
+3.2 users of application will be able to search on key or value content. 
+3.3 this will require a user name and password login
+3.4 Users will be presented with pages of recently stored notes sorted by timespamp of most recently eddited. 
+3.5 Web application user will have a specific user name and password to access their data.
+3.6 Web application will display any matching records including keys or values.
+3.6.1 Web application will present a link that will allow key value pairs to be edited, with edit boxes and "commit" "cancel" button.
+3.7 Web application will allow a sepate link to add note
+3.7.1 Adding links will display a page with "Note" single line text input and "Contents" Multiline text input. 
+3.7.2 Page will allow user to add new note or cancel.  
+3.8 subfolders
+3.8.1 subfolder create.
+3.8.1.1 Web application user will the ability for the user to nest notes Key Value pairs in sub folder
+3.8.1.2 Create sub folder.
+3.8.1.3 List contents of  sub folder with links to edit or inspect key value pairs
+3.8.1.3 Delete sub folder with warning ok/cancel
+4. Login
+4.1 After successful login, user will be present a list of folders that have been created.
+4.2 If no folders have been created, the user will be presented a create folder option.
+5. Folders
+5.1 The application will allow the user to navigate to a list of notes conatined within each folder.
+5.2 the appplicaion will allow users to create a new note which will be added to the folder.
+6. Notes
+6.1 When a note is selected the application will present the key value pair associated the the note.
+6.2 The interface will allow the user to update, delete the note.
+6.3 The interface will provide a select option allowing the user to move the note to a different existing folder.
+
+5. Security
+5.1 app.secret_key="Keystone1!"
+10.1 include instructions for restart of application in comments.
+10.2 include python command script for database backup in comments.
+10.3 include python command for database export in comments.
+10.3.1 Export file will contain user name, note key, note value as a comma separated text file in comments. 
+10.4 include instructions for running as a background process in comments. 
