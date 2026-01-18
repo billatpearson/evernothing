@@ -14,14 +14,16 @@
 3.3.0 If login fails display error message
 3.3.1 After login user is redirected to a list of folders
 3.3.2 If the user has zero folders the user will be able to create one.
-3.4 Users see recently edited notes with timestamp
+3.4 Users see recently edited notes with timestamp with the format "MM/dd/yyyy HH:MM"
 3.5 Per-user data isolation
 3.6 Display matching key or value
-3.6.1 Edit page with commit / cancel / choose folder select control
+3.6.1 Edit page with commit / cancel / choose folder select control/ delete with confirmation.
 3.6.2 Note page will provide bread crumb links to root, folder, subfolder at the top page. 
+3.6.2.1 If the note was edited, "Edited: MM/dd/yyyy HH:MM" which will link to a list of recently edits of this note notes.
 3.6.3 On commit edit page will display confirmation message. Yes,no buttons. If contents are identical do not prompt.
 3.7 Link to add note
-3.7.1 Note = single-line, Contents = multiline (120x80) text area
+3.7.1 Note = single-line, Contents = multiline (120w 40h) text area
+3.7.2 Do not allow empty note or content or duplicate note name
 3.7.2 Add or cancel
 3.8 Subfolders
 3.8.1 Create subfolder
@@ -30,13 +32,15 @@
 3.8.1.2 Nest notes in subfolder
 3.8.1.3 Delete with warning
 3.8.1.4 rename folder
+3.8.1.5 add note
 3.9 Change password
 3.10 Cancel button on register page
 4. Security
 5. AWS integration
 6. Continuty
-6.1 All record changes will be logged and maintained in separat tables.
-6.2 User will be able to review changes in the log and have UI capabilities to roll back to previous change. 
+6.1 All record changes will be logged and maintained in separate tables.
+6.2 User will be able to review changes in the log and have UI capabilities to roll back to previous change. Roll back dates should have the format of "MM/dd/yyyy HH:MM"
+
 7. UI
 7.01 All list and selects are sorted alphabetically.
 7.1 background color "black"
@@ -49,10 +53,20 @@
 7.9 Delete link text "red"
 7.10 Cancel link 1px border "red"
 7.11 Input, text area, select horizontal spacing 2px
-
-
+7.20 All pages shall provide a log out option on the main menu
+8 Input position
+8.1 "Add note" should appear in th folder options. 
+9 S3 Buckets
+9.1 sycrhronize all tables with an Aws S3 bucket  "evernothing011126" uesername "billspeiser2" continue on synch falure with warning
+10.1 include instructions for restart of application in comments.
+10.2 include python command script for database backup in comments.
+10.3 include python command for database export in comments.
+10.3.1 Export file will contain user name, note key, note value as a comma separated text file in comments. 
+10.4 include instructions for running as a background process in comments. 
+13. Security
+13.1 logout function will expire all login_required data
 INSTALLATION (0.1):
- pip install flask flask-login werkzeug
+ pip install flask flask-login werkzeug boto3
 
 ACCESS (0.2):
  python evernothing.py
@@ -88,6 +102,10 @@ from flask import Flask, request, redirect, render_template_string, make_respons
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3, datetime, json
+try:
+    import boto3
+except ImportError:
+    boto3 = None
 
 app = Flask("EverNothing")
 app.secret_key = "Keystone1!"
@@ -136,6 +154,19 @@ def init_db():
 
 init_db()
 
+# --- AWS SYNC ---
+def sync_s3():
+    print("S3 ASynch")
+    if boto3:
+        try:
+            # Try to use the specific profile if configured, else default
+            try: s3 = boto3.Session(profile_name='billspeiser2').client('s3')
+            except: s3 = boto3.client('s3')
+            
+            s3.upload_file(DB, "evernothing011126", DB)
+        except Exception as e:
+            print(f"S3 Sync Error: {e}")
+
 # --- AUTH ---
 class User(UserMixin):
     def __init__(self, id, username):
@@ -148,6 +179,13 @@ def load_user(uid):
         "SELECT id,username FROM users WHERE id=?", (uid,)
     ).fetchone()
     return User(*r) if r else None
+
+def format_date(iso_str):
+    try:
+        print( "formatting date")
+        return datetime.datetime.fromisoformat(iso_str).strftime("%m/%d/%Y %H:%M")
+    except:
+        return iso_str 
 
 def get_breadcrumbs(cur, fid, uid):
     crumbs = []
@@ -166,7 +204,7 @@ def index():
     cur.execute("SELECT id,name FROM folders WHERE user_id=? AND parent_id IS NULL ORDER BY name", (current_user.id,))
     folders = cur.fetchall()
     cur.execute("SELECT id,note_key,updated_at FROM notes WHERE user_id=? ORDER BY updated_at DESC LIMIT 10", (current_user.id,))
-    recent = cur.fetchall()
+    recent = [(r[0], r[1], format_date(r[2])) for r in cur.fetchall()]
     return render_template_string(T_FOLDERS, folders=folders, recent=recent)
 
 @app.route("/folder/add", methods=["GET","POST"])
@@ -179,6 +217,7 @@ def add_folder():
             (current_user.id, request.form['name'])
         )
         con.commit()
+        sync_s3()
         con.close()        
         return redirect("/")
     return render_template_string(T_ADD_FOLDER)
@@ -193,6 +232,7 @@ def add_subfolder(pid):
             (current_user.id, request.form['name'], pid)
         )
         con.commit()
+        sync_s3()
         con.close()        
         return redirect(f"/folder/{pid}")
     return render_template_string(T_ADD_SUBFOLDER, pid=pid)
@@ -214,6 +254,7 @@ def delete_folder(fid):
     if request.method == "POST":
         delete_recursive(cur, fid, current_user.id)
         con.commit()
+        sync_s3()
         return redirect(f"/folder/{f[1]}" if f[1] else "/")
 
     return render_template_string(T_DELETE_FOLDER, f=f) if f else redirect("/")
@@ -227,6 +268,7 @@ def rename_folder(fid):
     if request.method == "POST":
         cur.execute("UPDATE folders SET name=? WHERE id=? AND user_id=?", (request.form['name'], fid, current_user.id))
         con.commit()
+        sync_s3()
         return redirect(f"/folder/{fid}")
     return render_template_string(T_RENAME_FOLDER, f=f, fid=fid)
 
@@ -239,6 +281,7 @@ def delete_note(nid):
     if request.method == "POST":
         cur.execute("DELETE FROM notes WHERE id=? AND user_id=?", (nid, current_user.id))
         con.commit()
+        sync_s3()
         return redirect(f"/folder/{n[0]}" if n[0] else "/")
     return render_template_string(T_DELETE_NOTE, n=n)
 
@@ -252,6 +295,7 @@ def change_password():
         if r and check_password_hash(r[0], request.form['old_password']):
             cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(request.form['new_password']), current_user.id))
             cur.connection.commit()
+            sync_s3()
             return redirect("/")
         error = "Invalid old password"
     return render_template_string(T_CHANGE_PASSWORD, error=error)
@@ -298,20 +342,32 @@ def view_folder(fid):
 @app.route("/add/<int:fid>", methods=["GET","POST"])
 @login_required
 def add(fid):
+    error = None
+    note_val = ""
+    content_val = ""
     if request.method == "POST":
+        note_val = request.form['note']
+        content_val = request.form['content']
         con = db(); cur = con.cursor()
-        cur.execute(
-            "INSERT INTO notes VALUES(NULL,?,?,?,?,?)",
-            (current_user.id, fid, request.form['note'], request.form['content'], datetime.datetime.utcnow().isoformat())
-        )
-        nid = cur.lastrowid
-        cur.execute(
-            "INSERT INTO note_history VALUES(NULL,?,?,?,?,?,?)",
-            (nid, current_user.id, request.form['note'], request.form['content'], fid, datetime.datetime.utcnow().isoformat())
-        )
-        con.commit()
-        return redirect(f"/folder/{fid}")
-    return render_template_string(T_ADD, fid=fid)
+        
+        if not note_val.strip() or not content_val.strip():
+            error = "Note and content cannot be empty"
+        elif cur.execute("SELECT 1 FROM notes WHERE user_id=? AND note_key=?", (current_user.id, note_val)).fetchone():
+            error = "Note name already exists"
+        else:
+            cur.execute(
+                "INSERT INTO notes VALUES(NULL,?,?,?,?,?)",
+                (current_user.id, fid, note_val, content_val, datetime.datetime.utcnow().isoformat())
+            )
+            nid = cur.lastrowid
+            cur.execute(
+                "INSERT INTO note_history VALUES(NULL,?,?,?,?,?,?)",
+                (nid, current_user.id, note_val, content_val, fid, datetime.datetime.utcnow().isoformat())
+            )
+            con.commit()
+            sync_s3()
+            return redirect(f"/folder/{fid}")
+    return render_template_string(T_ADD, fid=fid, error=error, note=note_val, content=content_val)
 
 @app.route("/edit/<int:id>", methods=["GET","POST"])
 @login_required
@@ -323,11 +379,13 @@ def edit(id):
     ).fetchall()
 
     cur.execute(
-        "SELECT note_key,note_value,folder_id FROM notes WHERE id=? AND user_id=?",
+        "SELECT note_key,note_value,folder_id,updated_at FROM notes WHERE id=? AND user_id=?",
         (id, current_user.id),
     )
-    note = cur.fetchone()
-    if not note: return redirect("/")
+    row = cur.fetchone()
+    if not row: return redirect("/")
+    note = list(row)
+    note[3] = format_date(note[3])
 
     if request.method == "POST":
         if note[0] == request.form['note'] and note[1] == request.form['content'] and str(note[2]) == str(request.form.get('folder_id')):
@@ -351,6 +409,7 @@ def edit(id):
                 (id, current_user.id, request.form['note'], request.form['content'], request.form.get('folder_id'), now)
             )
             cur.connection.commit()
+            sync_s3()
             return redirect("/")
         else:
             return render_template_string(T_EDIT_CONFIRM, note=[request.form['note'], request.form['content'], request.form.get('folder_id')], id=id)
@@ -363,7 +422,7 @@ def edit(id):
 def history(nid):
     cur = db().cursor()
     cur.execute("SELECT id,note_key,updated_at FROM note_history WHERE note_id=? AND user_id=? ORDER BY updated_at DESC", (nid, current_user.id))
-    history = cur.fetchall()
+    history = [(h[0], h[1], format_date(h[2])) for h in cur.fetchall()]
     return render_template_string(T_HISTORY, history=history, nid=nid)
 
 @app.route("/history/restore/<int:hid>")
@@ -382,6 +441,7 @@ def restore_history(hid):
             (h[0], current_user.id, h[1], h[2], h[3], now)
         )
         con.commit()
+        sync_s3()
         return redirect(f"/edit/{h[0]}")
     return redirect("/")
 
@@ -414,6 +474,7 @@ def register():
             (request.form['username'], generate_password_hash(request.form['password']))
         )
         con.commit()
+        sync_s3()
         con.close()
         return redirect("/login")
     return render_template_string(T_REGISTER)
@@ -449,7 +510,6 @@ T_FOLDERS = STYLE + """
 <h4>Recently Edited</h4>
 <ul>
 {% for n in recent %}
-<li><a href=/edit/{{n[0]}}>{{n[1]}}</a></li>
 <li><a href=/edit/{{n[0]}}>{{n[1]}}</a> ({{n[2]}})</li>
 {% endfor %}
 </ul>
@@ -458,7 +518,6 @@ T_FOLDERS = STYLE + """
 T_ADD_FOLDER = STYLE + """
 <form method=post>
 <b>Folder name:</b> <input name=name><br>
-<button>Create</button> <a href=/>Cancel</a>
 <button>Create</button> <a href=/ class=cancel>Cancel</a>
 </form>
 """
@@ -466,15 +525,12 @@ T_ADD_FOLDER = STYLE + """
 T_ADD_SUBFOLDER = STYLE + """
 <form method=post>
 <b>Subfolder name:</b> <input name=name><br>
-<button>Create</button> <a href=/folder/{{pid}}>Cancel</a>
 <button>Create</button> <a href=/folder/{{pid}} class=cancel>Cancel</a>
 </form>
 """
 
 T_RENAME_FOLDER = STYLE + """
 <form method=post>
-<b>Rename Folder '{{f[0]}}' to:</b> <input name=name value="{{f[0]}}"><br>
-<button>Rename</button> <a href=/folder/{{fid}}>Cancel</a>
 <button>Rename</button> <a href=/folder/{{fid}} class=cancel>Cancel</a>
 </form>
 """
@@ -485,7 +541,6 @@ T_CHANGE_PASSWORD = STYLE + """
 <form method=post>
 <b>Old Password:</b> <input type=password name=old_password><br>
 <b>New Password:</b> <input type=password name=new_password><br>
-<button>Change</button> <a href=/>Cancel</a>
 <button>Change</button> <a href=/ class=cancel>Cancel</a>
 </form>
 """
@@ -493,7 +548,6 @@ T_CHANGE_PASSWORD = STYLE + """
 T_DELETE_NOTE = STYLE + """
 <h3>Delete Note</h3>
 <p>Are you sure you want to delete note <b>{{n[1]}}</b>?</p>
-<form method=post><button>Yes, Delete</button> <a href=javascript:history.back()>Cancel</a></form>
 <form method=post><button>Yes, Delete</button> <a href=javascript:history.back() class=cancel>Cancel</a></form>
 """
 
@@ -515,6 +569,7 @@ T_NOTES = STYLE + """
 <a href={% if folder[2] %}/folder/{{folder[2]}}{% else %}/{% endif %}>Back</a>
 | <a href=/folder/delete/{{folder[0]}} style="color:red;font-size:small">[Delete Folder]</a>
 | <a href=/folder/rename/{{folder[0]}} style="font-size:small">[Rename Folder]</a>
+| <a href=/add/{{folder[0]}}>Add Note</a> | <a href=/logout>Logout</a>
 
 <h4>Notes</h4>
 <ul>
@@ -524,7 +579,6 @@ T_NOTES = STYLE + """
 <li>No notes.</li>
 {% endfor %}
 </ul>
-<a href=/add/{{folder[0]}}>Add Note</a>
 
 <h4>Subfolders</h4>
 <ul>
@@ -538,10 +592,10 @@ T_NOTES = STYLE + """
 """
 
 T_ADD = STYLE + """
+{% if error %}<p style="color:red">{{error}}</p>{% endif %}
 <form method=post>
-<b>Note:</b> <input name=note><br>
-<b>Contents:</b> <textarea name=content rows=80 cols=120></textarea><br>
-<button>Add</button> <a href=/folder/{{fid}}>Cancel</a>
+<b>Note:</b> <input name=note value="{{note}}"><br>
+<b>Contents:</b> <textarea name=content rows=40 cols=120>{{content}}</textarea><br>
 <button>Add</button> <a href=/folder/{{fid}} class=cancel>Cancel</a>
 </form>
 """
@@ -551,18 +605,17 @@ T_EDIT = STYLE + """
 {% for b in breadcrumbs %}
  &gt; <a href=/folder/{{b[0]}}>{{b[1]}}</a>
 {% endfor %}
- | <a href=/history/{{id}}>History</a>
+ | <a href=/history/{{id}}>Edited: {{note[3]}}</a> | <a href=/note/delete/{{id}} style="color:red">[Delete]</a> | <a href=/logout>Logout</a>
 <form method=post>
 <b>Note:</b> <input name=note value='{{note[0]}}'><br>
 <b>Contents:</b><br>
-<textarea name=content rows=80 cols=120>{{note[1]}}</textarea><br>
+<textarea name=content rows=40 cols=120>{{note[1]}}</textarea><br>
 <b>Folder:</b> <select name=folder_id>
 {% for f in folders %}
 <option value='{{f[0]}}' {% if f[0]==note[2] %}selected{% endif %}>{{f[1]}}</option>
 {% endfor %}
 </select><br><br>
 
-<button>Commit</button> <a href=/>Cancel</a>
 <button>Commit</button> <a href=/ class=cancel>Cancel</a>
 </form>
 """
@@ -581,14 +634,13 @@ T_REGISTER = STYLE + """
 <form method=post>
 <input name=username placeholder='Username'><br>
 <input type=password name=password placeholder='Password'><br>
-<button>Create</button> <a href=/login>Cancel</a>
 <button>Create</button> <a href=/login class=cancel>Cancel</a>
 </form>
 """
 
 T_SEARCH = STYLE + """
 <h3>Search: {{q}}</h3>
-<a href=/>Back</a>
+<a href=/>Back</a> | <a href=/logout>Logout</a>
 <ul>
 {% for n in notes %}
 <li><a href=/edit/{{n[0]}}>{{n[1]}}</a></li>
@@ -601,13 +653,12 @@ T_SEARCH = STYLE + """
 T_DELETE_FOLDER = STYLE + """
 <h3>Delete Folder</h3>
 <p>Are you sure you want to delete folder <b>{{f[0]}}</b> and all its notes?</p>
-<form method=post><button>Yes, Delete</button> <a href=javascript:history.back()>Cancel</a></form>
 <form method=post><button>Yes, Delete</button> <a href=javascript:history.back() class=cancel>Cancel</a></form>
 """
 
 T_HISTORY = STYLE + """
 <h3>History for Note</h3>
-<a href=/edit/{{nid}}>Back to Edit</a>
+<a href=/edit/{{nid}}>Back to Edit</a> | <a href=/logout>Logout</a>
 <ul>
 {% for h in history %}
 <li>{{h[2]}} - {{h[1]}} <a href=/history/restore/{{h[0]}}>[Rollback to this]</a></li>
