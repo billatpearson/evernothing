@@ -58,6 +58,78 @@
 8.1 "Add note" should appear in th folder options. 
 9 S3 Buckets
 9.1 sycrhronize all tables with an Aws S3 bucket  "evernothing011126" uesername "billspeiser2" continue on synch falure with warning
+9.2 all AWS  data will be stored with AES-256 encryption.
+9.2.1 include decryiption function to retrieve data using JSON and JWT.
+9.2 all data will be stored with AES-256.
+9.3 Include instructions for generating and installing keys. 
+10.1 include instructions for restart of application in comments.
+10.2 include python command script for database backup in comments.
+10.3 include python command for database export in comments.
+10.3.1 Export file will contain user name, note key, note value as a comma separated text file in comments. 
+10.4 include instructions for running as a background process in comments. 
+13. Security
+13.1 logout function will expire all login_required data
+14. ADMINISTRATION
+14.1 System administrator.
+14.1.1 login ( 0. Include all prompt instructions as comment.
+0.1 Document instructions for installing all packages and runtimes required.
+0.2 Document instructions for accessing the web application.
+
+1. Python web application
+2. Python web application that can be run on android phones
+3. Web application will store notes in a database in a searchable key-value pair.
+3.2 Users can search on key or value
+3.2.1 Organize all key value pairs alphabetically by key.
+3.3 Requires username and password login
+3.3.0 If login fails display error message
+3.3.1 After login user is redirected to a list of folders
+3.3.2 If the user has zero folders the user will be able to create one.
+3.4 Users see recently edited notes with timestamp with the format "MM/dd/yyyy HH:MM"
+3.5 Per-user data isolation
+3.6 Display matching key or value
+3.6.1 Edit page with commit / cancel / choose folder select control/ delete with confirmation.
+3.6.2 Note page will provide bread crumb links to root, folder, subfolder at the top page. 
+3.6.2.1 If the note was edited, "Edited: MM/dd/yyyy HH:MM" which will link to a list of recently edits of this note notes.
+3.6.3 On commit edit page will display confirmation message. Yes,no buttons. If contents are identical do not prompt.
+3.7 Link to add note
+3.7.1 Note = single-line, Contents = multiline (120w 40h) text area
+3.7.2 Do not allow empty note or content or duplicate note name
+3.7.2 Add or cancel
+3.8 Subfolders
+3.8.1 Create subfolder
+3.8.1.1 List notes in folder above subfolder list
+3.8.1.1.1 List subfolders in folder
+3.8.1.2 Nest notes in subfolder
+3.8.1.3 Delete with warning
+3.8.1.4 rename folder
+3.8.1.5 add note
+3.9 Change password
+3.10 Cancel button on register page
+4. Security
+5. AWS integration
+6. Continuty
+6.1 All record changes will be logged and maintained in separate tables.
+6.2 User will be able to review changes in the log and have UI capabilities to roll back to previous change. Roll back dates should have the format of "MM/dd/yyyy HH:MM"
+
+7. UI
+7.01 All list and selects are sorted alphabetically.
+7.1 background color "black"
+7.2 text color "gold"
+7.3 Link colar "gold"
+7.4 Link hovor "red"
+7.5 Text Inputs borders "red"
+7.6 Text Inputs area borders "red"
+7.8 Select inputs "red"
+7.9 Delete link text "red"
+7.10 Cancel link 1px border "red"
+7.11 Input, text area, select horizontal spacing 2px
+7.20 All pages shall provide a log out option on the main menu
+8 Input position
+8.1 "Add note" should appear in th folder options. 
+9 S3 Buckets
+9.1 sycrhronize all tables with an Aws S3 bucket  "evernothing011126" uesername "billspeiser2" continue on synch falure with warning
+9.2 all AWS  data will be stored with AES-256 encryption.
+9.2.1 include decryiption function to retrieve data using JSON and JWT.
 9.2 all data will be stored with AES-256.
 9.3 Include instructions for generating and installing keys. 
 10.1 include instructions for restart of application in comments.
@@ -73,6 +145,20 @@
 14.1.2 administrator login user: "admin" password: "admin"
 14.1.3 admin can search and provided a list of current user.
 14.1.4 list will contain: user name, sorted alphabetically, number of notes in thier user space.
+14.1.5 clicking on user name link will allow admin to change users Dialogs "new username," new user name" and  "new password", with verication.  
+14.1.6 A Conformation dialog will bee displayed when the new user name will be commited.
+14.1.7 all notes and note folder hierarcy will remain attached to the user selected. 
+14.2 delete user
+14.2.1 list of user to be selected with name, number of folders, number of folders, and last accessed date. 
+15.2.2 provide UI to delete user, folder, and notes associated with the user.
+14.2.3 admin privileges.
+14.2.3.1 admin user can view all users in a list, user name, clear text password, and last accessed date.
+14.2.3.2 admin can modify users user name, clear text password, and last accessed date.
+16. Adnriod access.
+16.1 include instructions for accessing application as android phone in comments.)
+14.1.2 administrator login user: "admin" password: "admin"
+14.1.3 admin can search and provided a list of current user.
+14.1.4 list will contain: user name, sorted alphabetically, number of notes in thier user space.
 14.1.5 clicking on user name link will allow admin to change users Dialogs "new username," new user name" with verication. 
 14.1.6 A Conformation dialog will bee displayed when the new user name will be commited.
 14.1.7 all notes and note folder hierarcy will remain attached to the user selected. 
@@ -83,6 +169,7 @@
 16.1 include instructions for accessing application as android phone in comments.
 
 INSTALLATION (0.1):
+ pip install flask flask-login werkzeug boto3 cryptography itsdangerous pyjwt
 
 ACCESS (0.2):
  python evernothing.py
@@ -92,6 +179,7 @@ ANDROID ACCESS (16.1):
  1. Install Termux from F-Droid.
  2. pkg install python
  3. pip install flask flask-login werkzeug boto3 cryptography
+ 3. pip install flask flask-login werkzeug boto3 cryptography itsdangerous pyjwt
  4. python evernothing.py
  5. Open Chrome/Browser and go to http://127.0.0.1:5000
 
@@ -109,6 +197,23 @@ BACKUP:
  shutil.copy('evernothing.db','evernothing_backup.db')
  EOF
 
+DECRYPTION (9.2.1):
+ python - <<EOF
+ import sqlite3,json,base64,os,jwt
+ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+ with open('secret.key','rb') as f: key=f.read()
+ aes=AESGCM(key)
+ def dec(t):
+  try: return aes.decrypt(base64.b64decode(t)[:12], base64.b64decode(t)[12:], None).decode('utf-8')
+  except: return t
+ c=sqlite3.connect('evernothing.db');cur=c.cursor()
+ cur.execute('SELECT users.username,notes.note_key,notes.note_value FROM notes JOIN users ON users.id=notes.user_id')
+ data = [{'user':r[0],'key':dec(r[1]),'value':dec(r[2])} for r in cur.fetchall()]
+ print(json.dumps(data, indent=2))
+ print("\nJWT Token:\n" + jwt.encode({"data": data}, key.hex(), algorithm="HS256"))
+ c.close()
+ EOF
+
 EXPORT:
  python - <<EOF
  import sqlite3,csv
@@ -124,15 +229,50 @@ from flask import Flask, request, redirect, render_template_string, make_respons
 
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3, datetime, json
+from itsdangerous import URLSafeTimedSerializer
+import sqlite3, datetime, json, os, base64
 try:
     import boto3
 except ImportError:
     boto3 = None
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+except ImportError:
+    AESGCM = None
 
 app = Flask("EverNothing")
 app.secret_key = "Keystone1!"
 DB = "evernothing.db"
+
+# --- ENCRYPTION ---
+KEY_FILE = "secret.key"
+if AESGCM:
+    if os.path.exists(KEY_FILE):
+        with open(KEY_FILE, 'rb') as f: KEY = f.read()
+    else:
+        KEY = AESGCM.generate_key(bit_length=256)
+        with open(KEY_FILE, 'wb') as f: f.write(KEY)
+    aesgcm = AESGCM(KEY)
+
+    def encrypt(txt):
+        if not txt: return ""
+        try:
+            nonce = os.urandom(12)
+            return base64.b64encode(nonce + aesgcm.encrypt(nonce, txt.encode('utf-8'), None)).decode('utf-8')
+        except Exception as e:
+            print(f"Enc Error: {e}")
+            return txt
+
+    def decrypt(txt):
+        if not txt: return ""
+        try:
+            data = base64.b64decode(txt)
+            return aesgcm.decrypt(data[:12], data[12:], None).decode('utf-8')
+        except:
+            return txt
+else:
+    def encrypt(t): return t
+    def decrypt(t): return t
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
@@ -140,7 +280,6 @@ login_manager.login_view = "login"
 # --- DATABASE ---
 def db():
     return sqlite3.connect(DB, check_same_thread=False)
-
 def init_db():
     c = db(); cur = c.cursor()
     cur.executescript("""
@@ -148,7 +287,8 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE,
         password TEXT,
-        last_login TEXT
+        last_login TEXT,
+        email TEXT
     );
     CREATE TABLE IF NOT EXISTS folders(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,8 +313,10 @@ def init_db():
         folder_id INTEGER,
         updated_at TEXT
     );
-    """);
+    """)
     try: cur.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
+    except: pass
+    try: cur.execute("ALTER TABLE users ADD COLUMN email TEXT")
     except: pass
     c.commit()
 
@@ -208,7 +350,6 @@ def load_user(uid):
 
 def format_date(iso_str):
     try:
-        print( "formatting date")
         return datetime.datetime.fromisoformat(iso_str).strftime("%m/%d/%Y %H:%M")
     except:
         return iso_str 
@@ -227,7 +368,8 @@ def get_breadcrumbs(cur, fid, uid):
 @login_required
 def index():
     cur = db().cursor()
-    cur.execute    folders = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
+    cur.execute("SELECT id,name FROM folders WHERE user_id=? AND parent_id IS NULL", (current_user.id,))
+    folders = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
     
     cur.execute("SELECT id,note_key,updated_at FROM notes WHERE user_id=? ORDER BY updated_at DESC LIMIT 10", (current_user.id,))
     recent = [(r[0], decrypt(r[1]), format_date(r[2])) for r in cur.fetchall()]
@@ -514,14 +656,18 @@ def admin_dashboard():
 def admin_edit_user(uid):
     if not session.get('admin_logged_in'): return redirect("/admin")
     cur = db().cursor()
-    user = cur.execute("SELECT id, username FROM users WHERE id=?", (uid,)).fetchone()
+    user = cur.execute("SELECT id, username, last_login FROM users WHERE id=?", (uid,)).fetchone()
     if not user: return redirect("/admin/dashboard")
     
     if request.method == "POST":
         new_name = request.form.get('new_username')
+        new_pass = request.form.get('new_password')
+        new_last_login = request.form.get('last_login')
         if request.form.get('confirm') == 'yes':
             try:
-                cur.execute("UPDATE users SET username=? WHERE id=?", (new_name, uid))
+                cur.execute("UPDATE users SET username=?, last_login=? WHERE id=?", (new_name, new_last_login, uid))
+                if new_pass:
+                    cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(new_pass), uid))
                 cur.connection.commit()
                 sync_s3()
                 return redirect("/admin/dashboard")
@@ -529,7 +675,7 @@ def admin_edit_user(uid):
                 return render_template_string(T_ADMIN_EDIT_USER, user=user, error="Username already exists")
         else:
             # Verification dialog
-            return render_template_string(T_ADMIN_EDIT_USER_CONFIRM, user=user, new_name=new_name)
+            return render_template_string(T_ADMIN_EDIT_USER_CONFIRM, user=user, new_name=new_name, new_pass=new_pass, new_last_login=new_last_login)
 
     return render_template_string(T_ADMIN_EDIT_USER, user=user)
 
@@ -551,6 +697,32 @@ def admin_delete_user(uid):
         return redirect("/admin/dashboard")
 
     return render_template_string(T_ADMIN_DELETE_USER, user=user)
+
+# --- PASSWORD RESET ---
+def get_serializer():
+    return URLSafeTimedSerializer(app.secret_key)
+
+@app.route("/forgot_password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = request.form['email']
+        cur = db().cursor()
+        user = cur.execute("SELECT username FROM users WHERE email=?", (email,)).fetchone()
+        if user:
+            token = get_serializer().dumps(email, salt='recover-key')
+            link = request.url_root + "reset_password/" + token
+            print(f"--- PASSWORD RESET LINK ---\n{link}\n-----------------------------")
+        return render_template_string(T_FORGOT_PASSWORD, message="If that email exists, a reset link has been sent (check console).")
+    return render_template_string(T_FORGOT_PASSWORD)
+
+@app.route("/reset_password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    try: email = get_serializer().loads(token, salt='recover-key', max_age=3600)
+    except: return render_template_string(T_RESET_PASSWORD, error="Invalid or expired token.")
+    if request.method == "POST":
+        cur = db().cursor(); cur.execute("UPDATE users SET password=? WHERE email=?", (generate_password_hash(request.form['password']), email)); cur.connection.commit(); sync_s3()
+        return redirect("/login")
+    return render_template_string(T_RESET_PASSWORD)
 
 # --- LOGIN ---
 @app.route("/login", methods=["GET","POST"])
@@ -579,8 +751,8 @@ def register():
         con = db()
         cursor=con.cursor()
         cursor.execute(
-            "INSERT INTO users VALUES(NULL,?,?)",
-            (request.form['username'], generate_password_hash(request.form['password']))
+            "INSERT INTO users (username, password, email) VALUES(?,?,?)",
+            (request.form['username'], generate_password_hash(request.form['password']), request.form['email'])
         )
         con.commit()
         sync_s3()
@@ -747,13 +919,15 @@ T_LOGIN = STYLE + """
 <form method=post>
 <input name=username placeholder='Username'><br>
 <input type=password name=password placeholder='Password'><br>
-<button>Login</button> <a href=/register>Register</a>
+<button>Login</button> <a href=/register>Register</a> | <a href=/forgot_password>Forgot Password?</a>
 </form>
 """
 
 T_REGISTER = STYLE + """
+<h3>Register</h3>
 <form method=post>
 <input name=username placeholder='Username'><br>
+<input name=email placeholder='Email'><br>
 <input type=password name=password placeholder='Password'><br>
 <button>Create</button> <a href=/login class=cancel>Cancel</a>
 </form>
@@ -820,6 +994,7 @@ T_ADMIN_EDIT_USER = STYLE + """
 <form method=post>
 <b>Old Username:</b> <input value="{{user[1]}}" readonly style="border:none; background:black; color:gold"><br>
 <b>New Username:</b> <input name=new_username><br>
+<b>New Password:</b> <input name=new_password placeholder="Leave blank to keep"><br>
 <button>Update</button> <a href=/admin/dashboard class=cancel>Cancel</a>
 </form>
 """
@@ -828,8 +1003,10 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 <h3>Verify Change</h3>
 <a href=/logout>Logout</a>
 <p>Change username from <b>{{user[1]}}</b> to <b>{{new_name}}</b>?</p>
+{% if new_pass %}<p>Change password?</p>{% endif %}
 <form method=post>
 <input type=hidden name=new_username value="{{new_name}}">
+<input type=hidden name=new_password value="{{new_pass}}">
 <input type=hidden name=confirm value="yes">
 <button>Yes, Change</button> <a href=/admin/dashboard class=cancel>Cancel</a>
 </form>
@@ -842,6 +1019,24 @@ T_ADMIN_DELETE_USER = STYLE + """
 <p style="color:red">Warning: This will delete all notes and folders associated with this user.</p>
 <form method=post>
 <button>Yes, Delete User</button> <a href=/admin/dashboard class=cancel>Cancel</a>
+</form>
+"""
+
+T_FORGOT_PASSWORD = STYLE + """
+<h3>Forgot Password</h3>
+{% if message %}<p>{{message}}</p>{% endif %}
+<form method=post>
+<input name=email placeholder='Email' required><br>
+<button>Send Reset Link</button> <a href=/login class=cancel>Cancel</a>
+</form>
+"""
+
+T_RESET_PASSWORD = STYLE + """
+<h3>Reset Password</h3>
+{% if error %}<p style="color:red">{{error}}</p>{% endif %}
+<form method=post>
+<input type=password name=password placeholder='New Password' required><br>
+<button>Reset Password</button>
 </form>
 """
 
