@@ -1,80 +1,10 @@
 # (Full single-file EverNothing application with all prompt instructions included as comments)
 # ---------------------------------------------------------
 """
-0. Include all prompt instructions as comment.
+ 0. Include all prompt instructions as comment.
 0.1 Document instructions for installing all packages and runtimes required.
 0.2 Document instructions for accessing the web application.
-
-1. Python web application
-2. Python web application that can be run on android phones
-3. Web application will store notes in a database in a searchable key-value pair.
-3.2 Users can search on key or value
-3.2.1 Organize all key value pairs alphabetically by key.
-3.3 Requires username and password login
-3.3.0 If login fails display error message
-3.3.1 After login user is redirected to a list of folders
-3.3.2 If the user has zero folders the user will be able to create one.
-3.4 Users see recently edited notes with timestamp with the format "MM/dd/yyyy HH:MM"
-3.5 Per-user data isolation
-3.6 Display matching key or value
-3.6.1 Edit page with commit / cancel / choose folder select control/ delete with confirmation.
-3.6.2 Note page will provide bread crumb links to root, folder, subfolder at the top page. 
-3.6.2.1 If the note was edited, "Edited: MM/dd/yyyy HH:MM" which will link to a list of recently edits of this note notes.
-3.6.3 On commit edit page will display confirmation message. Yes,no buttons. If contents are identical do not prompt.
-3.7 Link to add note
-3.7.1 Note = single-line, Contents = multiline (120w 40h) text area
-3.7.2 Do not allow empty note or content or duplicate note name
-3.7.2 Add or cancel
-3.8 Subfolders
-3.8.1 Create subfolder
-3.8.1.1 List notes in folder above subfolder list
-3.8.1.1.1 List subfolders in folder
-3.8.1.2 Nest notes in subfolder
-3.8.1.3 Delete with warning
-3.8.1.4 rename folder
-3.8.1.5 add note
-3.9 Change password
-3.10 Cancel button on register page
-4. Security
-5. AWS integration
-6. Continuty
-6.1 All record changes will be logged and maintained in separate tables.
-6.2 User will be able to review changes in the log and have UI capabilities to roll back to previous change. Roll back dates should have the format of "MM/dd/yyyy HH:MM"
-
-7. UI
-7.01 All list and selects are sorted alphabetically.
-7.1 background color "black"
-7.2 text color "gold"
-7.3 Link colar "gold"
-7.4 Link hovor "red"
-7.5 Text Inputs borders "red"
-7.6 Text Inputs area borders "red"
-7.8 Select inputs "red"
-7.9 Delete link text "red"
-7.10 Cancel link 1px border "red"
-7.11 Input, text area, select horizontal spacing 2px
-7.20 All pages shall provide a log out option on the main menu
-8 Input position
-8.1 "Add note" should appear in th folder options. 
-9 S3 Buckets
-9.1 sycrhronize all tables with an Aws S3 bucket  "evernothing011126" uesername "billspeiser2" continue on synch falure with warning
-9.2 all AWS  data will be stored with AES-256 encryption.
-9.2.1 include decryiption function to retrieve data using JSON and JWT.
-9.2 all data will be stored with AES-256.
-9.3 Include instructions for generating and installing keys. 
-10.1 include instructions for restart of application in comments.
-10.2 include python command script for database backup in comments.
-10.3 include python command for database export in comments.
-10.3.1 Export file will contain user name, note key, note value as a comma separated text file in comments. 
-10.4 include instructions for running as a background process in comments. 
-13. Security
-13.1 logout function will expire all login_required data
-14. ADMINISTRATION
-14.1 System administrator.
-14.1.1 login ( 0. Include all prompt instructions as comment.
-0.1 Document instructions for installing all packages and runtimes required.
-0.2 Document instructions for accessing the web application.
-
+0.3 Document instructions for accessing the web application fron amazon playstore.
 1. Python web application
 2. Python web application that can be run on android phones
 3. Web application will store notes in a database in a searchable key-value pair.
@@ -167,7 +97,10 @@
 15.2.2 provide UI to delete user, folder, and notes associated with the user.
 16. Adnriod access
 16.1 include instructions for accessing application as android phone in comments.
-
+17. Deprocation.
+17.1 Do not indstall liraries that have been deprocated.
+17.2 Install libraries that are comptibile and safe.
+17.3 Provide a script to install all required libries n the comments.
 INSTALLATION (0.1):
  pip install flask flask-login werkzeug boto3 cryptography itsdangerous pyjwt
 
