@@ -1,0 +1,99 @@
+2026-02-26 21:34:41.735 [error] Error: Unable to read file 'c:\Users\bills\.vscode\extensions\ms-python.vscode-pylance-2022.11.30\package.json' (Error: Unable to resolve nonexistent file 'c:\Users\bills\.vscode\extensions\ms-python.vscode-pylance-2022.11.30\package.json')
+    at Zh.G (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:90083)
+    at Zh.F (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89908)
+    at async Zh.C (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89280)
+    at async ka.t (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:45970)
+    at async ka.scanExtension (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:44477)
+    at async Promise.all (index 54)
+    at async ka.q (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:42903)
+    at async $f.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:35763)
+    at async Jh.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:69871)
+    at async o7.H (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:59685)
+    at async o7.r (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:57580)
+2026-02-26 21:34:41.735 [error] Error: Unable to read file 'c:\Users\bills\.vscode\extensions\ms-vscode-remote.remote-containers-0.262.3\package.json' (Error: Unable to resolve nonexistent file 'c:\Users\bills\.vscode\extensions\ms-vscode-remote.remote-containers-0.262.3\package.json')
+    at Zh.G (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:90083)
+    at Zh.F (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89908)
+    at async Zh.C (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89280)
+    at async ka.t (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:45970)
+    at async ka.scanExtension (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:44477)
+    at async Promise.all (index 63)
+    at async ka.q (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:42903)
+    at async $f.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:35763)
+    at async Jh.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:69871)
+    at async o7.H (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:59685)
+    at async o7.r (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:57580)
+2026-02-26 21:34:41.754 [error] Error: Unable to read file 'c:\Users\bills\.vscode\extensions\ms-python.vscode-pylance-2022.11.30\package.json' (Error: Unable to resolve nonexistent file 'c:\Users\bills\.vscode\extensions\ms-python.vscode-pylance-2022.11.30\package.json')
+    at Zh.G (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:90083)
+    at Zh.F (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89908)
+    at async Zh.C (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89280)
+    at async ka.t (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:45970)
+    at async ka.scanExtension (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:44477)
+    at async Promise.all (index 54)
+    at async ka.q (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:42903)
+    at async $f.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:35763)
+    at async Jh.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:69871)
+    at async Jh.J (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:76888)
+    at async Jh.cleanUp (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:69257)
+    at async Gh.cleanUp (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:63674)
+2026-02-26 21:34:41.754 [error] Error: Unable to read file 'c:\Users\bills\.vscode\extensions\ms-vscode-remote.remote-containers-0.262.3\package.json' (Error: Unable to resolve nonexistent file 'c:\Users\bills\.vscode\extensions\ms-vscode-remote.remote-containers-0.262.3\package.json')
+    at Zh.G (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:90083)
+    at Zh.F (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89908)
+    at async Zh.C (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89280)
+    at async ka.t (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:45970)
+    at async ka.scanExtension (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:44477)
+    at async Promise.all (index 63)
+    at async ka.q (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:42903)
+    at async $f.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:35763)
+    at async Jh.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:69871)
+    at async Jh.J (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:76888)
+    at async Jh.cleanUp (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:69257)
+    at async Gh.cleanUp (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:63674)
+2026-02-26 21:34:41.774 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:41.876 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:41.877 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:41.904 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:41.989 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:41.990 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:42.268 [info] Deleted marked for removal extension from disk ms-vscode.vscode-typescript-next c:\Users\bills\.vscode\extensions\ms-vscode.vscode-typescript-next-6.0.20260225
+2026-02-26 21:34:42.276 [info] Deleted marked for removal extension from disk github.copilot-chat c:\Users\bills\.vscode\extensions\github.copilot-chat-0.37.8
+2026-02-26 21:34:42.321 [info] Marked extension as removed amazonwebservices.aws-toolkit-vscode-3.96.0
+2026-02-26 21:34:42.321 [info] Marked extension as removed github.copilot-chat-0.37.8
+2026-02-26 21:34:42.323 [info] Deleted marked for removal extension from disk amazonwebservices.aws-toolkit-vscode c:\Users\bills\.vscode\extensions\amazonwebservices.aws-toolkit-vscode-3.96.0
+2026-02-26 21:34:42.381 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:42.450 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:42.537 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:42.816 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:42.831 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:42.907 [error] Error: Unable to read file 'c:\Users\bills\.vscode\extensions\ms-python.vscode-pylance-2022.11.30\package.json' (Error: Unable to resolve nonexistent file 'c:\Users\bills\.vscode\extensions\ms-python.vscode-pylance-2022.11.30\package.json')
+    at Zh.G (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:90083)
+    at Zh.F (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89908)
+    at async Zh.C (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89280)
+    at async ka.t (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:45970)
+    at async ka.scanExtension (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:44477)
+    at async Promise.all (index 52)
+    at async ka.q (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:42903)
+    at async $f.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:35763)
+    at async Jh.I (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:76419)
+    at async Jh.cleanUp (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:69272)
+    at async Gh.cleanUp (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:63674)
+2026-02-26 21:34:42.907 [error] Error: Unable to read file 'c:\Users\bills\.vscode\extensions\ms-vscode-remote.remote-containers-0.262.3\package.json' (Error: Unable to resolve nonexistent file 'c:\Users\bills\.vscode\extensions\ms-vscode-remote.remote-containers-0.262.3\package.json')
+    at Zh.G (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:90083)
+    at Zh.F (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89908)
+    at async Zh.C (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:89280)
+    at async ka.t (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:45970)
+    at async ka.scanExtension (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:44477)
+    at async Promise.all (index 61)
+    at async ka.q (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:42903)
+    at async $f.scanAllUserExtensions (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:35763)
+    at async Jh.I (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:76419)
+    at async Jh.cleanUp (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:69272)
+    at async Gh.cleanUp (file:///c:/tools/vscode/072586267e/resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js:74:63674)
+2026-02-26 21:34:42.944 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:42.958 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:43.093 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:43.193 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:43.424 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:43.702 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:43.841 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:43.857 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:44.603 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.

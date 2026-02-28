@@ -1,0 +1,7 @@
+2026-02-26 21:35:15.703 [info] [test-by-project] Activating project-based testing mode
+2026-02-26 21:35:15.703 [info] Native locator: Refresh started
+2026-02-26 21:35:15.704 [info] [test-by-project] Subscribed to Python project changes
+2026-02-26 21:35:16.178 [info] > conda info --json
+2026-02-26 21:35:17.925 [info] Native locator: Refresh finished in 2210 ms
+2026-02-26 21:35:17.968 [info] Active interpreter [global]:  C:\Users\bills\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-02-26 21:35:20.372 [info] Starting Pylance language server.

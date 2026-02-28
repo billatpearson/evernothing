@@ -1,0 +1,135 @@
+Starting background process...
+Background process started with PID 33588
+(node:33588) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+Ignore file not found: C:\tools\vscode\.geminiignore, continue without it.
+Ignore file not found: C:\tools\vscode\.aiexclude, continue without it.
+Ignore file not found: C:\tools\vscode\.geminiignore, continue without it.
+Ignore file not found: C:\tools\vscode\.aiexclude, continue without it.
+Ignore file not found: C:\tools\vscode\.geminiignore, continue without it.
+Ignore file not found: C:\tools\vscode\.aiexclude, continue without it.
+Ignore file not found: C:\tools\vscode\.geminiignore, continue without it.
+Ignore file not found: C:\tools\vscode\.aiexclude, continue without it.
+Hook registry initialized with 0 hook entries
+Hook system initialized successfully
+[STARTUP] StartupProfiler.flush() called with 1 phases
+[STARTUP] Recording metric for phase: discover_tools duration: 2096.2505
+[INFO] 2026-02-26 21:35:02.188 PM -- [Config] Using CCPA Auth:
+Loaded cached credentials.
+Experiments loaded {
+  experimentIds: [
+    106018683,
+    105979536,
+    105979558,
+    106015335,
+    105979579,
+    105842106,
+    105995634,
+    105640665,
+    104638466,
+    105704191,
+    101868197,
+    104817729,
+    105695344,
+    106012640,
+    104913215,
+    105821930,
+    104922093,
+    103012598,
+    105898507,
+    105959758,
+    105856899,
+    102617194,
+    105098746,
+    105903990,
+    105757908,
+    104892493,
+    105723762,
+    105822884,
+    105785684,
+    105721273,
+    105897325,
+    105658071,
+    105864343,
+    106054841,
+    105620019,
+    105935281,
+    106019377,
+    106029321,
+    104739378,
+    105887313,
+    106045721,
+    106032303,
+    106033846,
+    105979531,
+    105979553,
+    106015328,
+    105842103,
+    105640661,
+    104638459,
+    105704187,
+    101551624,
+    104673683,
+    105695346,
+    104913210,
+    105821928,
+    104922082,
+    103012592,
+    105885093,
+    105959756,
+    102519585,
+    105098743,
+    105903988,
+    104892490,
+    105011762,
+    105822881,
+    105721268,
+    105895316,
+    105658068,
+    105863625,
+    105620012,
+    105935274,
+    106019370,
+    106029319,
+    105887311,
+    106045719,
+    106032301,
+    106033844,
+    106018680
+  ],
+  flags: [
+    {
+      flagId: '45740197',
+      floatValue: 0.7
+    },
+    {
+      flagId: '45740199',
+      stringValue: ''
+    },
+    {
+      flagId: '45740200',
+      stringValue: ''
+    },
+    {
+      flagId: '45743869',
+      boolValue: true
+    },
+    {
+      flagId: '45750526',
+      boolValue: true
+    },
+    {
+      flagId: '45750527',
+      intValue: '90'
+    },
+    {
+      flagId: '45752213',
+      boolValue: false
+    }
+  ]
+}
+[INFO] 2026-02-26 21:35:03.173 PM -- [Config] GOOGLE_CLOUD_PROJECT: undefined
+[INFO] 2026-02-26 21:35:03.398 PM -- Using InMemoryTaskStore
+[INFO] 2026-02-26 21:35:03.405 PM -- [CoreAgent] Agent Server started on http://localhost:50819
+[INFO] 2026-02-26 21:35:03.405 PM -- [CoreAgent] Agent Card: http://localhost:50819/.well-known/agent-card.json
+[INFO] 2026-02-26 21:35:03.405 PM -- [CoreAgent] Press Ctrl+C to stop the server

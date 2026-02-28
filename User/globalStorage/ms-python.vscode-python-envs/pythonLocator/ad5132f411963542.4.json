@@ -1,0 +1,36 @@
+{
+  "environment": {
+    "executable": "C:\\Users\\bills\\AppData\\Local\\Python\\pythoncore-3.12-64\\python.exe",
+    "prefix": "C:\\Users\\bills\\AppData\\Local\\Python\\pythoncore-3.12-64",
+    "version": "3.12.10.final.0",
+    "is64Bit": true,
+    "symlinks": [
+      "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe",
+      "C:\\Users\\bills\\AppData\\Local\\Python\\pythoncore-3.12-64\\python.exe"
+    ]
+  },
+  "symlinks": [
+    [
+      "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe",
+      {
+        "secs_since_epoch": 1769313943,
+        "nanos_since_epoch": 440415800
+      },
+      {
+        "secs_since_epoch": 1769313943,
+        "nanos_since_epoch": 440415800
+      }
+    ],
+    [
+      "C:\\Users\\bills\\AppData\\Local\\Python\\pythoncore-3.12-64\\python.exe",
+      {
+        "secs_since_epoch": 1769316544,
+        "nanos_since_epoch": 386058700
+      },
+      {
+        "secs_since_epoch": 1769316544,
+        "nanos_since_epoch": 385057800
+      }
+    ]
+  ]
+}

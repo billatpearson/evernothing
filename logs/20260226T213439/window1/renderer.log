@@ -1,0 +1,147 @@
+2026-02-26 21:34:41.313 [info] Started local extension host with pid 28824.
+2026-02-26 21:34:41.532 [warning] [aws-toolkit-vscode]: Couldn't find message for key AWS.command.apig.copyUrl.
+2026-02-26 21:34:41.639 [info] [DanielSanMedium.dscodegpt]: Command `workbench.action.restartExtensionHost` already registered
+2026-02-26 21:34:41.651 [info] [DanielSanMedium.dscodegpt]: Menu item references the same command as default and alt-command
+2026-02-26 21:34:41.654 [info] [googlecloudtools.cloudcode]: Menu item references the same command as default and alt-command
+2026-02-26 21:34:41.654 [info] [googlecloudtools.cloudcode]: Menu item references the same command as default and alt-command
+2026-02-26 21:34:41.669 [warning] [redhat.vscode-yaml]: Cannot register 'redhat.telemetry.enabled'. This property is already registered.
+2026-02-26 21:34:42.440 [info] MCP Registry configured: https://api.mcp.github.com
+2026-02-26 21:34:42.488 [info] Settings Sync: Account status changed from uninitialized to unavailable
+2026-02-26 21:34:42.660 [error] Attempting to register step with id googlecloudtools.cloudcode#apigee-create-specs-2#integrate-with-hub-provisioned twice. Second is dropped.: Error: Attempting to register step with id googlecloudtools.cloudcode#apigee-create-specs-2#integrate-with-hub-provisioned twice. Second is dropped.
+    at vscode-file://vscode-app/c:/tools/vscode/072586267e/resources/app/out/vs/workbench/workbench.desktop.main.js:3439:22532
+    at Array.forEach (<anonymous>)
+    at zDt._registerWalkthrough (vscode-file://vscode-app/c:/tools/vscode/072586267e/resources/app/out/vs/workbench/workbench.desktop.main.js:3439:22494)
+    at vscode-file://vscode-app/c:/tools/vscode/072586267e/resources/app/out/vs/workbench/workbench.desktop.main.js:3439:20213
+    at async Promise.all (index 3)
+    at async zDt.Y (vscode-file://vscode-app/c:/tools/vscode/072586267e/resources/app/out/vs/workbench/workbench.desktop.main.js:3439:18088)
+2026-02-26 21:34:43.437 [error] [Extension Host] (node:28824) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+2026-02-26 21:34:43.438 [error] [Extension Host] (node:28824) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+2026-02-26 21:34:44.210 [info] [perf] Render performance baseline is 24ms
+2026-02-26 21:34:44.536 [error] CodeExpectedError: No default agent registered
+    at Mpt.activateDefaultAgent (vscode-file://vscode-app/c:/tools/vscode/072586267e/resources/app/out/vs/workbench/workbench.desktop.main.js:2475:21456)
+2026-02-26 21:34:47.693 [info] Extension host (LocalProcess pid: 28824) is unresponsive.
+2026-02-26 21:34:49.797 [info] UNRESPONSIVE extension host: starting to profile NOW
+2026-02-26 21:34:50.524 [info] Extension host (LocalProcess pid: 28824) is responsive.
+2026-02-26 21:34:50.524 [info] UNRESPONSIVE extension host: received responsive event and cancelling profiling session
+2026-02-26 21:34:50.599 [error] An unknown error occurred. Please consult the log for more details.
+2026-02-26 21:34:50.699 [error] 
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 20274 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:2800676)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 30171 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:4174163)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 48906 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:5681439)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 48847 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:5668353)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 79244 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:5:1385032)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 65509 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:5:104956)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 74265 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:5:904573)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:264)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:259)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:10)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:1:1)
+	 at Module._compile (node:internal/modules/cjs/loader:1663:37)
+	 at Module._extensions..js (node:internal/modules/cjs/loader:1813:37)
+	 at Module.load (node:internal/modules/cjs/loader:1439:33)
+	 at Module._load (node:internal/modules/cjs/loader:1176:24)
+	 at c._load (node:electron/js2c/node_init:2:17974)
+	 at e._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:405:5866)
+	 at t._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:223:22671)
+	 at s._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:215:24596)
+	 at traceSync (node:diagnostics_channel:326:12)
+	 at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+	 at Module.require (node:internal/modules/cjs/loader:1462:36)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/github.copilot-chat-0.37.9/dist/extension.js:382:36155)
+	 at require (node:internal/modules/helpers:146:19)
+	 at Cb (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:254:868)
+2026-02-26 21:34:50.699 [error] 
+	 at spawn
+	 at spawnSync (node:internal/child_process:1105:19)
+	 at spawnSync (node:child_process:890:19)
+	 at execSync (node:child_process:1012:18)
+	 at (anonymous) (node:electron/js2c/node_init:2:17289)
+	 at t.getCodepage (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:5:282476)
+	 at 12687 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:2021386)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 24056 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:3008282)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 31594 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:4266682)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 63352 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:6508986)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 42183 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:5118475)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at 74265 (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:5:904573)
+	 at __webpack_require__ (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:8:1740729)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:264)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:259)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:2:10)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/ms-windows-ai-studio.windows-ai-studio-0.30.1-win32-x64/dist/extension.js:1:1)
+	 at Module._compile (node:internal/modules/cjs/loader:1663:37)
+	 at Module._extensions..js (node:internal/modules/cjs/loader:1813:37)
+	 at Module.load (node:internal/modules/cjs/loader:1439:33)
+	 at Module._load (node:internal/modules/cjs/loader:1176:24)
+	 at c._load (node:electron/js2c/node_init:2:17974)
+	 at e._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:405:5866)
+	 at t._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:223:22671)
+	 at s._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:215:24596)
+	 at traceSync (node:diagnostics_channel:326:12)
+	 at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+	 at Module.require (node:internal/modules/cjs/loader:1462:36)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/github.copilot-chat-0.37.9/dist/extension.js:382:36155)
+	 at require (node:internal/modules/helpers:146:19)
+	 at Cb (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:254:868)
+2026-02-26 21:34:50.700 [error] 
+	 at internalModuleStat
+	 at u.internalModuleStat (node:electron/js2c/node_init:2:16645)
+	 at findParentPackageJSON (node:internal/modules/package_json_reader:142:31)
+	 at getNearestParentPackageJSON (node:internal/modules/package_json_reader:178:37)
+	 at trySelf (node:internal/modules/cjs/loader:603:17)
+	 at Module._resolveFilename (node:internal/modules/cjs/loader:1307:35)
+	 at n._resolveFilename (node:electron/js2c/utility_init:2:16327)
+	 at t._resolveFilename (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:223:22929)
+	 at defaultResolveImpl (node:internal/modules/cjs/loader:1018:30)
+	 at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1013:32)
+	 at Module._load (node:internal/modules/cjs/loader:1176:24)
+	 at c._load (node:electron/js2c/node_init:2:17974)
+	 at e._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:405:5866)
+	 at t._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:223:22671)
+	 at s._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:215:24596)
+	 at traceSync (node:diagnostics_channel:326:12)
+	 at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+	 at Module.require (node:internal/modules/cjs/loader:1462:36)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/github.copilot-chat-0.37.9/dist/extension.js:382:36155)
+	 at require (node:internal/modules/helpers:146:19)
+	 at Cb (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:254:868)
+2026-02-26 21:34:50.700 [error] 
+	 at wrapSafe (node:internal/modules/cjs/loader:1603:18)
+	 at Module._compile (node:internal/modules/cjs/loader:1663:37)
+	 at Module._extensions..js (node:internal/modules/cjs/loader:1813:37)
+	 at Module.load (node:internal/modules/cjs/loader:1439:33)
+	 at Module._load (node:internal/modules/cjs/loader:1176:24)
+	 at c._load (node:electron/js2c/node_init:2:17974)
+	 at e._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:405:5866)
+	 at t._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:223:22671)
+	 at s._load (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:215:24596)
+	 at traceSync (node:diagnostics_channel:326:12)
+	 at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+	 at Module.require (node:internal/modules/cjs/loader:1462:36)
+	 at (anonymous) (file:///c:/Users/bills/.vscode/extensions/github.copilot-chat-0.37.9/dist/extension.js:382:36155)
+	 at require (node:internal/modules/helpers:146:19)
+	 at Cb (file:///c:/tools/vscode/072586267e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:254:868)
+2026-02-26 21:34:50.780 [warning] UNRESPONSIVE extension host: 'ms-windows-ai-studio.windows-ai-studio' took 59.609438389509% of 434.92ms, saved PROFILE here: 'file:///c%3A/Users/bills/AppData/Local/Temp/exthost-917795.cpuprofile'
+2026-02-26 21:34:57.873 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:34:58.589 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:34:58.590 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:34:59.180 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:34:59.180 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:34:59.184 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:34:59.185 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:34:59.185 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:35:03.408 [error] [Extension Host] callClient: client not ready
+2026-02-26 21:36:20.014 [error] An unknown error occurred. Please consult the log for more details.

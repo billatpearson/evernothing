@@ -1,0 +1,6 @@
+2026-02-26 21:34:39.923 [error] Error: Error mutex already exists
+    at id.S (file:///C:/tools/vscode/072586267e/resources/app/out/main.js:145:18925)
+2026-02-26 21:34:39.950 [info] update#setState idle
+2026-02-26 21:35:09.995 [info] update#setState checking for updates
+2026-02-26 21:35:10.120 [info] update#setState idle
+2026-02-26 21:40:59.599 [info] Extension host with pid 28824 exited with code: 0, signal: unknown.
