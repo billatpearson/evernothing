@@ -5,6 +5,7 @@
 0.1 Document instructions for installing all packages and runtimes required.
 0.2 Document instructions for accessing the web application.
 0.3 Document instructions for accessing the web application fron amazon playstore.
+0.4 build date will be appear as a footer to the all pages with the format (MM/DD/YY:HH:MM)
 1. Python web application
 2. Python web application that can be run on android phones
 3. Web application will store notes in a database in a searchable key-value pair.
@@ -95,13 +96,13 @@
 14.2 delete user
 14.2.1 list of user to be selected with name, number of folders, number of folders, and last accessed date. 
 15.2.2 provide UI to delete user, folder, and notes associated with the user.
-16. Adnriod access
+16. Android access
 16.1 include instructions for accessing application as android phone in comments.
-17. Deprocation.
-17.1 Do not install liraries that have been deprocated.
+17. Deprecation.
+17.1 Do not install libraries that have been deprecated.
 17.2 Install libraries that are comptibile and safe.
-17.3 Provide a script to install all required libries n the comments.
-18. change control
+17.3 Provide a script to install all required libries in the comments.
+18. Change Control
 18.1 All user changes will be logged in the following format:
 18.2 JSON USERID current record and updated record. 
 18.3 Store changes in a table named "note_history" with the following fields:
@@ -196,6 +197,11 @@ except ImportError:
 app = Flask("EverNothing")
 app.secret_key = "Keystone1!"
 DB = "evernothing.db"
+BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
+
+@app.context_processor
+def inject_build_date():
+    return dict(build_date=BUILD_DATE)
 
 # --- ENCRYPTION ---
 KEY_FILE = "secret.key"
@@ -749,7 +755,17 @@ a { color: gold; text-decoration: none; }
 a:hover { color: red; text-decoration: underline; }
 input, textarea, select, button { background-color: #111; color: gold; border: 1px solid red; margin: 2px; }
 .cancel { border: 1px solid red; }
+.footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background-color: black;
+    color: gold;
+    text-align: center;
+}
 </style>
+<div class="footer">{{ build_date }}</div>
 """
 
 T_FOLDERS = STYLE + """
