@@ -1,0 +1,192 @@
+2026-02-26 21:35:15.679 [info] Python-envs extension version: 1.20.1
+2026-02-26 21:35:15.679 [info] 
+=== Python Envs Configuration Levels ===
+2026-02-26 21:35:15.679 [info] {
+  "section": "Python Envs Configuration Levels",
+  "defaultEnvManager": {
+    "workspaceFolderValue": "undefined",
+    "workspaceValue": "undefined",
+    "globalValue": "undefined",
+    "defaultValue": "ms-python.python:venv"
+  },
+  "defaultPackageManager": {
+    "workspaceFolderValue": "undefined",
+    "workspaceValue": "undefined",
+    "globalValue": "undefined",
+    "defaultValue": "ms-python.python:pip"
+  }
+}
+2026-02-26 21:35:15.679 [info] [pet] Starting Python Locator c:\Users\bills\.vscode\extensions\ms-python.vscode-python-envs-1.20.1-win32-x64\python-env-tools\bin\pet.exe server
+2026-02-26 21:35:15.715 [warning] No workspace folders found for relative search path: ./**/.venv
+2026-02-26 21:35:15.716 [info] [pet] configure: Sending configuration update: {"workspaceDirectories":[],"environmentDirectories":[],"pipenvExecutable":"pipenv","poetryExecutable":"poetry","cacheDirectory":"c:\\source\\ai\\evernothing\\evernothing\\User\\globalStorage\\ms-python.vscode-python-envs\\pythonLocator"}
+2026-02-26 21:35:16.153 [error] [pet] [2m   0.474457900s[0m [33m WARN[0m [2mpet_windows_registry::environments[0m[2m:[0m Failed to open HKLM\Software\Python, Os { code: 2, kind: NotFound, message: "The system cannot find the file specified." }
+
+2026-02-26 21:35:16.214 [info] Discovered env: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:16.215 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.12-64\python.exe
+2026-02-26 21:35:16.215 [info] Discovered env: C:\Users\bills\AppData\Local\Programs\Python\Python313\python.exe
+2026-02-26 21:35:16.215 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-02-26 21:35:16.216 [info] Discovered env: C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:16.216 [info] Discovered env: C:\tools\Python36\python.exe
+2026-02-26 21:35:16.217 [info] Discovered env: C:\Python39\python.exe
+2026-02-26 21:35:16.217 [info] Discovered env: \\?\C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:16.435 [error] [pet] [2m   0.760414800s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   0.760467800s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__"
+
+2026-02-26 21:35:16.696 [error] [pet] [2m   1.007704700s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   1.007738000s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__"
+
+2026-02-26 21:35:16.844 [info] Resolved environment during PET refresh: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:16.898 [error] [pet] [2m   1.224155400s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   1.224188500s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__"
+
+2026-02-26 21:35:17.143 [error] [pet] [2m   1.397070300s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   1.397120000s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__"
+
+2026-02-26 21:35:17.162 [warning] No workspace folders found for relative search path: ./**/.venv
+2026-02-26 21:35:17.184 [info] [pet] Telemetry:  {"event":"RefreshPerformance","data":{"refreshPerformance":{"total":923,"breakdown":{"GlobalVirtualEnvs":23,"Locators":323,"Path":923,"Workspaces":0},"locators":{"Conda":316,"PipEnv":6,"Pixi":0,"Poetry":5,"PyEnv":2,"Uv":0,"Venv":0,"VirtualEnv":0,"VirtualEnvWrapper":0,"WinPython":143,"WindowsRegistry":25,"WindowsStore":6}}}}
+2026-02-26 21:35:17.207 [error] [pet] [2m   1.513191900s[0m [33m WARN[0m [2mpet_windows_registry::environments[0m[2m:[0m Failed to open HKLM\Software\Python, Os { code: 2, kind: NotFound, message: "The system cannot find the file specified." }
+
+2026-02-26 21:35:17.208 [info] Discovered env: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:17.208 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.12-64\python.exe
+2026-02-26 21:35:17.208 [info] Discovered env: C:\Users\bills\AppData\Local\Programs\Python\Python313\python.exe
+2026-02-26 21:35:17.212 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-02-26 21:35:17.272 [error] [pet] [2m   1.585915400s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   1.586009400s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__"
+
+2026-02-26 21:35:17.273 [info] Discovered env: C:\tools\Python36\python.exe
+2026-02-26 21:35:17.273 [info] Discovered env: C:\Python39\python.exe
+2026-02-26 21:35:17.274 [info] Discovered env: \\?\C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:17.309 [info] Discovered env: C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:17.311 [error] [pet] [2m   1.636555400s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   1.636593100s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__"
+
+2026-02-26 21:35:17.311 [info] Resolved environment during PET refresh: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:17.367 [error] [pet] [2m   1.692909800s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   1.692955200s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__"
+
+2026-02-26 21:35:17.521 [error] [pet] [2m   1.740265800s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   1.740314300s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__"
+
+2026-02-26 21:35:17.755 [warning] No workspace folders found for relative search path: ./**/.venv
+2026-02-26 21:35:17.804 [info] [pet] Telemetry:  {"event":"RefreshPerformance","data":{"refreshPerformance":{"total":386,"breakdown":{"GlobalVirtualEnvs":106,"Locators":385,"Path":227,"Workspaces":0},"locators":{"Conda":382,"PipEnv":27,"Pixi":0,"Poetry":4,"PyEnv":2,"Uv":0,"Venv":0,"VirtualEnv":0,"VirtualEnvWrapper":0,"WinPython":157,"WindowsRegistry":30,"WindowsStore":3}}}}
+2026-02-26 21:35:17.881 [error] [pet] [2m   2.152808900s[0m [33m WARN[0m [2mpet_windows_registry::environments[0m[2m:[0m Failed to open HKLM\Software\Python, Os { code: 2, kind: NotFound, message: "The system cannot find the file specified." }
+
+2026-02-26 21:35:17.884 [info] Discovered env: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:17.884 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.12-64\python.exe
+2026-02-26 21:35:17.884 [info] Discovered env: C:\Users\bills\AppData\Local\Programs\Python\Python313\python.exe
+2026-02-26 21:35:17.885 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-02-26 21:35:17.885 [info] Found venv environment: venv (3.12.10)
+2026-02-26 21:35:17.885 [info] Discovered env: C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:17.885 [info] Discovered env: C:\tools\Python36\python.exe
+2026-02-26 21:35:17.886 [info] Discovered env: C:\Python39\python.exe
+2026-02-26 21:35:17.886 [info] Discovered env: \\?\C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:17.886 [info] Found venv environment: venv (3.12.10)
+2026-02-26 21:35:17.946 [error] [pet] [2m   2.221989600s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.235600700s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__"
+
+2026-02-26 21:35:17.954 [error] [pet] [2m   2.278965600s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.279004500s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__"
+
+2026-02-26 21:35:17.963 [info] Resolved environment during PET refresh: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:17.964 [info] Found venv environment: venv (3.12.10)
+2026-02-26 21:35:17.965 [info] Found venv environment: venv (3.12.10)
+2026-02-26 21:35:17.977 [info] Python API: Changed environment from undefined to Python 3.14.2 for: global
+2026-02-26 21:35:17.977 [info] Internal: Changed environment from undefined to Python 3.14.2 for: global
+2026-02-26 21:35:17.994 [error] [pet] [2m   2.319532900s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.319567200s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__"
+
+2026-02-26 21:35:18.023 [error] [pet] [2m   2.348544000s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.348587700s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__"
+
+2026-02-26 21:35:18.119 [warning] No workspace folders found for relative search path: ./**/.venv
+2026-02-26 21:35:18.120 [info] Poetry not found, turning off poetry features.
+2026-02-26 21:35:18.120 [info] [pet] Telemetry:  {"event":"RefreshPerformance","data":{"refreshPerformance":{"total":292,"breakdown":{"GlobalVirtualEnvs":24,"Locators":291,"Path":194,"Workspaces":0},"locators":{"Conda":291,"PipEnv":7,"Pixi":0,"Poetry":6,"PyEnv":2,"Uv":0,"Venv":0,"VirtualEnv":0,"VirtualEnvWrapper":0,"WinPython":137,"WindowsRegistry":30,"WindowsStore":2}}}}
+2026-02-26 21:35:18.121 [error] [pet] [2m   2.446700800s[0m [33m WARN[0m [2mpet_windows_registry::environments[0m[2m:[0m Failed to open HKLM\Software\Python, Os { code: 2, kind: NotFound, message: "The system cannot find the file specified." }
+
+2026-02-26 21:35:18.124 [info] Discovered env: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:18.127 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.12-64\python.exe
+2026-02-26 21:35:18.131 [info] Discovered env: C:\Users\bills\AppData\Local\Programs\Python\Python313\python.exe
+2026-02-26 21:35:18.136 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-02-26 21:35:18.139 [info] Discovered env: C:\tools\Python36\python.exe
+2026-02-26 21:35:18.141 [info] Discovered env: C:\Python39\python.exe
+2026-02-26 21:35:18.144 [info] Discovered env: C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:18.146 [info] Resolved environment during PET refresh: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:18.154 [info] Discovered env: \\?\C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:18.187 [error] [pet] [2m   2.512628700s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.512685700s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__"
+
+2026-02-26 21:35:18.232 [error] [pet] [2m   2.553814300s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.553855700s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__"
+
+2026-02-26 21:35:18.258 [error] [pet] [2m   2.584152800s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.584183300s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__"
+
+2026-02-26 21:35:18.289 [error] [pet] [2m   2.615341200s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.615376000s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__"
+
+2026-02-26 21:35:18.356 [warning] No workspace folders found for relative search path: ./**/.venv
+2026-02-26 21:35:18.357 [info] Pipenv not found
+2026-02-26 21:35:18.357 [info] Pipenv not found, turning off pipenv features. If you have pipenv installed in a non-standard location, set the "python.pipenvPath" setting.
+2026-02-26 21:35:18.357 [info] [pet] Telemetry:  {"event":"RefreshPerformance","data":{"refreshPerformance":{"total":235,"breakdown":{"GlobalVirtualEnvs":23,"Locators":235,"Path":168,"Workspaces":0},"locators":{"Conda":235,"PipEnv":6,"Pixi":0,"Poetry":7,"PyEnv":3,"Uv":0,"Venv":0,"VirtualEnv":0,"VirtualEnvWrapper":0,"WinPython":99,"WindowsRegistry":20,"WindowsStore":2}}}}
+2026-02-26 21:35:18.358 [error] [pet] [2m   2.684037600s[0m [33m WARN[0m [2mpet_windows_registry::environments[0m[2m:[0m Failed to open HKLM\Software\Python, Os { code: 2, kind: NotFound, message: "The system cannot find the file specified." }
+
+2026-02-26 21:35:18.361 [info] Discovered env: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:18.367 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.12-64\python.exe
+2026-02-26 21:35:18.374 [info] Discovered env: C:\Users\bills\AppData\Local\Programs\Python\Python313\python.exe
+2026-02-26 21:35:18.379 [info] Discovered env: C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:18.379 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-02-26 21:35:18.382 [info] Discovered env: C:\tools\Python36\python.exe
+2026-02-26 21:35:18.383 [info] Discovered env: \\?\C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:18.384 [info] Resolved environment during PET refresh: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:18.384 [info] Discovered env: C:\Python39\python.exe
+2026-02-26 21:35:18.419 [error] [pet] [2m   2.745030400s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.745077700s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__"
+
+2026-02-26 21:35:18.454 [error] [pet] [2m   2.780073600s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.780105700s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__"
+
+2026-02-26 21:35:18.488 [error] [pet] [2m   2.814106800s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.814145100s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__"
+
+2026-02-26 21:35:18.513 [error] [pet] [2m   2.838985800s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.839018100s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__"
+
+2026-02-26 21:35:18.569 [warning] No workspace folders found for relative search path: ./**/.venv
+2026-02-26 21:35:18.570 [info] Conda not found, turning off conda features. Error: Conda not found
+    at F (c:\Users\bills\.vscode\extensions\ms-python.vscode-python-envs-1.20.1-win32-x64\dist\extension.js:2:578361)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at processImmediate (node:internal/timers:453:9)
+    at process.topLevelDomainCallback (node:domain:161:15)
+    at process.callbackTrampoline (node:internal/async_hooks:128:24)
+    at L (c:\Users\bills\.vscode\extensions\ms-python.vscode-python-envs-1.20.1-win32-x64\dist\extension.js:2:578486)
+    at t.registerCondaFeatures (c:\Users\bills\.vscode\extensions\ms-python.vscode-python-envs-1.20.1-win32-x64\dist\extension.js:2:596321)
+    at async Promise.all (index 1)
+    at Immediate.<anonymous> (c:\Users\bills\.vscode\extensions\ms-python.vscode-python-envs-1.20.1-win32-x64\dist\extension.js:2:717155)
+2026-02-26 21:35:18.570 [info] [pet] Telemetry:  {"event":"RefreshPerformance","data":{"refreshPerformance":{"total":211,"breakdown":{"GlobalVirtualEnvs":21,"Locators":211,"Path":155,"Workspaces":0},"locators":{"Conda":210,"PipEnv":6,"Pixi":0,"Poetry":6,"PyEnv":2,"Uv":0,"Venv":0,"VirtualEnv":0,"VirtualEnvWrapper":0,"WinPython":94,"WindowsRegistry":26,"WindowsStore":2}}}}
+2026-02-26 21:35:18.571 [error] [pet] [2m   2.896718900s[0m [33m WARN[0m [2mpet_windows_registry::environments[0m[2m:[0m Failed to open HKLM\Software\Python, Os { code: 2, kind: NotFound, message: "The system cannot find the file specified." }
+
+2026-02-26 21:35:18.574 [info] Discovered env: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:18.579 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.12-64\python.exe
+2026-02-26 21:35:18.585 [info] Discovered env: C:\Users\bills\AppData\Local\Programs\Python\Python313\python.exe
+2026-02-26 21:35:18.591 [info] Discovered env: C:\Users\bills\AppData\Local\Python\pythoncore-3.14-64\python.exe
+2026-02-26 21:35:18.592 [info] Discovered env: \\?\C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:18.594 [info] Discovered env: C:\tools\Python36\python.exe
+2026-02-26 21:35:18.595 [info] Discovered env: C:\source\ai\evernothing\evernothing\venv\Scripts\python.exe
+2026-02-26 21:35:18.596 [info] Discovered env: C:\Python39\python.exe
+2026-02-26 21:35:18.629 [info] Resolved environment during PET refresh: C:\Users\bills\AppData\Local\Microsoft\WindowsApps\python3.9.exe
+2026-02-26 21:35:18.642 [error] [pet] [2m   2.967548500s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   2.967596000s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python.exe.__target__"
+
+2026-02-26 21:35:18.678 [error] [pet] [2m   3.004099200s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   3.004140700s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.12.exe.__target__"
+
+2026-02-26 21:35:18.711 [error] [pet] [2m   3.036882300s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   3.036916400s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.14.exe.__target__"
+
+2026-02-26 21:35:18.745 [error] [pet] [2m   3.070957600s[0m [31mERROR[0m [2mpet_python_utils::env[0m[2m:[0m Failed to execute Python to resolve info "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__": %1 is not a valid Win32 application. (os error 193)
+[2m   3.071004400s[0m [33m WARN[0m [2mpet::find[0m[2m:[0m Unknown Python Env "\\\\?\\C:\\Users\\bills\\AppData\\Local\\Python\\bin\\python3.exe.__target__"
+
+2026-02-26 21:35:18.824 [info] Pyenv not found, turning off pyenv features.
+2026-02-26 21:35:18.825 [info] [interpreterSelection] Applying initial environment selection for 0 workspace folder(s)
+2026-02-26 21:35:18.825 [info] [pet] Telemetry:  {"event":"RefreshPerformance","data":{"refreshPerformance":{"total":253,"breakdown":{"GlobalVirtualEnvs":24,"Locators":252,"Path":174,"Workspaces":0},"locators":{"Conda":252,"PipEnv":6,"Pixi":0,"Poetry":6,"PyEnv":2,"Uv":0,"Venv":0,"VirtualEnv":0,"VirtualEnvWrapper":0,"WinPython":97,"WindowsRegistry":25,"WindowsStore":2}}}}
+2026-02-26 21:35:18.826 [info] [interpreterSelection] global: Python 3.14.2 (source: autoDiscovery)

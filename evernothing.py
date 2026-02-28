@@ -98,9 +98,28 @@
 16. Adnriod access
 16.1 include instructions for accessing application as android phone in comments.
 17. Deprocation.
-17.1 Do not indstall liraries that have been deprocated.
+17.1 Do not install liraries that have been deprocated.
 17.2 Install libraries that are comptibile and safe.
 17.3 Provide a script to install all required libries n the comments.
+18. change control
+18.1 All user changes will be logged in the following format:
+18.2 JSON USERID current record and updated record. 
+18.3 Store changes in a table named "note_history" with the following fields:
+18.3.1 id
+18.3.2 note_id
+18.3.3 user_id
+18.3.4 note_key (encrypted)
+18.3.5 note_value (encrypted)
+18.3.6 folder_id
+18.3.7 updated_at (timestamp)
+18.4 All user login sessions will be logged in a table named "user_sessions" with the following fields:
+18.4.1 id
+18.4.2 user_id
+18.4.3 session_id
+18.4.4 login_time
+18.4.5 logout_time
+18.4.6 ip_address
+18.4.7 user_agent
 INSTALLATION (0.1):
  pip install flask flask-login werkzeug boto3 cryptography itsdangerous pyjwt
 
@@ -163,6 +182,7 @@ from flask import Flask, request, redirect, render_template_string, make_respons
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
+from datetime import timezone
 import sqlite3, datetime, json, os, base64
 try:
     import boto3
@@ -245,6 +265,15 @@ def init_db():
         note_value TEXT,
         folder_id INTEGER,
         updated_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS user_sessions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        session_id TEXT,
+        login_time TEXT,
+        logout_time TEXT,
+        ip_address TEXT,
+        user_agent TEXT
     );
     """)
     try: cur.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
@@ -468,12 +497,12 @@ def add(fid):
             else:
                 cur.execute(
                     "INSERT INTO notes VALUES(NULL,?,?,?,?,?)",
-                    (current_user.id, fid, encrypt(note_val), encrypt(content_val), datetime.datetime.utcnow().isoformat())
+                    (current_user.id, fid, encrypt(note_val), encrypt(content_val), datetime.datetime.now(timezone.utc).isoformat())
                 )
                 nid = cur.lastrowid
                 cur.execute(
                     "INSERT INTO note_history VALUES(NULL,?,?,?,?,?,?)",
-                    (nid, current_user.id, encrypt(note_val), encrypt(content_val), fid, datetime.datetime.utcnow().isoformat())
+                    (nid, current_user.id, encrypt(note_val), encrypt(content_val), fid, datetime.datetime.now(timezone.utc).isoformat())
                 )
                 con.commit()
                 sync_s3()
@@ -504,7 +533,7 @@ def edit(id):
             return redirect("/")
 
         if request.form.get('confirm') == 'yes':
-            now = datetime.datetime.utcnow().isoformat()
+            now = datetime.datetime.now(timezone.utc).isoformat()
             cur.execute(
                 "UPDATE notes SET note_key=?,note_value=?,folder_id=?,updated_at=? WHERE id=? AND user_id=?",
                 (
@@ -543,7 +572,7 @@ def restore_history(hid):
     con = db(); cur = con.cursor()
     h = cur.execute("SELECT note_id,note_key,note_value,folder_id FROM note_history WHERE id=? AND user_id=?", (hid, current_user.id)).fetchone()
     if h:
-        now = datetime.datetime.utcnow().isoformat()
+        now = datetime.datetime.now(timezone.utc).isoformat()
         cur.execute(
             "UPDATE notes SET note_key=?,note_value=?,folder_id=?,updated_at=? WHERE id=? AND user_id=?",
             (h[1], h[2], h[3], now, h[0], current_user.id)
@@ -669,7 +698,13 @@ def login():
             (request.form['username'],)
         ).fetchone()
         if r and check_password_hash(r[1], request.form['password']):
-            cur.execute("UPDATE users SET last_login=? WHERE id=?", (datetime.datetime.utcnow().isoformat(), r[0]))
+            session_id = os.urandom(16).hex()
+            session['session_id'] = session_id
+            cur.execute("UPDATE users SET last_login=? WHERE id=?", (datetime.datetime.now(timezone.utc).isoformat(), r[0]))
+            cur.execute(
+                "INSERT INTO user_sessions (user_id, session_id, login_time, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)",
+                (r[0], session_id, datetime.datetime.now(timezone.utc).isoformat(), request.remote_addr, request.user_agent.string)
+            )
             cur.connection.commit()
             login_user(User(r[0], request.form['username']))
             return redirect("/")
@@ -695,6 +730,15 @@ def register():
 
 @app.route("/logout")
 def logout():
+    if 'session_id' in session:
+        con = db()
+        cur = con.cursor()
+        cur.execute(
+            "UPDATE user_sessions SET logout_time=? WHERE session_id=?",
+            (datetime.datetime.now(timezone.utc).isoformat(), session['session_id'])
+        )
+        con.commit()
+        con.close()
     logout_user(); session.clear(); return redirect("/login")
 
 # --- TEMPLATES ---

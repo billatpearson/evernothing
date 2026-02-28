@@ -1,0 +1,27 @@
+2026-02-26 21:34:53.656 [info] Log level: info, beta=false
+2026-02-26 21:34:53.691 [info] endpoints: retrieving AWS endpoints data
+2026-02-26 21:34:53.691 [info] Telemetry product: AWS Toolkit For VS Code
+2026-02-26 21:34:53.790 [info] Telemetry clientId: fcb886f5-d2b2-44bf-a42f-3dfed3b02cd5
+2026-02-26 21:34:53.790 [info] Telemetry sessionId: a3e78f20-e862-4faf-9567-b063f186a42b
+2026-02-26 21:34:57.241 [warning] AwsContext: no default region in credentials profile, falling back to us-east-1:
+2026-02-26 21:34:58.660 [info] OS: Windows_NT x64 10.0.19045
+2026-02-26 21:34:58.660 [info] Visual Studio Code extension host:  1.109.5
+2026-02-26 21:34:58.660 [info] AWS Toolkit:  3.97.0
+2026-02-26 21:34:58.660 [info] node: 22.21.1
+2026-02-26 21:34:58.660 [info] electron: 39.3.0
+2026-02-26 21:34:58.676 [info] initialized 'submitFeedback' command with default feedback id: AWS Toolkit
+2026-02-26 21:34:59.895 [warning] Ec2MetadataClient failed to fetch token. If this is an EC2 environment, then Toolkit will fall back to IMDSv1: ProviderError: TimeoutError from instance metadata service
+2026-02-26 21:35:00.505 [info] auth: Updating connection state of profile:default to authenticating
+2026-02-26 21:35:00.761 [info] auth: Updating connection state of profile:default to valid
+2026-02-26 21:35:00.783 [info] auth: automatically connected with "profile:default"
+2026-02-26 21:35:01.048 [info] Remote debugging is initiated
+2026-02-26 21:35:01.076 [info] smus: SMUS Connection: Clearing all cached clients
+2026-02-26 21:35:01.076 [info] smus: Not in SageMaker Unified Studio remote environment, skipping user activity monitoring
+2026-02-26 21:35:04.202 [info] CloudFormation telemetry: choice=false, hasResponded=undefined, lastPromptDate=undefined
+2026-02-26 21:35:04.202 [info] using cloudformationLsp service configuration: default
+2026-02-26 21:35:04.202 [info] awsCfnLsp: Found CloudFormation LSP provider: RemoteLspServerProvider
+2026-02-26 21:35:04.663 [info] awsCfnLsp: Candidate versions: 1.4.0[darwin-arm64-22,darwin-x64-22,linux-arm64-22,linux-x64-22,linuxglib2.28-arm64-18,linuxglib2.28-x64-18,win32-arm64-22,windows-arm64-22,win32-x64-22,windows-x64-22], 1.2.0[darwin-arm64-22,darwin-x64-22,linux-arm64-22,linux-x64-22,linuxglib2.28-arm64-18,linuxglib2.28-x64-18,win32-arm64-22,windows-arm64-22,win32-x64-22,windows-x64-22]
+2026-02-26 21:35:04.664 [info] awsCfnLsp: Creating CloudFormation LSP manifest for prod
+2026-02-26 21:35:07.439 [info] lsp: Finished preparing "cloudformation-languageserver" LSP server: 'C:\\Users\\bills\\AppData\\Local\\aws\\toolkits\\language-servers\\cloudformation-languageserver/1.4.0'
+2026-02-26 21:35:07.507 [info] awsCfnLsp: Found CloudFormation LSP executable: C:\Users\bills\AppData\Local\aws\toolkits\language-servers\cloudformation-languageserver\1.4.0\cloudformation-languageserver-1.4.0-win32-x64-node22\cfn-lsp-server-standalone.js
+2026-02-26 21:39:55.729 [info] telemetry: sent batch (size=14)

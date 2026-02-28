@@ -1,0 +1,5 @@
+2026/02/26-21:34:39.695 8e88 Creating DB C:\source\ai\evernothing\evernothing\Local Storage\leveldb since it was missing.
+2026/02/26-21:34:39.708 8e88 Reusing MANIFEST C:\source\ai\evernothing\evernothing\Local Storage\leveldb/MANIFEST-000001
+2026/02/26-21:35:39.716 8388 Level-0 table #5: started
+2026/02/26-21:35:39.718 8388 Level-0 table #5: 86175 bytes OK
+2026/02/26-21:35:39.720 8388 Delete type=0 #3

@@ -1,0 +1,36 @@
+{
+  "environment": {
+    "executable": "C:\\Users\\bills\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\\python.exe",
+    "prefix": "C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.9_3.9.3568.0_x64__qbz5n2kfra8p0",
+    "version": "3.9.13.final.0",
+    "is64Bit": true,
+    "symlinks": [
+      "C:\\Users\\bills\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\\python.exe",
+      "C:\\Users\\bills\\AppData\\Local\\Microsoft\\WindowsApps\\python3.9.exe"
+    ]
+  },
+  "symlinks": [
+    [
+      "C:\\Users\\bills\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\\python.exe",
+      {
+        "secs_since_epoch": 1769316486,
+        "nanos_since_epoch": 89477300
+      },
+      {
+        "secs_since_epoch": 1630883900,
+        "nanos_since_epoch": 278634400
+      }
+    ],
+    [
+      "C:\\Users\\bills\\AppData\\Local\\Microsoft\\WindowsApps\\python3.9.exe",
+      {
+        "secs_since_epoch": 1652886002,
+        "nanos_since_epoch": 657350100
+      },
+      {
+        "secs_since_epoch": 1630883900,
+        "nanos_since_epoch": 270634500
+      }
+    ]
+  ]
+}
