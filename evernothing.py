@@ -639,7 +639,8 @@ def edit(id):
         attachments = []
 
     if request.method == "POST":
-        if 'file' in request.files and request.files['file'].filename:
+        # Check if this is a file upload (has file and no note/content fields)
+        if 'file' in request.files and request.files['file'].filename and 'note' not in request.form:
             file = request.files['file']
             filename = file.filename[:255]  # Limit filename length
             file_data = file.read()
@@ -654,37 +655,39 @@ def edit(id):
                 sync_s3()
                 return redirect(f"/edit/{id}")
 
-        if note[0] == request.form['note'] and note[1] == request.form['content'] and str(note[2]) == str(request.form.get('folder_id')):
-            con.close()
-            return redirect("/")
+        # Handle note edit
+        if 'note' in request.form and 'content' in request.form:
+            if note[0] == request.form['note'] and note[1] == request.form['content'] and str(note[2]) == str(request.form.get('folder_id')):
+                con.close()
+                return redirect("/")
 
-        if request.form.get('confirm') == 'yes':
-            now = datetime.datetime.now(timezone.utc).isoformat()
-            old_vals = {'note': note[0], 'content': note[1], 'folder_id': note[2]}
-            new_vals = {'note': request.form['note'], 'content': request.form['content'], 'folder_id': request.form.get('folder_id')}
-            cur.execute(
-                "UPDATE notes SET note_key=?,note_value=?,folder_id=?,updated_at=? WHERE id=? AND user_id=?",
-                (
-                    encrypt(request.form['note']),
-                    encrypt(request.form['content']),
-                    request.form.get('folder_id'),
-                    now,
-                    id,
-                    current_user.id,
-                ),
-            )
-            log_change(cur, current_user.id, 'UPDATE', 'note', id, old_vals, new_vals, request.remote_addr)
-            cur.execute(
-                "INSERT INTO note_history (note_id, user_id, note_key, note_value, folder_id, updated_at) VALUES(?,?,?,?,?,?)",
-                (id, current_user.id, encrypt(request.form['note']), encrypt(request.form['content']), request.form.get('folder_id'), now)
-            )
-            con.commit()
-            con.close()
-            sync_s3()
-            return redirect("/")
-        else:
-            con.close()
-            return render_template_string(T_EDIT_CONFIRM, note=[request.form['note'], request.form['content'], request.form.get('folder_id')], id=id)
+            if request.form.get('confirm') == 'yes':
+                now = datetime.datetime.now(timezone.utc).isoformat()
+                old_vals = {'note': note[0], 'content': note[1], 'folder_id': note[2]}
+                new_vals = {'note': request.form['note'], 'content': request.form['content'], 'folder_id': request.form.get('folder_id')}
+                cur.execute(
+                    "UPDATE notes SET note_key=?,note_value=?,folder_id=?,updated_at=? WHERE id=? AND user_id=?",
+                    (
+                        encrypt(request.form['note']),
+                        encrypt(request.form['content']),
+                        request.form.get('folder_id'),
+                        now,
+                        id,
+                        current_user.id,
+                    ),
+                )
+                log_change(cur, current_user.id, 'UPDATE', 'note', id, old_vals, new_vals, request.remote_addr)
+                cur.execute(
+                    "INSERT INTO note_history (note_id, user_id, note_key, note_value, folder_id, updated_at) VALUES(?,?,?,?,?,?)",
+                    (id, current_user.id, encrypt(request.form['note']), encrypt(request.form['content']), request.form.get('folder_id'), now)
+                )
+                con.commit()
+                con.close()
+                sync_s3()
+                return redirect("/")
+            else:
+                con.close()
+                return render_template_string(T_EDIT_CONFIRM, note=[request.form['note'], request.form['content'], request.form.get('folder_id')], id=id)
 
     breadcrumbs = get_breadcrumbs(cur, note[2], current_user.id)
     con.close()
@@ -1352,7 +1355,7 @@ T_AUDIT_REPORT = STYLE + """
 
 T_ADMIN_AUDIT_LOGS = STYLE + """
 <h3>Admin Audit Logs</h3>
-<a href=/admin/dashboard>Back to Dashboard</a> | <a href=/logout>Logout</a>
+<a href=/admin/dashboard>Back to Dashboard</a> | <a href="javascript:location.reload()" style="color:#0f0;">[Refresh]</a> | <a href=/logout>Logout</a>
 <form method="get" style="margin:20px 0;">
 <b>Filters:</b><br>
 <input name="user" placeholder="Username" value="{{user_filter}}" style="width:150px;">
