@@ -195,8 +195,9 @@ except ImportError:
     AESGCM = None
 
 app = Flask("EverNothing")
-app.secret_key = "Keystone1!"
+app.secret_key = os.environ.get('SECRET_KEY', 'Keystone1!')  # Use env var in production
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['WTF_CSRF_ENABLED'] = False  # TODO: Enable CSRF protection
 DB = "evernothing.db"
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
@@ -239,7 +240,9 @@ login_manager.login_view = "login"
 
 # --- DATABASE ---
 def db():
-    return sqlite3.connect(DB, check_same_thread=False)
+    con = sqlite3.connect(DB, check_same_thread=False)
+    con.row_factory = sqlite3.Row
+    return con
 def init_db():
     c = db(); cur = c.cursor()
     cur.executescript("""
@@ -291,6 +294,17 @@ def init_db():
         file_size INTEGER,
         uploaded_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS audit_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        action TEXT,
+        entity_type TEXT,
+        entity_id INTEGER,
+        old_values TEXT,
+        new_values TEXT,
+        timestamp TEXT,
+        ip_address TEXT
+    );
     """)
     try: cur.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
     except: pass
@@ -311,6 +325,14 @@ def init_db():
                 uploaded_at TEXT
             )
         """)
+    try:
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_attachments_note ON attachments(note_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)")
+    except:
+        pass
     c.commit()
     c.close()
 
@@ -358,6 +380,12 @@ def get_breadcrumbs(cur, fid, uid):
         crumbs.insert(0, (f[0], decrypt(f[1])))
         fid = f[2]
     return crumbs
+
+def log_change(cur, user_id, action, entity_type, entity_id, old_values, new_values, ip_addr):
+    cur.execute(
+        "INSERT INTO audit_log (user_id, action, entity_type, entity_id, old_values, new_values, timestamp, ip_address) VALUES(?,?,?,?,?,?,?,?)",
+        (user_id, action, entity_type, entity_id, json.dumps(old_values), json.dumps(new_values), datetime.datetime.now(timezone.utc).isoformat(), ip_addr)
+    )
 
 # --- ROUTES ---
 @app.route("/")
@@ -561,17 +589,21 @@ def add(fid):
                     (current_user.id, fid, encrypt(note_val), encrypt(content_val), datetime.datetime.now(timezone.utc).isoformat())
                 )
                 nid = cur.lastrowid
+                log_change(cur, current_user.id, 'CREATE', 'note', nid, {}, {'note': note_val, 'content': content_val, 'folder_id': fid}, request.remote_addr)
                 cur.execute(
                     "INSERT INTO note_history (note_id, user_id, note_key, note_value, folder_id, updated_at) VALUES(?,?,?,?,?,?)",
                     (nid, current_user.id, encrypt(note_val), encrypt(content_val), fid, datetime.datetime.now(timezone.utc).isoformat())
                 )
                 if 'file' in request.files and request.files['file'].filename:
                     file = request.files['file']
+                    filename = file.filename[:255]  # Limit filename length
                     file_data = file.read()
-                    cur.execute(
-                        "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
-                        (nid, current_user.id, file.filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
-                    )
+                    if len(file_data) > 0:
+                        cur.execute(
+                            "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
+                            (nid, current_user.id, filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
+                        )
+                        log_change(cur, current_user.id, 'CREATE', 'attachment', cur.lastrowid, {}, {'note_id': nid, 'filename': filename, 'size': len(file_data)}, request.remote_addr)
                 con.commit()
                 con.close()
                 sync_s3()
@@ -609,15 +641,18 @@ def edit(id):
     if request.method == "POST":
         if 'file' in request.files and request.files['file'].filename:
             file = request.files['file']
+            filename = file.filename[:255]  # Limit filename length
             file_data = file.read()
-            cur.execute(
-                "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
-                (id, current_user.id, file.filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
-            )
-            con.commit()
-            con.close()
-            sync_s3()
-            return redirect(f"/edit/{id}")
+            if len(file_data) > 0:
+                cur.execute(
+                    "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
+                    (id, current_user.id, filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
+                )
+                log_change(cur, current_user.id, 'CREATE', 'attachment', cur.lastrowid, {}, {'note_id': id, 'filename': filename, 'size': len(file_data)}, request.remote_addr)
+                con.commit()
+                con.close()
+                sync_s3()
+                return redirect(f"/edit/{id}")
 
         if note[0] == request.form['note'] and note[1] == request.form['content'] and str(note[2]) == str(request.form.get('folder_id')):
             con.close()
@@ -625,6 +660,8 @@ def edit(id):
 
         if request.form.get('confirm') == 'yes':
             now = datetime.datetime.now(timezone.utc).isoformat()
+            old_vals = {'note': note[0], 'content': note[1], 'folder_id': note[2]}
+            new_vals = {'note': request.form['note'], 'content': request.form['content'], 'folder_id': request.form.get('folder_id')}
             cur.execute(
                 "UPDATE notes SET note_key=?,note_value=?,folder_id=?,updated_at=? WHERE id=? AND user_id=?",
                 (
@@ -636,6 +673,7 @@ def edit(id):
                     current_user.id,
                 ),
             )
+            log_change(cur, current_user.id, 'UPDATE', 'note', id, old_vals, new_vals, request.remote_addr)
             cur.execute(
                 "INSERT INTO note_history (note_id, user_id, note_key, note_value, folder_id, updated_at) VALUES(?,?,?,?,?,?)",
                 (id, current_user.id, encrypt(request.form['note']), encrypt(request.form['content']), request.form.get('folder_id'), now)
@@ -678,15 +716,19 @@ def restore_history(hid):
             (h[0], current_user.id, h[1], h[2], h[3], now)
         )
         con.commit()
+        con.close()
         sync_s3()
         return redirect(f"/edit/{h[0]}")
+    con.close()
     return redirect("/")
 
 # --- ADMIN ---
 @app.route("/admin", methods=["GET","POST"])
 def admin_login():
     if request.method == "POST":
-        if request.form.get("username") == "admin" and request.form.get("password") == "admin":
+        admin_user = os.environ.get('ADMIN_USER', 'admin')
+        admin_pass = os.environ.get('ADMIN_PASS', 'admin')
+        if request.form.get("username") == admin_user and request.form.get("password") == admin_pass:
             session['admin_logged_in'] = True
             return redirect("/admin/dashboard")
         return render_template_string(T_ADMIN_LOGIN, error="Invalid credentials")
@@ -728,9 +770,14 @@ def admin_edit_user(uid):
         new_last_login = request.form.get('last_login')
         if request.form.get('confirm') == 'yes':
             try:
+                old_vals = {'username': user[1], 'last_login': user[2]}
+                new_vals = {'username': new_name, 'last_login': new_last_login}
+                if new_pass:
+                    new_vals['password'] = '***changed***'
                 cur.execute("UPDATE users SET username=?, last_login=? WHERE id=?", (new_name, new_last_login, uid))
                 if new_pass:
                     cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(new_pass), uid))
+                log_change(cur, current_user.id if hasattr(current_user, 'id') else 0, 'UPDATE', 'user', uid, old_vals, new_vals, request.remote_addr)
                 con.commit()
                 con.close()
                 sync_s3()
@@ -767,6 +814,56 @@ def admin_delete_user(uid):
 
     con.close()
     return render_template_string(T_ADMIN_DELETE_USER, user=user)
+
+@app.route("/admin/audit_logs")
+def admin_audit_logs():
+    if not session.get('admin_logged_in'): return redirect("/admin")
+    user_filter = request.args.get('user', '')
+    action_filter = request.args.get('action', '')
+    entity_filter = request.args.get('entity', '')
+    limit = int(request.args.get('limit', 100))
+    
+    con = db()
+    cur = con.cursor()
+    
+    query = """
+        SELECT a.id, u.username, a.action, a.entity_type, a.entity_id, a.old_values, a.new_values, a.timestamp, a.ip_address
+        FROM audit_log a
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE 1=1
+    """
+    params = []
+    
+    if user_filter:
+        query += " AND u.username LIKE ?"
+        params.append(f'%{user_filter}%')
+    if action_filter:
+        query += " AND a.action = ?"
+        params.append(action_filter)
+    if entity_filter:
+        query += " AND a.entity_type = ?"
+        params.append(entity_filter)
+    
+    query += " ORDER BY a.timestamp DESC LIMIT ?"
+    params.append(limit)
+    
+    cur.execute(query, params)
+    logs = []
+    for r in cur.fetchall():
+        old_vals = json.loads(r[5]) if r[5] else {}
+        new_vals = json.loads(r[6]) if r[6] else {}
+        logs.append({
+            'id': r[0],
+            'user': r[1] or 'System',
+            'action': r[2],
+            'entity': f"{r[3]} #{r[4]}",
+            'old': old_vals,
+            'new': new_vals,
+            'timestamp': format_date(r[7]),
+            'ip': r[8]
+        })
+    con.close()
+    return render_template_string(T_ADMIN_AUDIT_LOGS, logs=logs, user_filter=user_filter, action_filter=action_filter, entity_filter=entity_filter, limit=limit)
 
 # --- PASSWORD RESET ---
 def get_serializer():
@@ -859,6 +956,36 @@ def logout():
         con.close()
     logout_user(); session.clear(); return redirect("/login")
 
+@app.route("/audit_report")
+@login_required
+def audit_report():
+    con = db()
+    cur = con.cursor()
+    cur.execute("""
+        SELECT a.id, u.username, a.action, a.entity_type, a.entity_id, a.old_values, a.new_values, a.timestamp, a.ip_address
+        FROM audit_log a
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.user_id = ? OR ? = 0
+        ORDER BY a.timestamp DESC
+        LIMIT 100
+    """, (current_user.id, 1 if session.get('admin_logged_in') else 0))
+    logs = []
+    for r in cur.fetchall():
+        old_vals = json.loads(r[5]) if r[5] else {}
+        new_vals = json.loads(r[6]) if r[6] else {}
+        logs.append({
+            'id': r[0],
+            'user': r[1],
+            'action': r[2],
+            'entity': f"{r[3]} #{r[4]}",
+            'old': old_vals,
+            'new': new_vals,
+            'timestamp': format_date(r[7]),
+            'ip': r[8]
+        })
+    con.close()
+    return render_template_string(T_AUDIT_REPORT, logs=logs)
+
 @app.route("/download/<int:aid>")
 @login_required
 def download_attachment(aid):
@@ -877,8 +1004,9 @@ def download_attachment(aid):
 def delete_attachment(aid):
     con = db()
     cur = con.cursor()
-    a = cur.execute("SELECT note_id FROM attachments WHERE id=? AND user_id=?", (aid, current_user.id)).fetchone()
+    a = cur.execute("SELECT note_id, filename FROM attachments WHERE id=? AND user_id=?", (aid, current_user.id)).fetchone()
     if a:
+        log_change(cur, current_user.id, 'DELETE', 'attachment', aid, {'note_id': a[0], 'filename': a[1]}, {}, request.remote_addr)
         cur.execute("DELETE FROM attachments WHERE id=? AND user_id=?", (aid, current_user.id))
         con.commit()
         con.close()
@@ -913,7 +1041,7 @@ T_FOLDERS = STYLE + """
 <form action="/search" method="get">
 <input name="q" placeholder="Search..."> <button>Go</button>
 </form>
-<a href=/folder/add>Create Folder</a> | <a href=/export>Export JSON</a> | <a href=/change_password>Change Password</a> | <a href=/logout>Logout</a>
+<a href=/folder/add>Create Folder</a> | <a href=/export>Export JSON</a> | <a href=/audit_report>Audit Report</a> | <a href=/change_password>Change Password</a> | <a href=/logout>Logout</a>
 <ul>
 {% for f in folders %}
 <li><a href=/folder/{{f[0]}}>{{f[1]}}</a> <a href=/folder/rename/{{f[0]}} style="font-size:small">[rename]</a> <a href=/folder/delete/{{f[0]}} style="color:red;font-size:small">[x]</a></li>
@@ -1124,7 +1252,7 @@ T_ADMIN_DASHBOARD = STYLE + """
 <form method="get">
 <input name="q" placeholder="Search Users..." value="{{q}}"> <button>Search</button>
 </form>
-<a href=/logout>Logout</a>
+<a href=/admin/audit_logs>View Audit Logs</a> | <a href=/logout>Logout</a>
 <ul>
 {% for u in users %}
 <li><a href=/admin/user/{{u[0]}}>{{u[1]}}</a> (Notes: {{u[2]}}, Folders: {{u[3]}}, Last Login: {{u[4]}}) <a href=/admin/user/delete/{{u[0]}} style="color:red">[Delete]</a></li>
@@ -1185,6 +1313,111 @@ T_RESET_PASSWORD = STYLE + """
 <input type=password name=password placeholder='New Password' required><br>
 <button>Reset Password</button>
 </form>
+"""
+
+T_AUDIT_REPORT = STYLE + """
+<h3>Audit Report</h3>
+<a href=/>Back</a> | <a href=/logout>Logout</a>
+<table style="width:100%; border-collapse:collapse; margin-top:20px;">
+<tr style="border-bottom:1px solid red;">
+<th style="text-align:left; padding:5px;">Time</th>
+<th style="text-align:left; padding:5px;">User</th>
+<th style="text-align:left; padding:5px;">Action</th>
+<th style="text-align:left; padding:5px;">Entity</th>
+<th style="text-align:left; padding:5px;">Old Values</th>
+<th style="text-align:left; padding:5px;">New Values</th>
+<th style="text-align:left; padding:5px;">IP</th>
+</tr>
+{% for log in logs %}
+<tr style="border-bottom:1px solid #333;">
+<td style="padding:5px;">{{log.timestamp}}</td>
+<td style="padding:5px;">{{log.user}}</td>
+<td style="padding:5px;">{{log.action}}</td>
+<td style="padding:5px;">{{log.entity}}</td>
+<td style="padding:5px; font-size:small;">
+{% for key, val in log.old.items() %}
+<b>{{key}}:</b> {{val}}<br>
+{% endfor %}
+</td>
+<td style="padding:5px; font-size:small;">
+{% for key, val in log.new.items() %}
+<b>{{key}}:</b> {{val}}<br>
+{% endfor %}
+</td>
+<td style="padding:5px; font-size:small;">{{log.ip}}</td>
+</tr>
+{% endfor %}
+</table>
+"""
+
+T_ADMIN_AUDIT_LOGS = STYLE + """
+<h3>Admin Audit Logs</h3>
+<a href=/admin/dashboard>Back to Dashboard</a> | <a href=/logout>Logout</a>
+<form method="get" style="margin:20px 0;">
+<b>Filters:</b><br>
+<input name="user" placeholder="Username" value="{{user_filter}}" style="width:150px;">
+<select name="action" style="width:120px;">
+<option value="">All Actions</option>
+<option value="CREATE" {% if action_filter=='CREATE' %}selected{% endif %}>CREATE</option>
+<option value="UPDATE" {% if action_filter=='UPDATE' %}selected{% endif %}>UPDATE</option>
+<option value="DELETE" {% if action_filter=='DELETE' %}selected{% endif %}>DELETE</option>
+</select>
+<select name="entity" style="width:120px;">
+<option value="">All Entities</option>
+<option value="note" {% if entity_filter=='note' %}selected{% endif %}>Note</option>
+<option value="attachment" {% if entity_filter=='attachment' %}selected{% endif %}>Attachment</option>
+<option value="user" {% if entity_filter=='user' %}selected{% endif %}>User</option>
+</select>
+<select name="limit" style="width:100px;">
+<option value="50" {% if limit==50 %}selected{% endif %}>50</option>
+<option value="100" {% if limit==100 %}selected{% endif %}>100</option>
+<option value="500" {% if limit==500 %}selected{% endif %}>500</option>
+<option value="1000" {% if limit==1000 %}selected{% endif %}>1000</option>
+</select>
+<button>Filter</button>
+<a href=/admin/audit_logs style="margin-left:10px;">Clear</a>
+</form>
+<p style="color:#888;">Showing {{logs|length}} records</p>
+<table style="width:100%; border-collapse:collapse;">
+<tr style="border-bottom:2px solid red;">
+<th style="text-align:left; padding:8px;">Time</th>
+<th style="text-align:left; padding:8px;">User</th>
+<th style="text-align:left; padding:8px;">Action</th>
+<th style="text-align:left; padding:8px;">Entity</th>
+<th style="text-align:left; padding:8px;">Old Values</th>
+<th style="text-align:left; padding:8px;">New Values</th>
+<th style="text-align:left; padding:8px;">IP</th>
+</tr>
+{% for log in logs %}
+<tr style="border-bottom:1px solid #333;">
+<td style="padding:8px; font-size:small;">{{log.timestamp}}</td>
+<td style="padding:8px;">{{log.user}}</td>
+<td style="padding:8px; color:{% if log.action=='CREATE' %}#0f0{% elif log.action=='DELETE' %}#f00{% else %}#ff0{% endif %};">{{log.action}}</td>
+<td style="padding:8px; font-size:small;">{{log.entity}}</td>
+<td style="padding:8px; font-size:small; background:#111;">
+{% if log.old %}
+{% for key, val in log.old.items() %}
+<b style="color:#f88;">{{key}}:</b> {{val}}<br>
+{% endfor %}
+{% else %}
+<span style="color:#666;">-</span>
+{% endif %}
+</td>
+<td style="padding:8px; font-size:small; background:#111;">
+{% if log.new %}
+{% for key, val in log.new.items() %}
+<b style="color:#8f8;">{{key}}:</b> {{val}}<br>
+{% endfor %}
+{% else %}
+<span style="color:#666;">-</span>
+{% endif %}
+</td>
+<td style="padding:8px; font-size:small; color:#888;">{{log.ip}}</td>
+</tr>
+{% else %}
+<tr><td colspan="7" style="padding:20px; text-align:center; color:#888;">No audit logs found</td></tr>
+{% endfor %}
+</table>
 """
 
 if __name__ == '__main__':
