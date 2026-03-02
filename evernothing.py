@@ -196,6 +196,7 @@ except ImportError:
 
 app = Flask("EverNothing")
 app.secret_key = "Keystone1!"
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 DB = "evernothing.db"
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
@@ -281,12 +282,37 @@ def init_db():
         ip_address TEXT,
         user_agent TEXT
     );
+    CREATE TABLE IF NOT EXISTS attachments(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        note_id INTEGER,
+        user_id INTEGER,
+        filename TEXT,
+        file_data BLOB,
+        file_size INTEGER,
+        uploaded_at TEXT
+    );
     """)
     try: cur.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
     except: pass
     try: cur.execute("ALTER TABLE users ADD COLUMN email TEXT")
     except: pass
+    try:
+        cur.execute("SELECT file_data FROM attachments LIMIT 1")
+    except:
+        cur.execute("DROP TABLE IF EXISTS attachments")
+        cur.execute("""
+            CREATE TABLE attachments(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                note_id INTEGER,
+                user_id INTEGER,
+                filename TEXT,
+                file_data BLOB,
+                file_size INTEGER,
+                uploaded_at TEXT
+            )
+        """)
     c.commit()
+    c.close()
 
 init_db()
 
@@ -311,9 +337,11 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(uid):
-    r = db().cursor().execute(
+    con = db()
+    r = con.cursor().execute(
         "SELECT id,username FROM users WHERE id=?", (uid,)
     ).fetchone()
+    con.close()
     return User(*r) if r else None
 
 def format_date(iso_str):
@@ -335,12 +363,14 @@ def get_breadcrumbs(cur, fid, uid):
 @app.route("/")
 @login_required
 def index():
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     cur.execute("SELECT id,name FROM folders WHERE user_id=? AND parent_id IS NULL", (current_user.id,))
     folders = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
     
     cur.execute("SELECT id,note_key,updated_at FROM notes WHERE user_id=? ORDER BY updated_at DESC LIMIT 10", (current_user.id,))
     recent = [(r[0], decrypt(r[1]), format_date(r[2])) for r in cur.fetchall()]
+    con.close()
     
     return render_template_string(T_FOLDERS, folders=folders, recent=recent)
 
@@ -350,7 +380,7 @@ def add_folder():
     if request.method == "POST":
         con = db(); cur = con.cursor()
         cur.execute(
-            "INSERT INTO folders VALUES(NULL,?,?,NULL)",
+            "INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,NULL)",
             (current_user.id, encrypt(request.form['name']))
         )
         con.commit()
@@ -365,7 +395,7 @@ def add_subfolder(pid):
     if request.method == "POST":
         con = db(); cur = con.cursor()
         cur.execute(
-            "INSERT INTO folders VALUES(NULL,?,?,?)",
+            "INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,?)",
             (current_user.id, encrypt(request.form['name']), pid)
         )
         con.commit()
@@ -386,27 +416,36 @@ def delete_recursive(cur, fid, uid):
 def delete_folder(fid):
     con = db(); cur = con.cursor() 
     f = cur.execute("SELECT name,parent_id FROM folders WHERE id=? AND user_id=?", (fid, current_user.id)).fetchone()
-    if not f: return redirect("/")
+    if not f:
+        con.close()
+        return redirect("/")
 
     if request.method == "POST":
         delete_recursive(cur, fid, current_user.id)
         con.commit()
+        con.close()
         sync_s3()
         return redirect(f"/folder/{f[1]}" if f[1] else "/")
 
-    return render_template_string(T_DELETE_FOLDER, f=(decrypt(f[0]), f[1])) if f else redirect("/")
+    result = render_template_string(T_DELETE_FOLDER, f=(decrypt(f[0]), f[1])) if f else redirect("/")
+    con.close()
+    return result
 
 @app.route("/folder/rename/<int:fid>", methods=["GET","POST"])
 @login_required
 def rename_folder(fid):
     con = db(); cur = con.cursor()
     f = cur.execute("SELECT name,parent_id FROM folders WHERE id=? AND user_id=?", (fid, current_user.id)).fetchone()
-    if not f: return redirect("/")
+    if not f:
+        con.close()
+        return redirect("/")
     if request.method == "POST":
         cur.execute("UPDATE folders SET name=? WHERE id=? AND user_id=?", (encrypt(request.form['name']), fid, current_user.id))
         con.commit()
+        con.close()
         sync_s3()
         return redirect(f"/folder/{fid}")
+    con.close()
     return render_template_string(T_RENAME_FOLDER, f=(decrypt(f[0]), f[1]), fid=fid)
 
 @app.route("/note/delete/<int:nid>", methods=["GET","POST"])
@@ -414,12 +453,16 @@ def rename_folder(fid):
 def delete_note(nid):
     con = db(); cur = con.cursor()
     n = cur.execute("SELECT folder_id, note_key FROM notes WHERE id=? AND user_id=?", (nid, current_user.id)).fetchone()
-    if not n: return redirect("/")
+    if not n:
+        con.close()
+        return redirect("/")
     if request.method == "POST":
         cur.execute("DELETE FROM notes WHERE id=? AND user_id=?", (nid, current_user.id))
         con.commit()
+        con.close()
         sync_s3()
         return redirect(f"/folder/{n[0]}" if n[0] else "/")
+    con.close()
     return render_template_string(T_DELETE_NOTE, n=(n[0], decrypt(n[1])))
 
 @app.route("/change_password", methods=["GET","POST"])
@@ -427,13 +470,16 @@ def delete_note(nid):
 def change_password():
     error = None
     if request.method == "POST":
-        cur = db().cursor()
+        con = db()
+        cur = con.cursor()
         r = cur.execute("SELECT password FROM users WHERE id=?", (current_user.id,)).fetchone()
         if r and check_password_hash(r[0], request.form['old_password']):
             cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(request.form['new_password']), current_user.id))
-            cur.connection.commit()
+            con.commit()
+            con.close()
             sync_s3()
             return redirect("/")
+        con.close()
         error = "Invalid old password"
     return render_template_string(T_CHANGE_PASSWORD, error=error)
 
@@ -441,7 +487,8 @@ def change_password():
 @login_required
 def search():
     q = request.args.get('q','')
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     cur.execute("SELECT id,note_key,note_value FROM notes WHERE user_id=?", (current_user.id,))
     notes = []
     for r in cur.fetchall():
@@ -449,12 +496,14 @@ def search():
         if q.lower() in k.lower() or q.lower() in v.lower():
             notes.append((r[0], k))
     notes.sort(key=lambda x: x[1].lower())
+    con.close()
     return render_template_string(T_SEARCH, notes=notes, q=q)
 
 @app.route("/export")
 @login_required
 def export_json():
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     cur.execute("""
         SELECT n.note_key, n.note_value, n.updated_at, f.name
         FROM notes n
@@ -462,6 +511,7 @@ def export_json():
         WHERE n.user_id=?
     """, (current_user.id,))
     data = [{"note": decrypt(r[0]), "content": decrypt(r[1]), "updated_at": r[2], "folder": decrypt(r[3]) if r[3] else None} for r in cur.fetchall()]
+    con.close()
     resp = make_response(json.dumps(data, indent=2))
     resp.headers['Content-Disposition'] = 'attachment; filename=notes.json'
     resp.headers['Content-Type'] = 'application/json'
@@ -470,15 +520,19 @@ def export_json():
 @app.route("/folder/<int:fid>")
 @login_required
 def view_folder(fid):
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     folder = cur.execute("SELECT id,name,parent_id FROM folders WHERE id=? AND user_id=?", (fid, current_user.id)).fetchone()
-    if not folder: return redirect("/")
+    if not folder:
+        con.close()
+        return redirect("/")
 
     cur.execute("SELECT id,name FROM folders WHERE user_id=? AND parent_id=?", (current_user.id, fid))
     subfolders = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
     
     cur.execute("SELECT id,note_key FROM notes WHERE user_id=? AND folder_id=?", (current_user.id, fid))
     notes = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
+    con.close()
     
     return render_template_string(T_NOTES, notes=notes, subfolders=subfolders, folder=(folder[0], decrypt(folder[1]), folder[2]))
 
@@ -495,22 +549,31 @@ def add(fid):
         
         if not note_val.strip() or not content_val.strip():
             error = "Note and content cannot be empty"
+            con.close()
         else:
-            # Check duplicate (must decrypt all keys to check)
             cur.execute("SELECT note_key FROM notes WHERE user_id=?", (current_user.id,))
             if any(decrypt(r[0]) == note_val for r in cur.fetchall()):
                 error = "Note name already exists"
+                con.close()
             else:
                 cur.execute(
-                    "INSERT INTO notes VALUES(NULL,?,?,?,?,?)",
+                    "INSERT INTO notes (user_id, folder_id, note_key, note_value, updated_at) VALUES(?,?,?,?,?)",
                     (current_user.id, fid, encrypt(note_val), encrypt(content_val), datetime.datetime.now(timezone.utc).isoformat())
                 )
                 nid = cur.lastrowid
                 cur.execute(
-                    "INSERT INTO note_history VALUES(NULL,?,?,?,?,?,?)",
+                    "INSERT INTO note_history (note_id, user_id, note_key, note_value, folder_id, updated_at) VALUES(?,?,?,?,?,?)",
                     (nid, current_user.id, encrypt(note_val), encrypt(content_val), fid, datetime.datetime.now(timezone.utc).isoformat())
                 )
+                if 'file' in request.files and request.files['file'].filename:
+                    file = request.files['file']
+                    file_data = file.read()
+                    cur.execute(
+                        "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
+                        (nid, current_user.id, file.filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
+                    )
                 con.commit()
+                con.close()
                 sync_s3()
                 return redirect(f"/folder/{fid}")
     return render_template_string(T_ADD, fid=fid, error=error, note=note_val, content=content_val)
@@ -518,7 +581,8 @@ def add(fid):
 @app.route("/edit/<int:id>", methods=["GET","POST"])
 @login_required
 def edit(id):
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     folders = cur.execute(
         "SELECT id,name FROM folders WHERE user_id=?",
         (current_user.id,)
@@ -530,12 +594,33 @@ def edit(id):
         (id, current_user.id),
     )
     row = cur.fetchone()
-    if not row: return redirect("/")
+    if not row:
+        con.close()
+        return redirect("/")
     note = [decrypt(row[0]), decrypt(row[1]), row[2], row[3]]
     note[3] = format_date(note[3])
 
+    try:
+        cur.execute("SELECT id,filename,file_size FROM attachments WHERE note_id=? AND user_id=?", (id, current_user.id))
+        attachments = cur.fetchall()
+    except:
+        attachments = []
+
     if request.method == "POST":
+        if 'file' in request.files and request.files['file'].filename:
+            file = request.files['file']
+            file_data = file.read()
+            cur.execute(
+                "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
+                (id, current_user.id, file.filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
+            )
+            con.commit()
+            con.close()
+            sync_s3()
+            return redirect(f"/edit/{id}")
+
         if note[0] == request.form['note'] and note[1] == request.form['content'] and str(note[2]) == str(request.form.get('folder_id')):
+            con.close()
             return redirect("/")
 
         if request.form.get('confirm') == 'yes':
@@ -552,24 +637,29 @@ def edit(id):
                 ),
             )
             cur.execute(
-                "INSERT INTO note_history VALUES(NULL,?,?,?,?,?,?)",
+                "INSERT INTO note_history (note_id, user_id, note_key, note_value, folder_id, updated_at) VALUES(?,?,?,?,?,?)",
                 (id, current_user.id, encrypt(request.form['note']), encrypt(request.form['content']), request.form.get('folder_id'), now)
             )
-            cur.connection.commit()
+            con.commit()
+            con.close()
             sync_s3()
             return redirect("/")
         else:
+            con.close()
             return render_template_string(T_EDIT_CONFIRM, note=[request.form['note'], request.form['content'], request.form.get('folder_id')], id=id)
 
     breadcrumbs = get_breadcrumbs(cur, note[2], current_user.id)
-    return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=breadcrumbs, id=id)
+    con.close()
+    return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=breadcrumbs, id=id, attachments=attachments)
 
 @app.route("/history/<int:nid>")
 @login_required
 def history(nid):
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     cur.execute("SELECT id,note_key,updated_at FROM note_history WHERE note_id=? AND user_id=? ORDER BY updated_at DESC", (nid, current_user.id))
     history = [(h[0], decrypt(h[1]), format_date(h[2])) for h in cur.fetchall()]
+    con.close()
     return render_template_string(T_HISTORY, history=history, nid=nid)
 
 @app.route("/history/restore/<int:hid>")
@@ -584,7 +674,7 @@ def restore_history(hid):
             (h[1], h[2], h[3], now, h[0], current_user.id)
         )
         cur.execute(
-            "INSERT INTO note_history VALUES(NULL,?,?,?,?,?,?)",
+            "INSERT INTO note_history (note_id, user_id, note_key, note_value, folder_id, updated_at) VALUES(?,?,?,?,?,?)",
             (h[0], current_user.id, h[1], h[2], h[3], now)
         )
         con.commit()
@@ -606,7 +696,8 @@ def admin_login():
 def admin_dashboard():
     if not session.get('admin_logged_in'): return redirect("/admin")
     q = request.args.get('q', '')
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     sql = """
         SELECT u.id, u.username, COUNT(DISTINCT n.id), COUNT(DISTINCT f.id), u.last_login
         FROM users u 
@@ -618,14 +709,18 @@ def admin_dashboard():
     """
     cur.execute(sql, (f'%{q}%',))
     users = [(r[0], r[1], r[2], r[3], format_date(r[4]) if r[4] else "Never") for r in cur.fetchall()]
+    con.close()
     return render_template_string(T_ADMIN_DASHBOARD, users=users, q=q)
 
 @app.route("/admin/user/<int:uid>", methods=["GET","POST"])
 def admin_edit_user(uid):
     if not session.get('admin_logged_in'): return redirect("/admin")
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     user = cur.execute("SELECT id, username, last_login FROM users WHERE id=?", (uid,)).fetchone()
-    if not user: return redirect("/admin/dashboard")
+    if not user:
+        con.close()
+        return redirect("/admin/dashboard")
     
     if request.method == "POST":
         new_name = request.form.get('new_username')
@@ -636,34 +731,41 @@ def admin_edit_user(uid):
                 cur.execute("UPDATE users SET username=?, last_login=? WHERE id=?", (new_name, new_last_login, uid))
                 if new_pass:
                     cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(new_pass), uid))
-                cur.connection.commit()
+                con.commit()
+                con.close()
                 sync_s3()
                 return redirect("/admin/dashboard")
             except sqlite3.IntegrityError:
+                con.close()
                 return render_template_string(T_ADMIN_EDIT_USER, user=user, error="Username already exists")
         else:
-            # Verification dialog
+            con.close()
             return render_template_string(T_ADMIN_EDIT_USER_CONFIRM, user=user, new_name=new_name, new_pass=new_pass, new_last_login=new_last_login)
 
+    con.close()
     return render_template_string(T_ADMIN_EDIT_USER, user=user)
 
 @app.route("/admin/user/delete/<int:uid>", methods=["GET","POST"])
 def admin_delete_user(uid):
     if not session.get('admin_logged_in'): return redirect("/admin")
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     user = cur.execute("SELECT id, username FROM users WHERE id=?", (uid,)).fetchone()
-    if not user: return redirect("/admin/dashboard")
+    if not user:
+        con.close()
+        return redirect("/admin/dashboard")
     
     if request.method == "POST":
-        con = db(); cur = con.cursor()
         cur.execute("DELETE FROM notes WHERE user_id=?", (uid,))
         cur.execute("DELETE FROM folders WHERE user_id=?", (uid,))
         cur.execute("DELETE FROM note_history WHERE user_id=?", (uid,))
         cur.execute("DELETE FROM users WHERE id=?", (uid,))
         con.commit()
+        con.close()
         sync_s3()
         return redirect("/admin/dashboard")
 
+    con.close()
     return render_template_string(T_ADMIN_DELETE_USER, user=user)
 
 # --- PASSWORD RESET ---
@@ -674,8 +776,10 @@ def get_serializer():
 def forgot_password():
     if request.method == "POST":
         email = request.form['email']
-        cur = db().cursor()
+        con = db()
+        cur = con.cursor()
         user = cur.execute("SELECT username FROM users WHERE email=?", (email,)).fetchone()
+        con.close()
         if user:
             token = get_serializer().dumps(email, salt='recover-key')
             link = request.url_root + "reset_password/" + token
@@ -688,14 +792,20 @@ def reset_password(token):
     try: email = get_serializer().loads(token, salt='recover-key', max_age=3600)
     except: return render_template_string(T_RESET_PASSWORD, error="Invalid or expired token.")
     if request.method == "POST":
-        cur = db().cursor(); cur.execute("UPDATE users SET password=? WHERE email=?", (generate_password_hash(request.form['password']), email)); cur.connection.commit(); sync_s3()
+        con = db()
+        cur = con.cursor()
+        cur.execute("UPDATE users SET password=? WHERE email=?", (generate_password_hash(request.form['password']), email))
+        con.commit()
+        con.close()
+        sync_s3()
         return redirect("/login")
     return render_template_string(T_RESET_PASSWORD)
 
 # --- LOGIN ---
 @app.route("/login", methods=["GET","POST"])
 def login():
-    cur = db().cursor()
+    con = db()
+    cur = con.cursor()
     error = None
     if request.method == "POST":
         print("username",request.form['username'])
@@ -711,10 +821,12 @@ def login():
                 "INSERT INTO user_sessions (user_id, session_id, login_time, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)",
                 (r[0], session_id, datetime.datetime.now(timezone.utc).isoformat(), request.remote_addr, request.user_agent.string)
             )
-            cur.connection.commit()
+            con.commit()
+            con.close()
             login_user(User(r[0], request.form['username']))
             return redirect("/")
         error = "Invalid username or password"
+    con.close()
     return render_template_string(T_LOGIN, error=error)
 
 @app.route("/register", methods=["GET","POST"])
@@ -746,6 +858,34 @@ def logout():
         con.commit()
         con.close()
     logout_user(); session.clear(); return redirect("/login")
+
+@app.route("/download/<int:aid>")
+@login_required
+def download_attachment(aid):
+    con = db()
+    cur = con.cursor()
+    a = cur.execute("SELECT filename,file_data FROM attachments WHERE id=? AND user_id=?", (aid, current_user.id)).fetchone()
+    con.close()
+    if a:
+        resp = make_response(a[1])
+        resp.headers['Content-Disposition'] = f'attachment; filename={a[0]}'
+        return resp
+    return redirect("/")
+
+@app.route("/delete_attachment/<int:aid>")
+@login_required
+def delete_attachment(aid):
+    con = db()
+    cur = con.cursor()
+    a = cur.execute("SELECT note_id FROM attachments WHERE id=? AND user_id=?", (aid, current_user.id)).fetchone()
+    if a:
+        cur.execute("DELETE FROM attachments WHERE id=? AND user_id=?", (aid, current_user.id))
+        con.commit()
+        con.close()
+        sync_s3()
+        return redirect(f"/edit/{a[0]}")
+    con.close()
+    return redirect("/")
 
 # --- TEMPLATES ---
 STYLE = """
@@ -879,9 +1019,10 @@ T_ADD = STYLE + """
 <h3>Add Note</h3>
 <a href=/logout>Logout</a>
 {% if error %}<p style="color:red">{{error}}</p>{% endif %}
-<form method=post>
+<form method=post enctype="multipart/form-data">
 <b>Note:</b> <input name=note value="{{note}}"><br>
 <b>Contents:</b> <textarea name=content rows=40 cols=120>{{content}}</textarea><br>
+<b>Attachment (optional):</b> <input type=file name=file><br>
 <button>Add</button> <a href=/folder/{{fid}} class=cancel>Cancel</a>
 </form>
 """
@@ -892,7 +1033,7 @@ T_EDIT = STYLE + """
  &gt; <a href=/folder/{{b[0]}}>{{b[1]}}</a>
 {% endfor %}
  | <a href=/history/{{id}}>Edited: {{note[3]}}</a> | <a href=/note/delete/{{id}} style="color:red">[Delete]</a> | <a href=/logout>Logout</a>
-<form method=post>
+<form method=post enctype="multipart/form-data">
 <b>Note:</b> <input name=note value='{{note[0]}}'><br>
 <b>Contents:</b><br>
 <textarea name=content rows=40 cols=120>{{note[1]}}</textarea><br>
@@ -904,6 +1045,19 @@ T_EDIT = STYLE + """
 
 <button>Commit</button> <a href=/ class=cancel>Cancel</a>
 </form>
+
+<h4>Attachments</h4>
+<form method=post enctype="multipart/form-data">
+<input type=file name=file>
+<button>Upload</button>
+</form>
+<ul>
+{% for att in attachments %}
+<li><a href=/download/{{att[0]}}>{{att[1]}}</a> ({{att[2]}} bytes) <a href=/delete_attachment/{{att[0]}} style="color:red">[x]</a></li>
+{% else %}
+<li>No attachments</li>
+{% endfor %}
+</ul>
 """
 
 T_LOGIN = STYLE + """
