@@ -209,17 +209,20 @@ def inject_build_date():
     return dict(build_date=BUILD_DATE)
 
 # --- ENCRYPTION ---
+ENCRYPTION_ENABLED = os.environ.get('ENCRYPTION_ENABLED', 'false').lower() == 'true'
 KEY_FILE = "secret.key"
 if AESGCM:
+    # Always load key for decryption, even if encryption is disabled
     if os.path.exists(KEY_FILE):
         with open(KEY_FILE, 'rb') as f: KEY = f.read()
+        aesgcm = AESGCM(KEY)
     else:
         KEY = AESGCM.generate_key(bit_length=256)
         with open(KEY_FILE, 'wb') as f: f.write(KEY)
-    aesgcm = AESGCM(KEY)
+        aesgcm = AESGCM(KEY)
 
     def encrypt(txt):
-        if not txt: return ""
+        if not ENCRYPTION_ENABLED or not txt: return txt if txt else ""
         try:
             nonce = os.urandom(12)
             return base64.b64encode(nonce + aesgcm.encrypt(nonce, txt.encode('utf-8'), None)).decode('utf-8')
@@ -232,7 +235,7 @@ if AESGCM:
         try:
             data = base64.b64decode(txt)
             return aesgcm.decrypt(data[:12], data[12:], None).decode('utf-8')
-        except:
+        except Exception:
             return txt
 else:
     def encrypt(t): return t
@@ -309,13 +312,21 @@ def init_db():
         ip_address TEXT
     );
     """)
-    try: cur.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
-    except: pass
-    try: cur.execute("ALTER TABLE users ADD COLUMN email TEXT")
-    except: pass
+    try: 
+        cur.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    except Exception as e:
+        print(f"Warning: Failed to add last_login column: {e}")
+    try: 
+        cur.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    except Exception as e:
+        print(f"Warning: Failed to add email column: {e}")
     try:
         cur.execute("SELECT file_data FROM attachments LIMIT 1")
-    except:
+    except sqlite3.OperationalError:
         cur.execute("DROP TABLE IF EXISTS attachments")
         cur.execute("""
             CREATE TABLE attachments(
@@ -328,14 +339,16 @@ def init_db():
                 uploaded_at TEXT
             )
         """)
+    except Exception as e:
+        print(f"Warning: Attachments table check failed: {e}")
     try:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_attachments_note ON attachments(note_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)")
-    except:
-        pass
+    except Exception as e:
+        print(f"Warning: Failed to create indexes: {e}")
     c.commit()
     c.close()
 
@@ -347,8 +360,10 @@ def sync_s3():
     if boto3:
         try:
             # Try to use the specific profile if configured, else default
-            try: s3 = boto3.Session(profile_name='billspeiser2').client('s3')
-            except: s3 = boto3.client('s3')
+            try: 
+                s3 = boto3.Session(profile_name='billspeiser2').client('s3')
+            except Exception:
+                s3 = boto3.client('s3')
             
             s3.upload_file(DB, "evernothing011126", DB)
         except Exception as e:
@@ -372,7 +387,7 @@ def load_user(uid):
 def format_date(iso_str):
     try:
         return datetime.datetime.fromisoformat(iso_str).strftime("%m/%d/%Y %H:%M")
-    except:
+    except Exception:
         return iso_str 
 
 def get_breadcrumbs(cur, fid, uid):
@@ -570,12 +585,13 @@ def view_folder(fid):
 @app.route("/add/<int:fid>", methods=["GET","POST"])
 @login_required
 def add(fid):
+    from markupsafe import escape
     error = None
     note_val = ""
     content_val = ""
     if request.method == "POST":
-        note_val = request.form['note']
-        content_val = request.form['content']
+        note_val = str(escape(request.form['note']))
+        content_val = str(escape(request.form['content']))
         con = db(); cur = con.cursor()
         
         if not note_val.strip() or not content_val.strip():
