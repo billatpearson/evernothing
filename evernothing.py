@@ -1,6 +1,9 @@
 # (Full single-file EverNothing application with all prompt instructions included as comments)
 # ---------------------------------------------------------
 """
+Unit test:
+python test_evernothing.py -v
+Prompt: 
  0. Include all prompt instructions as comment.
 0.1 Document instructions for installing all packages and runtimes required.
 0.2 Document instructions for accessing the web application.
@@ -936,14 +939,18 @@ def register():
         print("pass", generate_password_hash(request.form['password']))
         con = db()
         cursor=con.cursor()
-        cursor.execute(
-            "INSERT INTO users (username, password, email) VALUES(?,?,?)",
-            (request.form['username'], generate_password_hash(request.form['password']), request.form['email'])
-        )
-        con.commit()
-        sync_s3()
-        con.close()
-        return redirect("/login")
+        try:
+            cursor.execute(
+                "INSERT INTO users (username, password, email) VALUES(?,?,?)",
+                (request.form['username'], generate_password_hash(request.form['password']), request.form['email'])
+            )
+            con.commit()
+            sync_s3()
+            con.close()
+            return redirect("/login")
+        except sqlite3.IntegrityError:
+            con.close()
+            return render_template_string(T_REGISTER, error="Username already exists")
     return render_template_string(T_REGISTER)
 
 @app.route("/logout")
@@ -1203,6 +1210,7 @@ T_LOGIN = STYLE + """
 
 T_REGISTER = STYLE + """
 <h3>Register</h3>
+{% if error %}<p style="color:red">{{error}}</p>{% endif %}
 <form method=post>
 <input name=username placeholder='Username'><br>
 <input name=email placeholder='Email'><br>
