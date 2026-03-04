@@ -187,7 +187,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
 from datetime import timezone
-import sqlite3, datetime, json, os, base64
+import sqlite3, datetime, json, os, base64, shutil
 try:
     import boto3
 except ImportError:
@@ -196,11 +196,21 @@ try:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 except ImportError:
     AESGCM = None
+try:
+    from aws_config import S3_BUCKET_NAME, AWS_REGION, AWS_PROFILE
+except ImportError:
+    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing03032026')
+    AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+    AWS_PROFILE = os.environ.get('AWS_PROFILE', 'billspeiser2')
 
 app = Flask("EverNothing")
 app.secret_key = os.environ.get('SECRET_KEY', 'Keystone1!')  # Use env var in production
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['WTF_CSRF_ENABLED'] = False  # TODO: Enable CSRF protection
+app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=int(os.environ.get('SESSION_TIMEOUT_HOURS', '2')))
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 DB = "evernothing.db"
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
@@ -243,6 +253,35 @@ else:
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
+login_manager.session_protection = "strong"
+
+# Session validation
+@app.before_request
+def validate_session():
+    if current_user.is_authenticated:
+        session.permanent = True
+        if 'session_id' in session and 'last_activity' in session:
+            # Check session timeout (2 hours of inactivity)
+            last_activity = datetime.datetime.fromisoformat(session['last_activity'])
+            if datetime.datetime.now(timezone.utc) - last_activity > datetime.timedelta(hours=2):
+                logout_user()
+                session.clear()
+                return redirect('/login?timeout=1')
+            # Update last activity
+            session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
+            
+            # Validate session still exists in database
+            con = db()
+            cur = con.cursor()
+            valid = cur.execute(
+                "SELECT id FROM user_sessions WHERE session_id=? AND user_id=? AND logout_time IS NULL",
+                (session['session_id'], current_user.id)
+            ).fetchone()
+            con.close()
+            if not valid:
+                logout_user()
+                session.clear()
+                return redirect('/login?invalid=1')
 
 # --- DATABASE ---
 def db():
@@ -354,6 +393,18 @@ def init_db():
 
 init_db()
 
+# --- BACKUP ON STARTUP ---
+def backup_database():
+    """Backup database with timestamp on application launch"""
+    if os.path.exists(DB):
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = f"Backups/evernothing_backup_{timestamp}.db"
+        os.makedirs("Backups", exist_ok=True)
+        shutil.copy(DB, backup_file)
+        print(f"Database backed up to: {backup_file}")
+
+backup_database()
+
 # --- AWS SYNC ---
 def sync_s3():
     print("S3 ASynch")
@@ -361,11 +412,11 @@ def sync_s3():
         try:
             # Try to use the specific profile if configured, else default
             try: 
-                s3 = boto3.Session(profile_name='billspeiser2').client('s3')
+                s3 = boto3.Session(profile_name=AWS_PROFILE).client('s3')
             except Exception:
-                s3 = boto3.client('s3')
+                s3 = boto3.client('s3', region_name=AWS_REGION)
             
-            s3.upload_file(DB, "evernothing011126", DB)
+            s3.upload_file(DB, S3_BUCKET_NAME, DB)
         except Exception as e:
             print(f"S3 Sync Error: {e}")
 
@@ -926,6 +977,13 @@ def login():
     con = db()
     cur = con.cursor()
     error = None
+    
+    # Check for timeout/invalid session messages
+    if request.args.get('timeout'):
+        error = "Session expired due to inactivity. Please login again."
+    elif request.args.get('invalid'):
+        error = "Invalid session. Please login again."
+    
     if request.method == "POST":
         print("username",request.form['username'])
         r = cur.execute(
@@ -933,8 +991,29 @@ def login():
             (request.form['username'],)
         ).fetchone()
         if r and check_password_hash(r[1], request.form['password']):
+            # Check concurrent session limit (max 3 active sessions)
+            active_sessions = cur.execute(
+                "SELECT COUNT(*) FROM user_sessions WHERE user_id=? AND logout_time IS NULL",
+                (r[0],)
+            ).fetchone()[0]
+            
+            if active_sessions >= 3:
+                # Terminate oldest session
+                oldest = cur.execute(
+                    "SELECT session_id FROM user_sessions WHERE user_id=? AND logout_time IS NULL ORDER BY login_time ASC LIMIT 1",
+                    (r[0],)
+                ).fetchone()
+                if oldest:
+                    cur.execute(
+                        "UPDATE user_sessions SET logout_time=? WHERE session_id=?",
+                        (datetime.datetime.now(timezone.utc).isoformat(), oldest[0])
+                    )
+            
             session_id = os.urandom(16).hex()
             session['session_id'] = session_id
+            session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
+            session.permanent = True
+            
             cur.execute("UPDATE users SET last_login=? WHERE id=?", (datetime.datetime.now(timezone.utc).isoformat(), r[0]))
             cur.execute(
                 "INSERT INTO user_sessions (user_id, session_id, login_time, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)",
@@ -942,7 +1021,7 @@ def login():
             )
             con.commit()
             con.close()
-            login_user(User(r[0], request.form['username']))
+            login_user(User(r[0], request.form['username']), remember=False)
             return redirect("/")
         error = "Invalid username or password"
     con.close()
@@ -981,6 +1060,42 @@ def logout():
         con.commit()
         con.close()
     logout_user(); session.clear(); return redirect("/login")
+
+@app.route("/sessions")
+@login_required
+def view_sessions():
+    con = db()
+    cur = con.cursor()
+    cur.execute(
+        "SELECT session_id, login_time, logout_time, ip_address, user_agent FROM user_sessions WHERE user_id=? ORDER BY login_time DESC LIMIT 10",
+        (current_user.id,)
+    )
+    sessions = []
+    for s in cur.fetchall():
+        sessions.append({
+            'session_id': s[0],
+            'login_time': format_date(s[1]),
+            'logout_time': format_date(s[2]) if s[2] else 'Active',
+            'ip': s[3],
+            'user_agent': s[4][:50] + '...' if len(s[4]) > 50 else s[4],
+            'is_current': s[0] == session.get('session_id')
+        })
+    con.close()
+    return render_template_string(T_SESSIONS, sessions=sessions)
+
+@app.route("/session/revoke/<session_id>")
+@login_required
+def revoke_session(session_id):
+    con = db()
+    cur = con.cursor()
+    # Only allow revoking own sessions
+    cur.execute(
+        "UPDATE user_sessions SET logout_time=? WHERE session_id=? AND user_id=?",
+        (datetime.datetime.now(timezone.utc).isoformat(), session_id, current_user.id)
+    )
+    con.commit()
+    con.close()
+    return redirect("/sessions")
 
 @app.route("/audit_report")
 @login_required
@@ -1067,7 +1182,7 @@ T_FOLDERS = STYLE + """
 <form action="/search" method="get">
 <input name="q" placeholder="Search..."> <button>Go</button>
 </form>
-<a href=/folder/add>Create Folder</a> | <a href=/export>Export JSON</a> | <a href=/audit_report>Audit Report</a> | <a href=/change_password>Change Password</a> | <a href=/logout>Logout</a>
+<a href=/folder/add>Create Folder</a> | <a href=/export>Export JSON</a> | <a href=/audit_report>Audit Report</a> | <a href=/sessions>Sessions</a> | <a href=/change_password>Change Password</a> | <a href=/logout>Logout</a>
 <ul>
 {% for f in folders %}
 <li><a href=/folder/{{f[0]}}>{{f[1]}}</a> <a href=/folder/rename/{{f[0]}} style="font-size:small">[rename]</a> <a href=/folder/delete/{{f[0]}} style="color:red;font-size:small">[x]</a></li>
@@ -1372,6 +1487,36 @@ T_AUDIT_REPORT = STYLE + """
 {% endfor %}
 </td>
 <td style="padding:5px; font-size:small;">{{log.ip}}</td>
+</tr>
+{% endfor %}
+</table>
+"""
+
+T_SESSIONS = STYLE + """
+<h3>Active Sessions</h3>
+<a href=/>Back</a> | <a href=/logout>Logout</a>
+<p>Manage your active login sessions. You can have up to 3 concurrent sessions.</p>
+<table style="width:100%; border-collapse:collapse; margin-top:20px;">
+<tr style="border-bottom:1px solid red;">
+<th style="text-align:left; padding:5px;">Login Time</th>
+<th style="text-align:left; padding:5px;">Logout Time</th>
+<th style="text-align:left; padding:5px;">IP Address</th>
+<th style="text-align:left; padding:5px;">Device</th>
+<th style="text-align:left; padding:5px;">Action</th>
+</tr>
+{% for s in sessions %}
+<tr style="border-bottom:1px solid #333; {% if s.is_current %}background:#222;{% endif %}">
+<td style="padding:5px;">{{s.login_time}}</td>
+<td style="padding:5px;">{{s.logout_time}}</td>
+<td style="padding:5px;">{{s.ip}}</td>
+<td style="padding:5px; font-size:small;">{{s.user_agent}}</td>
+<td style="padding:5px;">
+{% if s.is_current %}
+<span style="color:#0f0;">Current</span>
+{% elif s.logout_time == 'Active' %}
+<a href=/session/revoke/{{s.session_id}} style="color:red;">[Revoke]</a>
+{% endif %}
+</td>
 </tr>
 {% endfor %}
 </table>

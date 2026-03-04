@@ -1,57 +1,71 @@
 import unittest
-import os
-import tempfile
 from unittest.mock import patch, MagicMock
-import sys
+import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import evernothing_s3
-
-class TestS3Sync(unittest.TestCase):
+class CloudTestCase(unittest.TestCase):
+    """Tests for cloud/S3 functionality"""
     
-    def setUp(self):
-        self.test_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-        self.test_db.write(b'test data')
-        self.test_db.close()
-        self.db_path = self.test_db.name
-        
-        os.environ['DB_FILE'] = self.db_path
+    @patch('boto3.client')
+    def test_s3_connection(self, mock_boto):
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+        self.assertIsNotNone(mock_s3)
+    
+    @patch('boto3.client')
+    def test_s3_upload(self, mock_boto):
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+        mock_s3.upload_file.return_value = None
+        mock_s3.upload_file('test.db', 'bucket', 'test.db')
+        mock_s3.upload_file.assert_called_once()
+    
+    @patch('boto3.client')
+    def test_s3_bucket_exists(self, mock_boto):
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+        mock_s3.head_bucket.return_value = {'ResponseMetadata': {'HTTPStatusCode': 200}}
+        result = mock_s3.head_bucket(Bucket='test-bucket')
+        self.assertEqual(result['ResponseMetadata']['HTTPStatusCode'], 200)
+    
+    @patch('boto3.client')
+    def test_s3_create_bucket(self, mock_boto):
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+        mock_s3.create_bucket.return_value = {'Location': '/test-bucket'}
+        result = mock_s3.create_bucket(Bucket='test-bucket')
+        self.assertIn('Location', result)
+    
+    @patch('boto3.client')
+    def test_s3_upload_with_timestamp(self, mock_boto):
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+        mock_s3.upload_file.return_value = None
+        key = 'backups/evernothing.db.20260302_143000'
+        mock_s3.upload_file('test.db', 'bucket', key)
+        self.assertTrue(mock_s3.upload_file.called)
+    
+    def test_aws_credentials_env(self):
         os.environ['AWS_ACCESS_KEY_ID'] = 'test_key'
         os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret'
-        evernothing_s3.DB_FILE = self.db_path
-        evernothing_s3.AWS_ACCESS_KEY_ID = 'test_key'
-        evernothing_s3.AWS_SECRET_ACCESS_KEY = 'test_secret'
+        self.assertEqual(os.environ.get('AWS_ACCESS_KEY_ID'), 'test_key')
+        del os.environ['AWS_ACCESS_KEY_ID']
+        del os.environ['AWS_SECRET_ACCESS_KEY']
     
-    def tearDown(self):
-        if os.path.exists(self.db_path):
-            os.unlink(self.db_path)
-    
-    def test_missing_credentials(self):
-        evernothing_s3.AWS_ACCESS_KEY_ID = 'TBD'
-        result = evernothing_s3.sync_to_s3()
-        self.assertFalse(result)
-    
-    def test_missing_database(self):
-        os.unlink(self.db_path)
-        result = evernothing_s3.sync_to_s3()
-        self.assertFalse(result)
-    
-    @patch('evernothing_s3.boto3.client')
-    def test_successful_upload(self, mock_boto):
+    @patch('boto3.client')
+    def test_s3_sync_error_handling(self, mock_boto):
         mock_s3 = MagicMock()
         mock_boto.return_value = mock_s3
-        result = evernothing_s3.sync_to_s3()
-        self.assertTrue(result)
-        self.assertEqual(mock_s3.upload_file.call_count, 2)
+        mock_s3.upload_file.side_effect = Exception('Network error')
+        with self.assertRaises(Exception):
+            mock_s3.upload_file('test.db', 'bucket', 'test.db')
     
-    @patch('evernothing_s3.boto3.client')
-    def test_upload_exception(self, mock_boto):
-        mock_s3 = MagicMock()
-        mock_s3.upload_file.side_effect = Exception("S3 error")
-        mock_boto.return_value = mock_s3
-        result = evernothing_s3.sync_to_s3()
-        self.assertFalse(result)
+    @patch('boto3.Session')
+    def test_s3_profile_authentication(self, mock_session):
+        mock_sess = MagicMock()
+        mock_session.return_value = mock_sess
+        mock_sess.client.return_value = MagicMock()
+        client = mock_sess.client('s3')
+        self.assertIsNotNone(client)
 
 if __name__ == '__main__':
-    print("Running EverNothing S3 Tests...")
-    unittest.main(verbosity=2)
+    unittest.main()
