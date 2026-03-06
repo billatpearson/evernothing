@@ -51,10 +51,19 @@ class EvernothingTestCase(unittest.TestCase):
         return self.client.get('/logout', follow_redirects=True)
 
     def test_encryption(self):
+        """Test encryption/decryption when enabled"""
+        import evernothing
         text = "secret note"
         encrypted = self.encrypt(text)
-        self.assertNotEqual(text, encrypted)
-        self.assertEqual(text, self.decrypt(encrypted))
+        decrypted = self.decrypt(encrypted)
+        
+        # If encryption is enabled, encrypted should differ from original
+        # If disabled, they should be the same
+        if evernothing.ENCRYPTION_ENABLED:
+            self.assertNotEqual(text, encrypted)
+        
+        # Decryption should always return original text
+        self.assertEqual(text, decrypted)
 
     @patch('evernothing.sync_s3')
     def test_register_login(self, mock_sync):

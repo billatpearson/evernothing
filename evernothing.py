@@ -208,6 +208,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'Keystone1!')  # Use env var in pr
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['WTF_CSRF_ENABLED'] = False  # TODO: Enable CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=int(os.environ.get('SESSION_TIMEOUT_HOURS', '2')))
+app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=int(os.environ.get('REMEMBER_COOKIE_DAYS', '30')))
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -259,18 +260,21 @@ login_manager.session_protection = "strong"
 @app.before_request
 def validate_session():
     if current_user.is_authenticated:
-        session.permanent = True
-        if 'session_id' in session and 'last_activity' in session:
-            # Check session timeout (2 hours of inactivity)
-            last_activity = datetime.datetime.fromisoformat(session['last_activity'])
-            if datetime.datetime.now(timezone.utc) - last_activity > datetime.timedelta(hours=2):
-                logout_user()
-                session.clear()
-                return redirect('/login?timeout=1')
-            # Update last activity
-            session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
-            
-            # Validate session still exists in database
+        # Skip timeout check if "remember me" is active
+        if not session.get('remember_me'):
+            session.permanent = True
+            if 'session_id' in session and 'last_activity' in session:
+                # Check session timeout (2 hours of inactivity)
+                last_activity = datetime.datetime.fromisoformat(session['last_activity'])
+                if datetime.datetime.now(timezone.utc) - last_activity > datetime.timedelta(hours=2):
+                    logout_user()
+                    session.clear()
+                    return redirect('/login?timeout=1')
+                # Update last activity
+                session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
+        
+        # Validate session still exists in database
+        if 'session_id' in session:
             con = db()
             cur = con.cursor()
             valid = cur.execute(
@@ -1009,9 +1013,13 @@ def login():
                         (datetime.datetime.now(timezone.utc).isoformat(), oldest[0])
                     )
             
+            # Check if "Remember Me" is checked
+            remember_me = request.form.get('remember_me') == 'on'
+            
             session_id = os.urandom(16).hex()
             session['session_id'] = session_id
             session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
+            session['remember_me'] = remember_me
             session.permanent = True
             
             cur.execute("UPDATE users SET last_login=? WHERE id=?", (datetime.datetime.now(timezone.utc).isoformat(), r[0]))
@@ -1021,7 +1029,7 @@ def login():
             )
             con.commit()
             con.close()
-            login_user(User(r[0], request.form['username']), remember=False)
+            login_user(User(r[0], request.form['username']), remember=remember_me)
             return redirect("/")
         error = "Invalid username or password"
     con.close()
@@ -1335,6 +1343,10 @@ T_LOGIN = STYLE + """
 <form method=post>
 <input name=username placeholder='Username'><br>
 <input type=password name=password placeholder='Password'><br>
+<label style="display:block; margin:10px 0;">
+<input type=checkbox name=remember_me style="width:auto; margin-right:5px;">
+Remember me on this device (30 days)
+</label>
 <button>Login</button> <a href=/register>Register</a> | <a href=/forgot_password>Forgot Password?</a>
 </form>
 """
