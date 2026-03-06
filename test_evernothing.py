@@ -41,10 +41,10 @@ class EvernothingTestCase(unittest.TestCase):
         except:
             pass
 
-    def register(self, username, password, email='test@test.com'):
+    def register(self, username, password='TestPass123', email='test@test.com'):
         return self.client.post('/register', data={'username': username, 'password': password, 'email': email}, follow_redirects=True)
 
-    def login(self, username, password):
+    def login(self, username, password='TestPass123'):
         return self.client.post('/login', data={'username': username, 'password': password}, follow_redirects=True)
 
     def logout(self):
@@ -67,15 +67,15 @@ class EvernothingTestCase(unittest.TestCase):
 
     @patch('evernothing.sync_s3')
     def test_register_login(self, mock_sync):
-        rv = self.register('user1', 'pass1')
+        rv = self.register('user1')
         self.assertIn(b'Login', rv.data)
-        rv = self.login('user1', 'pass1')
+        rv = self.login('user1')
         self.assertIn(b'EverNothing', rv.data)
 
     @patch('evernothing.sync_s3')
     def test_duplicate_user(self, mock_sync):
-        self.register('user2', 'pass')
-        rv = self.register('user2', 'pass2')
+        self.register('user2')
+        rv = self.register('user2')
         self.assertIn(b'exists', rv.data.lower())
 
     def test_invalid_login(self):
@@ -84,16 +84,16 @@ class EvernothingTestCase(unittest.TestCase):
 
     @patch('evernothing.sync_s3')
     def test_create_note(self, mock_sync):
-        self.register('user3', 'pass')
-        self.login('user3', 'pass')
+        self.register('user3')
+        self.login('user3')
         self.client.post('/folder/add', data={'name': 'TestFolder'}, follow_redirects=True)
         rv = self.client.post('/add/1', data={'note': 'Test Note', 'content': 'Test Content'}, follow_redirects=True)
         self.assertIn(b'Test Note', rv.data)
 
     @patch('evernothing.sync_s3')
     def test_edit_note(self, mock_sync):
-        self.register('user4', 'pass')
-        self.login('user4', 'pass')
+        self.register('user4')
+        self.login('user4')
         self.client.post('/folder/add', data={'name': 'TestFolder'}, follow_redirects=True)
         self.client.post('/add/1', data={'note': 'Original', 'content': 'Content'}, follow_redirects=True)
         rv = self.client.post('/edit/1', data={'note': 'Updated', 'content': 'New Content', 'folder_id': '1', 'confirm': 'yes'}, follow_redirects=True)
@@ -101,8 +101,8 @@ class EvernothingTestCase(unittest.TestCase):
 
     @patch('evernothing.sync_s3')
     def test_delete_note(self, mock_sync):
-        self.register('user5', 'pass')
-        self.login('user5', 'pass')
+        self.register('user5')
+        self.login('user5')
         self.client.post('/folder/add', data={'name': 'TestFolder'}, follow_redirects=True)
         self.client.post('/add/1', data={'note': 'Delete Me', 'content': 'Content'}, follow_redirects=True)
         rv = self.client.post('/note/delete/1', follow_redirects=True)
@@ -110,8 +110,8 @@ class EvernothingTestCase(unittest.TestCase):
 
     @patch('evernothing.sync_s3')
     def test_folder_operations(self, mock_sync):
-        self.register('folderuser', 'pass')
-        self.login('folderuser', 'pass')
+        self.register('folderuser')
+        self.login('folderuser')
         rv = self.client.post('/folder/add', data={'name': 'TestFolder'}, follow_redirects=True)
         self.assertIn(b'TestFolder', rv.data)
 
@@ -123,8 +123,8 @@ class EvernothingTestCase(unittest.TestCase):
 
     @patch('evernothing.sync_s3')
     def test_audit_log(self, mock_sync):
-        self.register('user7', 'pass')
-        self.login('user7', 'pass')
+        self.register('user7')
+        self.login('user7')
         self.client.post('/folder/add', data={'name': 'TestFolder'}, follow_redirects=True)
         self.client.post('/add/1', data={'note': 'Audit Test', 'content': 'Content'}, follow_redirects=True)
         rv = self.client.get('/audit_report')

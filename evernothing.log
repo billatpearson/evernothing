@@ -1,0 +1,18 @@
+2026-03-05 19:31:27,410 - evernothing - INFO - New user registered: user7
+2026-03-05 19:31:27,514 - evernothing - INFO - User 1 created folder: TestFolder
+2026-03-05 19:31:27,667 - evernothing - INFO - New user registered: user3
+2026-03-05 19:31:27,781 - evernothing - INFO - User 1 created folder: TestFolder
+2026-03-05 19:31:27,936 - evernothing - INFO - New user registered: user5
+2026-03-05 19:31:28,039 - evernothing - INFO - User 1 created folder: TestFolder
+2026-03-05 19:31:28,198 - evernothing - INFO - New user registered: user2
+2026-03-05 19:31:28,284 - evernothing - WARNING - Duplicate registration attempt: user2
+2026-03-05 19:31:28,424 - evernothing - INFO - New user registered: user4
+2026-03-05 19:31:28,537 - evernothing - INFO - User 1 created folder: TestFolder
+2026-03-05 19:31:28,774 - evernothing - INFO - New user registered: folderuser
+2026-03-05 19:31:28,877 - evernothing - INFO - User 1 created folder: TestFolder
+2026-03-05 19:31:29,079 - evernothing - INFO - New user registered: user1
+2026-03-05 19:33:21,823 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.163:5000
+2026-03-05 19:33:21,824 - werkzeug - INFO - [33mPress CTRL+C to quit[0m

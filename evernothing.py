@@ -187,7 +187,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
 from datetime import timezone
-import sqlite3, datetime, json, os, base64, shutil
+import sqlite3, datetime, json, os, base64, shutil, logging, re
 try:
     import boto3
 except ImportError:
@@ -202,6 +202,14 @@ except ImportError:
     S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing03032026')
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
     AWS_PROFILE = os.environ.get('AWS_PROFILE', 'billspeiser2')
+
+# Configure logging
+logging.basicConfig(
+    filename='evernothing.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask("EverNothing")
 app.secret_key = os.environ.get('SECRET_KEY', 'Keystone1!')  # Use env var in production
@@ -289,7 +297,7 @@ def validate_session():
 
 # --- DATABASE ---
 def db():
-    con = sqlite3.connect(DB, check_same_thread=False)
+    con = sqlite3.connect(DB, check_same_thread=False, timeout=10)
     con.row_factory = sqlite3.Row
     return con
 def init_db():
@@ -411,18 +419,23 @@ backup_database()
 
 # --- AWS SYNC ---
 def sync_s3():
-    print("S3 ASynch")
-    if boto3:
-        try:
-            # Try to use the specific profile if configured, else default
-            try: 
-                s3 = boto3.Session(profile_name=AWS_PROFILE).client('s3')
-            except Exception:
-                s3 = boto3.client('s3', region_name=AWS_REGION)
-            
-            s3.upload_file(DB, S3_BUCKET_NAME, DB)
-        except Exception as e:
-            print(f"S3 Sync Error: {e}")
+    """Asynchronously sync database to S3"""
+    if not boto3:
+        logger.warning("S3 sync skipped: boto3 not available")
+        return
+    
+    try:
+        # Try to use the specific profile if configured, else default
+        try: 
+            s3 = boto3.Session(profile_name=AWS_PROFILE).client('s3')
+        except Exception:
+            s3 = boto3.client('s3', region_name=AWS_REGION)
+        
+        s3.upload_file(DB, S3_BUCKET_NAME, DB)
+        logger.info(f"S3 sync successful: {DB} -> s3://{S3_BUCKET_NAME}/{DB}")
+    except Exception as e:
+        logger.error(f"S3 Sync Error: {e}")
+        print(f"S3 Sync Error: {e}")
 
 # --- AUTH ---
 class User(UserMixin):
@@ -438,6 +451,41 @@ def load_user(uid):
     ).fetchone()
     con.close()
     return User(*r) if r else None
+
+def validate_input(text, max_length=255, allow_empty=False):
+    """Validate and sanitize user input"""
+    if not text and not allow_empty:
+        return None, "Input cannot be empty"
+    if text and len(text) > max_length:
+        return None, f"Input too long (max {max_length} characters)"
+    if text:
+        # Remove potentially dangerous characters
+        text = text.strip()
+    return text, None
+
+def validate_email(email):
+    """Validate email format"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(pattern, email):
+        return None, "Invalid email format"
+    return email, None
+
+def validate_password(password):
+    """Validate password strength"""
+    if len(password) < 8:
+        return None, "Password must be at least 8 characters"
+    if not any(c.isupper() for c in password):
+        return None, "Password must contain at least one uppercase letter"
+    if not any(c.islower() for c in password):
+        return None, "Password must contain at least one lowercase letter"
+    if not any(c.isdigit() for c in password):
+        return None, "Password must contain at least one number"
+    return password, None
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'zip'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def format_date(iso_str):
     try:
@@ -460,6 +508,16 @@ def log_change(cur, user_id, action, entity_type, entity_id, old_values, new_val
         (user_id, action, entity_type, entity_id, json.dumps(old_values), json.dumps(new_values), datetime.datetime.now(timezone.utc).isoformat(), ip_addr)
     )
 
+@app.errorhandler(404)
+def not_found(error):
+    logger.warning(f"404 error: {request.url}")
+    return render_template_string(STYLE + "<h3>404 - Page Not Found</h3><a href=/>Home</a>"), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"500 error: {error}")
+    return render_template_string(STYLE + "<h3>500 - Internal Server Error</h3><a href=/>Home</a>"), 500
+
 # --- ROUTES ---
 @app.route("/")
 @login_required
@@ -479,14 +537,25 @@ def index():
 @login_required
 def add_folder():
     if request.method == "POST":
+        name, error = validate_input(request.form.get('name', ''))
+        if error:
+            return render_template_string(T_ADD_FOLDER, error=error)
+        
         con = db(); cur = con.cursor()
-        cur.execute(
-            "INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,NULL)",
-            (current_user.id, encrypt(request.form['name']))
-        )
-        con.commit()
-        sync_s3()
-        con.close()        
+        try:
+            cur.execute(
+                "INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,NULL)",
+                (current_user.id, encrypt(name))
+            )
+            con.commit()
+            sync_s3()
+            logger.info(f"User {current_user.id} created folder: {name}")
+        except Exception as e:
+            logger.error(f"Error creating folder: {e}")
+            con.rollback()
+            return render_template_string(T_ADD_FOLDER, error="Failed to create folder")
+        finally:
+            con.close()
         return redirect("/")
     return render_template_string(T_ADD_FOLDER)
 
@@ -587,17 +656,30 @@ def change_password():
 @app.route("/search")
 @login_required
 def search():
-    q = request.args.get('q','')
+    q = request.args.get('q', '').strip()
+    if not q or len(q) > 100:
+        return render_template_string(T_SEARCH, notes=[], q=q)
+    
     con = db()
     cur = con.cursor()
-    cur.execute("SELECT id,note_key,note_value FROM notes WHERE user_id=?", (current_user.id,))
-    notes = []
-    for r in cur.fetchall():
-        k, v = decrypt(r[1]), decrypt(r[2])
-        if q.lower() in k.lower() or q.lower() in v.lower():
-            notes.append((r[0], k))
-    notes.sort(key=lambda x: x[1].lower())
-    con.close()
+    try:
+        # Use parameterized query for security
+        cur.execute(
+            "SELECT id,note_key,note_value FROM notes WHERE user_id=?",
+            (current_user.id,)
+        )
+        notes = []
+        q_lower = q.lower()
+        for r in cur.fetchall():
+            k, v = decrypt(r[1]), decrypt(r[2])
+            if q_lower in k.lower() or q_lower in v.lower():
+                notes.append((r[0], k))
+        notes.sort(key=lambda x: x[1].lower())
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        notes = []
+    finally:
+        con.close()
     return render_template_string(T_SEARCH, notes=notes, q=q)
 
 @app.route("/export")
@@ -1038,22 +1120,37 @@ def login():
 @app.route("/register", methods=["GET","POST"])
 def register():
     if request.method == "POST":
-        print("register",request.form['username'])
-        print("pass", generate_password_hash(request.form['password']))
+        username, error = validate_input(request.form.get('username', ''), max_length=50)
+        if error:
+            return render_template_string(T_REGISTER, error=error)
+        
+        email, error = validate_email(request.form.get('email', ''))
+        if error:
+            return render_template_string(T_REGISTER, error=error)
+        
+        password, error = validate_password(request.form.get('password', ''))
+        if error:
+            return render_template_string(T_REGISTER, error=error)
+        
         con = db()
         cursor=con.cursor()
         try:
             cursor.execute(
                 "INSERT INTO users (username, password, email) VALUES(?,?,?)",
-                (request.form['username'], generate_password_hash(request.form['password']), request.form['email'])
+                (username, generate_password_hash(password), email)
             )
             con.commit()
             sync_s3()
-            con.close()
+            logger.info(f"New user registered: {username}")
             return redirect("/login")
         except sqlite3.IntegrityError:
-            con.close()
+            logger.warning(f"Duplicate registration attempt: {username}")
             return render_template_string(T_REGISTER, error="Username already exists")
+        except Exception as e:
+            logger.error(f"Registration error: {e}")
+            return render_template_string(T_REGISTER, error="Registration failed")
+        finally:
+            con.close()
     return render_template_string(T_REGISTER)
 
 @app.route("/logout")
@@ -1209,8 +1306,9 @@ T_FOLDERS = STYLE + """
 T_ADD_FOLDER = STYLE + """
 <h3>Create Folder</h3>
 <a href=/logout>Logout</a>
+{% if error %}<p style="color:red">{{error}}</p>{% endif %}
 <form method=post>
-<b>Folder name:</b> <input name=name><br>
+<b>Folder name:</b> <input name=name maxlength="255"><br>
 <button>Create</button> <a href=/ class=cancel>Cancel</a>
 </form>
 """
@@ -1355,9 +1453,9 @@ T_REGISTER = STYLE + """
 <h3>Register</h3>
 {% if error %}<p style="color:red">{{error}}</p>{% endif %}
 <form method=post>
-<input name=username placeholder='Username'><br>
-<input name=email placeholder='Email'><br>
-<input type=password name=password placeholder='Password'><br>
+<input name=username placeholder='Username' maxlength="50" required><br>
+<input name=email placeholder='Email' type="email" maxlength="100" required><br>
+<input type=password name=password placeholder='Password (min 8 chars, uppercase, lowercase, number)' minlength="8" required><br>
 <button>Create</button> <a href=/login class=cancel>Cancel</a>
 </form>
 """
