@@ -5,7 +5,14 @@ Enhanced session management with security features including timeout, concurrent
 
 ## Features Implemented
 
-### 1. Session Timeout (2 Hours Inactivity)
+### 1. Remember Me (30 Days)
+- **Persistent login** checkbox on login page
+- **30-day cookie** keeps user logged in
+- **No timeout** when "Remember Me" is active
+- **Configurable** via `REMEMBER_COOKIE_DAYS` environment variable
+- **Secure** uses Flask-Login's built-in remember me functionality
+
+### 2. Session Timeout (2 Hours Inactivity)
 - **Automatic logout** after 2 hours of inactivity
 - **Last activity tracking** updates on every request
 - **User-friendly message** when session expires
@@ -41,6 +48,9 @@ Enhanced session management with security features including timeout, concurrent
 # Session timeout in hours (default: 2)
 SESSION_TIMEOUT_HOURS=2
 
+# Remember Me cookie duration in days (default: 30)
+REMEMBER_COOKIE_DAYS=30
+
 # Enable secure cookies (HTTPS only)
 SESSION_COOKIE_SECURE=true
 
@@ -61,6 +71,23 @@ export SESSION_TIMEOUT_HOURS=1
 ```
 
 ## Usage
+
+### Remember Me Feature
+
+1. **Enable Remember Me**
+   - Check "Remember me on this device" on login
+   - Stay logged in for 30 days
+   - No 2-hour timeout applies
+
+2. **Disable Remember Me**
+   - Uncheck the box on login
+   - Standard 2-hour inactivity timeout applies
+   - Must re-login after timeout
+
+3. **Security Notes**
+   - Only use on trusted devices
+   - Logout manually on shared computers
+   - Cookie is HTTPOnly and encrypted
 
 ### User Session Management
 
