@@ -18,7 +18,7 @@ Environment Variables:
 import os
 
 # S3 Configuration
-S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing03032026')
+S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing-backup-2026')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 
 # AWS Credentials

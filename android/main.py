@@ -7,9 +7,21 @@ Installation (Termux):
   pip install kivy requests
   python main.py
 
+Run from terminal (Windows):
+  python android/main.py
+
 Configuration:
   Set SERVER_URL to your Flask backend (default: http://127.0.0.1:5000)
 """
+
+try:
+    from kivy.app import App
+except ModuleNotFoundError as e:
+    raise SystemExit(
+        f"Kivy not found for this Python interpreter: {e}\n"
+        "Run from terminal: python android/main.py\n"
+        "Or install Kivy: pip install kivy"
+    ) from e
 
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
@@ -100,14 +112,80 @@ class APIClient:
             print(f"Create folder error: {e}")
             return False
     
-    def create_note(self, fid, note, content):
+    def get_note(self, nid):
         try:
-            r = self.session.post(f'{self.base_url}/add/{fid}',
-                                 data={'note': note, 'content': content},
+            r = self.session.get(f'{self.base_url}/edit/{nid}')
+            # Parse note details from HTML
+            note = {'id': nid, 'key': '', 'value': '', 'folder_id': ''}
+            for line in r.text.split('\n'):
+                if 'name=note value=' in line:
+                    note['key'] = line.split("value='")[1].split("'")[0] if "value='" in line else ''
+                elif '<textarea name=content' in line:
+                    idx = r.text.find('<textarea name=content')
+                    end_idx = r.text.find('</textarea>', idx)
+                    note['value'] = r.text[idx:end_idx].split('>')[1] if idx > 0 else ''
+            return note
+        except Exception as e:
+            print(f"Get note error: {e}")
+            return None
+    
+    def update_note(self, nid, note, content, folder_id):
+        try:
+            r = self.session.post(f'{self.base_url}/edit/{nid}',
+                                 data={'note': note, 'content': content, 'folder_id': folder_id, 'confirm': 'yes'},
                                  allow_redirects=False)
             return r.status_code == 302
         except Exception as e:
-            print(f"Create note error: {e}")
+            print(f"Update note error: {e}")
+            return False
+    
+    def delete_note(self, nid):
+        try:
+            r = self.session.post(f'{self.base_url}/note/delete/{nid}', allow_redirects=False)
+            return r.status_code == 302
+        except Exception as e:
+            print(f"Delete note error: {e}")
+            return False
+    
+    def delete_folder(self, fid):
+        try:
+            r = self.session.post(f'{self.base_url}/folder/delete/{fid}', allow_redirects=False)
+            return r.status_code == 302
+        except Exception as e:
+            print(f"Delete folder error: {e}")
+            return False
+    
+    def rename_folder(self, fid, name):
+        try:
+            r = self.session.post(f'{self.base_url}/folder/rename/{fid}',
+                                 data={'name': name}, allow_redirects=False)
+            return r.status_code == 302
+        except Exception as e:
+            print(f"Rename folder error: {e}")
+            return False
+    
+    def search(self, query):
+        try:
+            r = self.session.get(f'{self.base_url}/search?q={query}')
+            notes = []
+            for line in r.text.split('\n'):
+                if '/edit/' in line and '<a href=' in line:
+                    name = line.split('>')[1].split('<')[0]
+                    nid = line.split('/edit/')[1].split('"')[0]
+                    notes.append({'id': nid, 'name': name})
+            return notes
+        except Exception as e:
+            print(f"Search error: {e}")
+            return []
+    
+    def change_password(self, old_password, new_password):
+        try:
+            r = self.session.post(f'{self.base_url}/change_password',
+                                 data={'old_password': old_password, 'new_password': new_password},
+                                 allow_redirects=False)
+            return r.status_code == 302
+        except Exception as e:
+            print(f"Change password error: {e}")
             return False
     
     def logout(self):
@@ -214,7 +292,18 @@ class FoldersScreen(Screen):
         
         header = BoxLayout(size_hint_y=0.1, spacing=10)
         header.add_widget(Label(text='Folders', font_size=24, color=(1, 0.84, 0, 1)))
-        logout_btn = Button(text='Logout', size_hint_x=0.3, background_color=(1, 0, 0, 1),
+        
+        settings_btn = Button(text='Settings', size_hint_x=0.25, background_color=(1, 0, 0, 1),
+                             color=(1, 0.84, 0, 1))
+        settings_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'settings'))
+        header.add_widget(settings_btn)
+        
+        search_btn = Button(text='Search', size_hint_x=0.25, background_color=(1, 0, 0, 1),
+                           color=(1, 0.84, 0, 1))
+        search_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'search'))
+        header.add_widget(search_btn)
+        
+        logout_btn = Button(text='Logout', size_hint_x=0.25, background_color=(1, 0, 0, 1),
                            color=(1, 0.84, 0, 1))
         logout_btn.bind(on_press=self.do_logout)
         header.add_widget(logout_btn)
@@ -300,6 +389,7 @@ class FolderScreen(Screen):
             for note in contents['notes']:
                 btn = Button(text=note['name'], size_hint_y=None, height=50,
                            background_color=(0.1, 0.1, 0.1, 1), color=(1, 0.84, 0, 1))
+                btn.bind(on_press=lambda x, nid=note['id']: self.open_note(nid))
                 self.content_list.add_widget(btn)
         
         if contents['subfolders']:
@@ -310,6 +400,11 @@ class FolderScreen(Screen):
                            background_color=(0.1, 0.1, 0.1, 1), color=(1, 0.84, 0, 1))
                 btn.bind(on_press=lambda x, fid=subfolder['id']: self.open_subfolder(fid))
                 self.content_list.add_widget(btn)
+    
+    def open_note(self, nid):
+        edit_screen = self.manager.get_screen('edit_note')
+        edit_screen.load_note(nid)
+        self.manager.current = 'edit_note'
     
     def open_subfolder(self, fid):
         self.folder_id = fid
@@ -425,7 +520,159 @@ class EvernothingApp(App):
         sm.add_widget(FolderScreen(name='folder'))
         sm.add_widget(AddFolderScreen(name='add_folder'))
         sm.add_widget(AddNoteScreen(name='add_note'))
+        sm.add_widget(EditNoteScreen(name='edit_note'))
+        sm.add_widget(SearchScreen(name='search'))
+        sm.add_widget(SettingsScreen(name='settings'))
         return sm
 
 if __name__ == '__main__':
     EvernothingApp().run()
+
+
+class EditNoteScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.note_id = None
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
+        
+        layout.add_widget(Label(text='Edit Note', font_size=24, color=(1, 0.84, 0, 1)))
+        layout.add_widget(Label(text='Note:', color=(1, 0.84, 0, 1)))
+        self.note = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1),
+                             foreground_color=(1, 0.84, 0, 1))
+        layout.add_widget(self.note)
+        
+        layout.add_widget(Label(text='Contents:', color=(1, 0.84, 0, 1)))
+        self.content = TextInput(multiline=True, background_color=(0.1, 0.1, 0.1, 1),
+                                foreground_color=(1, 0.84, 0, 1))
+        layout.add_widget(self.content)
+        
+        btn_layout = BoxLayout(spacing=10, size_hint_y=0.15)
+        save_btn = Button(text='Save', background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
+        save_btn.bind(on_press=self.do_save)
+        btn_layout.add_widget(save_btn)
+        
+        delete_btn = Button(text='Delete', background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
+        delete_btn.bind(on_press=self.do_delete)
+        btn_layout.add_widget(delete_btn)
+        
+        cancel_btn = Button(text='Cancel', background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
+        cancel_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'folder'))
+        btn_layout.add_widget(cancel_btn)
+        layout.add_widget(btn_layout)
+        
+        self.add_widget(layout)
+    
+    def load_note(self, note_id):
+        self.note_id = note_id
+        app = App.get_running_app()
+        note_data = app.api.get_note(note_id)
+        if note_data:
+            self.note.text = note_data['key']
+            self.content.text = note_data['value']
+    
+    def do_save(self, instance):
+        app = App.get_running_app()
+        folder_id = self.manager.get_screen('folder').folder_id
+        if app.api.update_note(self.note_id, self.note.text, self.content.text, folder_id):
+            self.manager.current = 'folder'
+            self.manager.get_screen('folder').load_contents()
+    
+    def do_delete(self, instance):
+        app = App.get_running_app()
+        if app.api.delete_note(self.note_id):
+            self.manager.current = 'folder'
+            self.manager.get_screen('folder').load_contents()
+
+class SearchScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        
+        header = BoxLayout(size_hint_y=0.1, spacing=10)
+        back_btn = Button(text='Back', size_hint_x=0.3, background_color=(1, 0, 0, 1),
+                         color=(1, 0.84, 0, 1))
+        back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'folders'))
+        header.add_widget(back_btn)
+        header.add_widget(Label(text='Search', font_size=20, color=(1, 0.84, 0, 1)))
+        layout.add_widget(header)
+        
+        search_box = BoxLayout(size_hint_y=0.1, spacing=10)
+        self.search_input = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1),
+                                     foreground_color=(1, 0.84, 0, 1))
+        search_box.add_widget(self.search_input)
+        search_btn = Button(text='Search', size_hint_x=0.3, background_color=(1, 0, 0, 1),
+                           color=(1, 0.84, 0, 1))
+        search_btn.bind(on_press=self.do_search)
+        search_box.add_widget(search_btn)
+        layout.add_widget(search_box)
+        
+        self.scroll = ScrollView()
+        self.results_list = GridLayout(cols=1, spacing=5, size_hint_y=None)
+        self.results_list.bind(minimum_height=self.results_list.setter('height'))
+        self.scroll.add_widget(self.results_list)
+        layout.add_widget(self.scroll)
+        
+        self.add_widget(layout)
+    
+    def do_search(self, instance):
+        app = App.get_running_app()
+        results = app.api.search(self.search_input.text)
+        self.results_list.clear_widgets()
+        
+        if results:
+            for note in results:
+                btn = Button(text=note['name'], size_hint_y=None, height=50,
+                           background_color=(0.1, 0.1, 0.1, 1), color=(1, 0.84, 0, 1))
+                btn.bind(on_press=lambda x, nid=note['id']: self.open_note(nid))
+                self.results_list.add_widget(btn)
+        else:
+            self.results_list.add_widget(Label(text='No results', color=(1, 0.84, 0, 1)))
+    
+    def open_note(self, nid):
+        edit_screen = self.manager.get_screen('edit_note')
+        edit_screen.load_note(nid)
+        self.manager.current = 'edit_note'
+
+class SettingsScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
+        
+        layout.add_widget(Label(text='Settings', font_size=24, color=(1, 0.84, 0, 1)))
+        
+        layout.add_widget(Label(text='Old Password:', color=(1, 0.84, 0, 1)))
+        self.old_password = TextInput(password=True, multiline=False,
+                                      background_color=(0.1, 0.1, 0.1, 1),
+                                      foreground_color=(1, 0.84, 0, 1))
+        layout.add_widget(self.old_password)
+        
+        layout.add_widget(Label(text='New Password:', color=(1, 0.84, 0, 1)))
+        self.new_password = TextInput(password=True, multiline=False,
+                                      background_color=(0.1, 0.1, 0.1, 1),
+                                      foreground_color=(1, 0.84, 0, 1))
+        layout.add_widget(self.new_password)
+        
+        self.error = Label(text='', color=(1, 0, 0, 1))
+        layout.add_widget(self.error)
+        
+        btn_layout = BoxLayout(spacing=10, size_hint_y=0.15)
+        change_btn = Button(text='Change Password', background_color=(1, 0, 0, 1),
+                           color=(1, 0.84, 0, 1))
+        change_btn.bind(on_press=self.do_change_password)
+        btn_layout.add_widget(change_btn)
+        
+        back_btn = Button(text='Back', background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
+        back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'folders'))
+        btn_layout.add_widget(back_btn)
+        layout.add_widget(btn_layout)
+        
+        self.add_widget(layout)
+    
+    def do_change_password(self, instance):
+        app = App.get_running_app()
+        if app.api.change_password(self.old_password.text, self.new_password.text):
+            self.error.text = 'Password changed successfully'
+            self.old_password.text = ''
+            self.new_password.text = ''
+        else:
+            self.error.text = 'Failed to change password'
