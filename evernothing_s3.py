@@ -22,7 +22,7 @@ try:
     from aws_config import S3_BUCKET_NAME, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, DB_FILE
 except ImportError:
     # Fallback to environment variables if aws_config not available
-    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing03032026')
+    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing-backup-2026')
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'TBD')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'TBD')

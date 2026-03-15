@@ -182,7 +182,7 @@ EXPORT:
 """
 
 from flask import Flask, request, redirect, render_template_string, make_response, session
-
+from flask_wtf.csrf import CSRFProtect
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
@@ -199,7 +199,7 @@ except ImportError:
 try:
     from aws_config import S3_BUCKET_NAME, AWS_REGION, AWS_PROFILE
 except ImportError:
-    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing03032026')
+    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing-backup-2026')
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
     AWS_PROFILE = os.environ.get('AWS_PROFILE', 'billspeiser2')
 
@@ -214,7 +214,8 @@ logger = logging.getLogger(__name__)
 app = Flask("EverNothing")
 app.secret_key = os.environ.get('SECRET_KEY', 'Keystone1!')  # Use env var in production
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-app.config['WTF_CSRF_ENABLED'] = False  # TODO: Enable CSRF protection
+app.config['WTF_CSRF_ENABLED'] = True
+csrf = CSRFProtect(app)
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=int(os.environ.get('SESSION_TIMEOUT_HOURS', '2')))
 app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=int(os.environ.get('REMEMBER_COOKIE_DAYS', '30')))
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
@@ -657,30 +658,70 @@ def change_password():
 @login_required
 def search():
     q = request.args.get('q', '').strip()
+    folder_filter = request.args.get('folder', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    use_regex = request.args.get('regex', '') == 'on'
+    search_history = request.args.get('history', '') == 'on'
+    
     if not q or len(q) > 100:
-        return render_template_string(T_SEARCH, notes=[], q=q)
+        return render_template_string(T_SEARCH, notes=[], q=q, folders=[], folder_filter=folder_filter)
     
     con = db()
     cur = con.cursor()
     try:
-        # Use parameterized query for security
-        cur.execute(
-            "SELECT id,note_key,note_value FROM notes WHERE user_id=?",
-            (current_user.id,)
-        )
+        # Get folders for filter dropdown
+        cur.execute("SELECT id, name FROM folders WHERE user_id=?", (current_user.id,))
+        folders = [(f[0], decrypt(f[1])) for f in cur.fetchall()]
+        
+        # Build query
+        table = "note_history" if search_history else "notes"
+        query = f"SELECT id, note_key, note_value, updated_at, folder_id FROM {table} WHERE user_id=?"
+        params = [current_user.id]
+        
+        if folder_filter:
+            query += " AND folder_id=?"
+            params.append(folder_filter)
+        
+        if date_from:
+            query += " AND updated_at >= ?"
+            params.append(date_from)
+        
+        if date_to:
+            query += " AND updated_at <= ?"
+            params.append(date_to)
+        
+        cur.execute(query, params)
         notes = []
-        q_lower = q.lower()
-        for r in cur.fetchall():
-            k, v = decrypt(r[1]), decrypt(r[2])
-            if q_lower in k.lower() or q_lower in v.lower():
-                notes.append((r[0], k))
+        
+        if use_regex:
+            import re
+            try:
+                pattern = re.compile(q, re.IGNORECASE)
+                for r in cur.fetchall():
+                    k, v = decrypt(r[1]), decrypt(r[2])
+                    if pattern.search(k) or pattern.search(v):
+                        notes.append((r[0], k, format_date(r[3])))
+            except re.error:
+                notes = []
+        else:
+            q_lower = q.lower()
+            for r in cur.fetchall():
+                k, v = decrypt(r[1]), decrypt(r[2])
+                if q_lower in k.lower() or q_lower in v.lower():
+                    notes.append((r[0], k, format_date(r[3])))
+        
         notes.sort(key=lambda x: x[1].lower())
     except Exception as e:
         logger.error(f"Search error: {e}")
         notes = []
+        folders = []
     finally:
         con.close()
-    return render_template_string(T_SEARCH, notes=notes, q=q)
+    
+    return render_template_string(T_SEARCH, notes=notes, q=q, folders=folders, 
+                                 folder_filter=folder_filter, date_from=date_from, 
+                                 date_to=date_to, use_regex=use_regex, search_history=search_history)
 
 @app.route("/export")
 @login_required
@@ -752,14 +793,21 @@ def add(fid):
                 )
                 if 'file' in request.files and request.files['file'].filename:
                     file = request.files['file']
-                    filename = file.filename[:255]  # Limit filename length
-                    file_data = file.read()
-                    if len(file_data) > 0:
-                        cur.execute(
-                            "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
-                            (nid, current_user.id, filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
-                        )
-                        log_change(cur, current_user.id, 'CREATE', 'attachment', cur.lastrowid, {}, {'note_id': nid, 'filename': filename, 'size': len(file_data)}, request.remote_addr)
+                    if not allowed_file(file.filename):
+                        error = "File type not allowed"
+                        con.close()
+                    else:
+                        filename = file.filename[:255]  # Limit filename length
+                        file_data = file.read()
+                        if len(file_data) > 0 and len(file_data) <= app.config['MAX_CONTENT_LENGTH']:
+                            cur.execute(
+                                "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
+                                (nid, current_user.id, filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
+                            )
+                            log_change(cur, current_user.id, 'CREATE', 'attachment', cur.lastrowid, {}, {'note_id': nid, 'filename': filename, 'size': len(file_data)}, request.remote_addr)
+                        else:
+                            error = "File too large or empty"
+                            con.close()
                 con.commit()
                 con.close()
                 sync_s3()
@@ -798,9 +846,13 @@ def edit(id):
         # Check if this is a file upload (has file and no note/content fields)
         if 'file' in request.files and request.files['file'].filename and 'note' not in request.form:
             file = request.files['file']
+            if not allowed_file(file.filename):
+                con.close()
+                return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File type not allowed")
+            
             filename = file.filename[:255]  # Limit filename length
             file_data = file.read()
-            if len(file_data) > 0:
+            if len(file_data) > 0 and len(file_data) <= app.config['MAX_CONTENT_LENGTH']:
                 cur.execute(
                     "INSERT INTO attachments (note_id, user_id, filename, file_data, file_size, uploaded_at) VALUES(?,?,?,?,?,?)",
                     (id, current_user.id, filename, file_data, len(file_data), datetime.datetime.now(timezone.utc).isoformat())
@@ -810,6 +862,9 @@ def edit(id):
                 con.close()
                 sync_s3()
                 return redirect(f"/edit/{id}")
+            else:
+                con.close()
+                return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File too large or empty")
 
         # Handle note edit
         if 'note' in request.form and 'content' in request.form:
@@ -974,8 +1029,53 @@ def admin_delete_user(uid):
     con.close()
     return render_template_string(T_ADMIN_DELETE_USER, user=user)
 
-@app.route("/admin/audit_logs")
-def admin_audit_logs():
+@app.route("/admin/s3_backups")
+def admin_s3_backups():
+    if not session.get('admin_logged_in'): return redirect("/admin")
+    
+    backups = []
+    try:
+        if boto3:
+            try:
+                s3 = boto3.Session(profile_name=AWS_PROFILE).client('s3')
+            except:
+                s3 = boto3.client('s3', region_name=AWS_REGION)
+            
+            response = s3.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix='backups/')
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    backups.append({
+                        'key': obj['Key'],
+                        'size': obj['Size'],
+                        'modified': obj['LastModified'].strftime('%m/%d/%Y %H:%M')
+                    })
+                backups.sort(key=lambda x: x['modified'], reverse=True)
+    except Exception as e:
+        logger.error(f"Failed to list S3 backups: {e}")
+    
+    return render_template_string(T_ADMIN_S3_BACKUPS, backups=backups)
+
+@app.route("/admin/s3_restore/<path:key>")
+def admin_s3_restore(key):
+    if not session.get('admin_logged_in'): return redirect("/admin")
+    
+    try:
+        if boto3:
+            try:
+                s3 = boto3.Session(profile_name=AWS_PROFILE).client('s3')
+            except:
+                s3 = boto3.client('s3', region_name=AWS_REGION)
+            
+            # Download backup
+            backup_file = f"restore_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+            s3.download_file(S3_BUCKET_NAME, key, backup_file)
+            logger.info(f"Restored backup from S3: {key} to {backup_file}")
+            return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], message=f"Backup restored to {backup_file}. Restart app to use it.")
+    except Exception as e:
+        logger.error(f"Failed to restore S3 backup: {e}")
+        return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], error=f"Restore failed: {e}")
+    
+    return redirect("/admin/s3_backups")
     if not session.get('admin_logged_in'): return redirect("/admin")
     user_filter = request.args.get('user', '')
     action_filter = request.args.get('action', '')
@@ -1039,8 +1139,19 @@ def forgot_password():
         if user:
             token = get_serializer().dumps(email, salt='recover-key')
             link = request.url_root + "reset_password/" + token
-            print(f"--- PASSWORD RESET LINK ---\n{link}\n-----------------------------")
-        return render_template_string(T_FORGOT_PASSWORD, message="If that email exists, a reset link has been sent (check console).")
+            
+            # Try to send email
+            try:
+                from email_utils import send_password_reset_email
+                if send_password_reset_email(email, link):
+                    logger.info(f"Password reset email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send email to {email}, printing to console")
+                    print(f"--- PASSWORD RESET LINK ---\n{link}\n-----------------------------")
+            except ImportError:
+                logger.warning("email_utils not available, printing to console")
+                print(f"--- PASSWORD RESET LINK ---\n{link}\n-----------------------------")
+        return render_template_string(T_FORGOT_PASSWORD, message="If that email exists, a reset link has been sent.")
     return render_template_string(T_FORGOT_PASSWORD)
 
 @app.route("/reset_password/<token>", methods=["GET", "POST"])
@@ -1060,6 +1171,8 @@ def reset_password(token):
 # --- LOGIN ---
 @app.route("/login", methods=["GET","POST"])
 def login():
+    from rate_limiter import check_rate_limit, get_remaining_attempts, RATE_LIMIT_LOGIN
+    
     con = db()
     cur = con.cursor()
     error = None
@@ -1071,6 +1184,14 @@ def login():
         error = "Invalid session. Please login again."
     
     if request.method == "POST":
+        # Check rate limit
+        if not check_rate_limit(request.remote_addr, 'login', RATE_LIMIT_LOGIN):
+            remaining = get_remaining_attempts(request.remote_addr, 'login', RATE_LIMIT_LOGIN)
+            error = f"Too many login attempts. Please try again later."
+            logger.warning(f"Rate limit exceeded for login from {request.remote_addr}")
+            con.close()
+            return render_template_string(T_LOGIN, error=error)
+        
         print("username",request.form['username'])
         r = cur.execute(
             "SELECT id,password FROM users WHERE username=?",
@@ -1120,6 +1241,14 @@ def login():
 @app.route("/register", methods=["GET","POST"])
 def register():
     if request.method == "POST":
+        from rate_limiter import check_rate_limit, RATE_LIMIT_REGISTER
+        
+        # Check rate limit
+        if not check_rate_limit(request.remote_addr, 'register', RATE_LIMIT_REGISTER):
+            error = "Too many registration attempts. Please try again later."
+            logger.warning(f"Rate limit exceeded for registration from {request.remote_addr}")
+            return render_template_string(T_REGISTER, error=error)
+        
         username, error = validate_input(request.form.get('username', ''), max_length=50)
         if error:
             return render_template_string(T_REGISTER, error=error)
@@ -1308,6 +1437,7 @@ T_ADD_FOLDER = STYLE + """
 <a href=/logout>Logout</a>
 {% if error %}<p style="color:red">{{error}}</p>{% endif %}
 <form method=post>
+<input type=hidden name=csrf_token value="{{ csrf_token() }}">
 <b>Folder name:</b> <input name=name maxlength="255"><br>
 <button>Create</button> <a href=/ class=cancel>Cancel</a>
 </form>
@@ -1395,6 +1525,7 @@ T_ADD = STYLE + """
 <a href=/logout>Logout</a>
 {% if error %}<p style="color:red">{{error}}</p>{% endif %}
 <form method=post enctype="multipart/form-data">
+<input type=hidden name=csrf_token value="{{ csrf_token() }}">
 <b>Note:</b> <input name=note value="{{note}}"><br>
 <b>Contents:</b> <textarea name=content rows=40 cols=120>{{content}}</textarea><br>
 <b>Attachment (optional):</b> <input type=file name=file><br>
@@ -1409,6 +1540,7 @@ T_EDIT = STYLE + """
 {% endfor %}
  | <a href=/history/{{id}}>Edited: {{note[3]}}</a> | <a href=/note/delete/{{id}} style="color:red">[Delete]</a> | <a href=/logout>Logout</a>
 <form method=post enctype="multipart/form-data">
+<input type=hidden name=csrf_token value="{{ csrf_token() }}">
 <b>Note:</b> <input name=note value='{{note[0]}}'><br>
 <b>Contents:</b><br>
 <textarea name=content rows=40 cols=120>{{note[1]}}</textarea><br>
@@ -1423,6 +1555,7 @@ T_EDIT = STYLE + """
 
 <h4>Attachments</h4>
 <form method=post enctype="multipart/form-data">
+<input type=hidden name=csrf_token value="{{ csrf_token() }}">
 <input type=file name=file>
 <button>Upload</button>
 </form>
@@ -1439,6 +1572,7 @@ T_LOGIN = STYLE + """
 <h3>Login</h3>
 {% if error %}<p style="color:red">{{error}}</p>{% endif %}
 <form method=post>
+<input type=hidden name=csrf_token value="{{ csrf_token() }}">
 <input name=username placeholder='Username'><br>
 <input type=password name=password placeholder='Password'><br>
 <label style="display:block; margin:10px 0;">
@@ -1453,6 +1587,7 @@ T_REGISTER = STYLE + """
 <h3>Register</h3>
 {% if error %}<p style="color:red">{{error}}</p>{% endif %}
 <form method=post>
+<input type=hidden name=csrf_token value="{{ csrf_token() }}">
 <input name=username placeholder='Username' maxlength="50" required><br>
 <input name=email placeholder='Email' type="email" maxlength="100" required><br>
 <input type=password name=password placeholder='Password (min 8 chars, uppercase, lowercase, number)' minlength="8" required><br>
@@ -1463,9 +1598,23 @@ T_REGISTER = STYLE + """
 T_SEARCH = STYLE + """
 <h3>Search: {{q}}</h3>
 <a href=/>Back</a> | <a href=/logout>Logout</a>
+<form method="get" style="margin:20px 0; padding:10px; border:1px solid red;">
+<b>Search:</b> <input name="q" value="{{q}}" style="width:300px;"><br>
+<b>Folder:</b> <select name="folder" style="width:200px;">
+<option value="">All Folders</option>
+{% for f in folders %}
+<option value="{{f[0]}}" {% if folder_filter==f[0]|string %}selected{% endif %}>{{f[1]}}</option>
+{% endfor %}
+</select><br>
+<b>Date From:</b> <input type="date" name="date_from" value="{{date_from}}">
+<b>To:</b> <input type="date" name="date_to" value="{{date_to}}"><br>
+<label><input type="checkbox" name="regex" {% if use_regex %}checked{% endif %}> Use Regex</label>
+<label><input type="checkbox" name="history" {% if search_history %}checked{% endif %}> Search History</label><br>
+<button>Search</button>
+</form>
 <ul>
 {% for n in notes %}
-<li><a href=/edit/{{n[0]}}>{{n[1]}}</a></li>
+<li><a href=/edit/{{n[0]}}>{{n[1]}}</a> <span style="color:#888;">({{n[2]}})</span></li>
 {% else %}
 <li>No matches.</li>
 {% endfor %}
@@ -1504,7 +1653,7 @@ T_ADMIN_DASHBOARD = STYLE + """
 <form method="get">
 <input name="q" placeholder="Search Users..." value="{{q}}"> <button>Search</button>
 </form>
-<a href=/admin/audit_logs>View Audit Logs</a> | <a href=/logout>Logout</a>
+<a href=/admin/audit_logs>View Audit Logs</a> | <a href=/admin/s3_backups>S3 Backups</a> | <a href=/logout>Logout</a>
 <ul>
 {% for u in users %}
 <li><a href=/admin/user/{{u[0]}}>{{u[1]}}</a> (Notes: {{u[2]}}, Folders: {{u[3]}}, Last Login: {{u[4]}}) <a href=/admin/user/delete/{{u[0]}} style="color:red">[Delete]</a></li>
@@ -1518,10 +1667,13 @@ T_ADMIN_EDIT_USER = STYLE + """
 <h3>Edit User</h3>
 <a href=/logout>Logout</a>
 {% if error %}<p style="color:red">{{error}}</p>{% endif %}
+<p style="color:#888;">Note: Passwords are securely hashed and cannot be displayed. Admin can only reset passwords.</p>
 <form method=post>
+<input type=hidden name=csrf_token value="{{ csrf_token() }}">
 <b>Old Username:</b> <input value="{{user[1]}}" readonly style="border:none; background:black; color:gold"><br>
 <b>New Username:</b> <input name=new_username><br>
 <b>New Password:</b> <input name=new_password placeholder="Leave blank to keep"><br>
+<b>Last Login:</b> <input name=last_login value="{{user[2] if user[2] else 'Never'}}" readonly style="border:none; background:black; color:gold"><br>
 <button>Update</button> <a href=/admin/dashboard class=cancel>Cancel</a>
 </form>
 """
@@ -1704,3 +1856,30 @@ T_ADMIN_AUDIT_LOGS = STYLE + """
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+
+T_ADMIN_S3_BACKUPS = STYLE + """
+<h3>S3 Backups</h3>
+<a href=/admin/dashboard>Back to Dashboard</a> | <a href=/logout>Logout</a>
+{% if message %}<p style="color:#0f0;">{{message}}</p>{% endif %}
+{% if error %}<p style="color:red;">{{error}}</p>{% endif %}
+<p>Database backups stored in S3 bucket: <b>{{ config.get('S3_BUCKET_NAME', 'N/A') }}</b></p>
+<table style="width:100%; border-collapse:collapse; margin-top:20px;">
+<tr style="border-bottom:2px solid red;">
+<th style="text-align:left; padding:8px;">Backup File</th>
+<th style="text-align:left; padding:8px;">Size (bytes)</th>
+<th style="text-align:left; padding:8px;">Last Modified</th>
+<th style="text-align:left; padding:8px;">Action</th>
+</tr>
+{% for backup in backups %}
+<tr style="border-bottom:1px solid #333;">
+<td style="padding:8px; font-size:small;">{{backup.key}}</td>
+<td style="padding:8px;">{{backup.size}}</td>
+<td style="padding:8px;">{{backup.modified}}</td>
+<td style="padding:8px;"><a href="/admin/s3_restore/{{backup.key}}" style="color:#0f0;">[Restore]</a></td>
+</tr>
+{% else %}
+<tr><td colspan="4" style="padding:20px; text-align:center; color:#888;">No backups found or S3 not configured</td></tr>
+{% endfor %}
+</table>
+"""
