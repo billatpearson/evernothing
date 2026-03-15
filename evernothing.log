@@ -103,3 +103,741 @@
 2026-03-12 07:21:59,680 - werkzeug - INFO - 127.0.0.1 - - [12/Mar/2026 07:21:59] "GET / HTTP/1.1" 200 -
 2026-03-12 07:22:21,406 - werkzeug - INFO - 127.0.0.1 - - [12/Mar/2026 07:22:21] "GET /folder/5 HTTP/1.1" 200 -
 2026-03-15 12:37:30,591 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:37:30] "GET / HTTP/1.1" 200 -
+2026-03-15 12:38:26,142 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:38:26] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:38:29,358 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:38:29] "GET /add/5 HTTP/1.1" 200 -
+2026-03-15 12:38:33,942 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:38:33] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:38:40,871 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:38:40] "GET /add/5 HTTP/1.1" 200 -
+2026-03-15 12:38:49,373 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:38:49,375 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:38:49] "[32mPOST /add/5 HTTP/1.1[0m" 302 -
+2026-03-15 12:38:49,386 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:38:49] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:38:52,190 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:38:52] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 12:43:16,457 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:43:16] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:43:19,468 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:43:19] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:43:32,692 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:43:32] "POST /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:43:35,202 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:43:35,203 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:43:35] "[32mPOST /edit/9 HTTP/1.1[0m" 302 -
+2026-03-15 12:43:35,215 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:43:35] "GET / HTTP/1.1" 200 -
+2026-03-15 12:43:37,062 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:43:37] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:43:38,262 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:43:38] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:57:45,794 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:57:45] "GET / HTTP/1.1" 200 -
+2026-03-15 12:57:47,514 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:57:47] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:57:48,702 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:57:48] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:57:53,227 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:57:53] "POST /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:57:56,436 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:57:56,437 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:57:56] "[32mPOST /edit/9 HTTP/1.1[0m" 302 -
+2026-03-15 12:57:56,450 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:57:56] "GET / HTTP/1.1" 200 -
+2026-03-15 12:57:58,651 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:57:58] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:58:00,311 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:00] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:58:03,865 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:03] "GET /history/9 HTTP/1.1" 200 -
+2026-03-15 12:58:14,529 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:58:14,530 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:14] "[32mGET /history/restore/5 HTTP/1.1[0m" 302 -
+2026-03-15 12:58:14,545 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:14] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:58:24,559 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:24] "GET /history/9 HTTP/1.1" 200 -
+2026-03-15 12:58:33,657 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:58:33,658 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:33] "[32mGET /history/restore/63 HTTP/1.1[0m" 302 -
+2026-03-15 12:58:33,672 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:33] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:58:44,467 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:44] "GET /history/9 HTTP/1.1" 200 -
+2026-03-15 12:58:49,327 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:58:49,329 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:49] "[32mGET /history/restore/64 HTTP/1.1[0m" 302 -
+2026-03-15 12:58:49,344 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:49] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:58:59,229 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:58:59] "POST /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:59:01,424 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:59:01,425 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:01] "[32mPOST /edit/9 HTTP/1.1[0m" 302 -
+2026-03-15 12:59:01,436 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:01] "GET / HTTP/1.1" 200 -
+2026-03-15 12:59:02,742 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:02] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:59:03,699 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:03] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:59:14,057 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:14] "POST /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:59:17,121 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:59:17,122 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:17] "[32mPOST /edit/9 HTTP/1.1[0m" 302 -
+2026-03-15 12:59:17,132 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:17] "GET / HTTP/1.1" 200 -
+2026-03-15 12:59:18,764 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:18] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 12:59:19,687 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:19] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 12:59:23,482 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:23] "GET /history/9 HTTP/1.1" 200 -
+2026-03-15 12:59:28,845 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 12:59:28,846 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:28] "[32mGET /history/restore/66 HTTP/1.1[0m" 302 -
+2026-03-15 12:59:28,858 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 12:59:28] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 13:23:01,622 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:23:01] "GET / HTTP/1.1" 200 -
+2026-03-15 13:23:03,690 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:23:03] "GET /folder/10 HTTP/1.1" 200 -
+2026-03-15 13:23:14,420 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:23:14] "GET /folder/12 HTTP/1.1" 200 -
+2026-03-15 13:23:18,867 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:23:18] "GET /add/12 HTTP/1.1" 200 -
+2026-03-15 13:24:10,985 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 13:24:10,986 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:24:10] "[32mPOST /add/12 HTTP/1.1[0m" 302 -
+2026-03-15 13:24:11,001 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:24:11] "GET /folder/12 HTTP/1.1" 200 -
+2026-03-15 13:24:21,675 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:24:21] "GET / HTTP/1.1" 200 -
+2026-03-15 13:24:24,842 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:24:24] "GET /folder/delete/21 HTTP/1.1" 200 -
+2026-03-15 13:24:27,617 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 13:24:27,618 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:24:27] "[32mPOST /folder/delete/21 HTTP/1.1[0m" 302 -
+2026-03-15 13:24:27,629 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:24:27] "GET / HTTP/1.1" 200 -
+2026-03-15 13:24:31,246 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:24:31] "GET /folder/12 HTTP/1.1" 200 -
+2026-03-15 13:24:34,525 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 13:24:34] "GET /edit/103 HTTP/1.1" 200 -
+2026-03-15 15:38:23,539 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 15:38:23] "GET / HTTP/1.1" 200 -
+2026-03-15 15:54:20,369 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 15:54:20] "[32mPOST /edit/103 HTTP/1.1[0m" 302 -
+2026-03-15 15:54:20,384 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 15:54:20] "GET / HTTP/1.1" 200 -
+2026-03-15 18:19:45,845 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:19:45] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:19:56,923 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:19:56] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 18:19:58,872 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:19:58] "GET /history/9 HTTP/1.1" 200 -
+2026-03-15 18:20:21,047 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:20:21,048 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:21] "[32mGET /history/restore/63 HTTP/1.1[0m" 302 -
+2026-03-15 18:20:21,061 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:21] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 18:20:25,556 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:25] "GET / HTTP/1.1" 200 -
+2026-03-15 18:20:28,262 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:28] "GET /edit/103 HTTP/1.1" 200 -
+2026-03-15 18:20:32,497 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:32] "GET /history/103 HTTP/1.1" 200 -
+2026-03-15 18:20:35,835 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:20:35,836 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:35] "[32mGET /history/restore/69 HTTP/1.1[0m" 302 -
+2026-03-15 18:20:35,850 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:35] "GET /edit/103 HTTP/1.1" 200 -
+2026-03-15 18:20:50,618 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:50] "GET /folder/12 HTTP/1.1" 200 -
+2026-03-15 18:20:53,315 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:53] "GET / HTTP/1.1" 200 -
+2026-03-15 18:20:55,439 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:55] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:20:57,084 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:57] "GET /history/102 HTTP/1.1" 200 -
+2026-03-15 18:20:59,962 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:20:59,963 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:59] "[32mGET /history/restore/60 HTTP/1.1[0m" 302 -
+2026-03-15 18:20:59,976 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:20:59] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:21:10,585 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:10] "POST /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:21:12,962 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:21:12,963 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:12] "[32mPOST /edit/102 HTTP/1.1[0m" 302 -
+2026-03-15 18:21:12,975 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:12] "GET / HTTP/1.1" 200 -
+2026-03-15 18:21:22,127 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:22] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:21:26,044 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:26] "GET /history/102 HTTP/1.1" 200 -
+2026-03-15 18:21:34,421 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:21:34,422 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:34] "[32mGET /history/restore/60 HTTP/1.1[0m" 302 -
+2026-03-15 18:21:34,435 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:34] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:21:42,741 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:42] "GET /history/102 HTTP/1.1" 200 -
+2026-03-15 18:21:44,619 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:21:44,620 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:44] "[32mGET /history/restore/72 HTTP/1.1[0m" 302 -
+2026-03-15 18:21:44,631 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:44] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:21:46,957 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:46] "GET /history/102 HTTP/1.1" 200 -
+2026-03-15 18:21:50,262 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:21:50,263 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:50] "[32mGET /history/restore/74 HTTP/1.1[0m" 302 -
+2026-03-15 18:21:50,274 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:50] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:21:52,629 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:52] "GET /history/102 HTTP/1.1" 200 -
+2026-03-15 18:21:54,338 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:21:54,339 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:54] "[32mGET /history/restore/76 HTTP/1.1[0m" 302 -
+2026-03-15 18:21:54,350 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:21:54] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:22:04,100 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:04] "POST /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:22:06,289 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:22:06,290 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:06] "[32mPOST /edit/102 HTTP/1.1[0m" 302 -
+2026-03-15 18:22:06,301 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:06] "GET / HTTP/1.1" 200 -
+2026-03-15 18:22:10,070 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:10] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:22:16,357 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:16] "GET /history/102 HTTP/1.1" 200 -
+2026-03-15 18:22:19,237 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:22:19,238 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:19] "[32mGET /history/restore/77 HTTP/1.1[0m" 302 -
+2026-03-15 18:22:19,254 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:19] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:22:32,339 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:32] "GET /history/102 HTTP/1.1" 200 -
+2026-03-15 18:22:35,929 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:35] "GET /edit/102 HTTP/1.1" 200 -
+2026-03-15 18:22:40,118 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:40] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:22:42,961 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:42] "GET /note/delete/102 HTTP/1.1" 200 -
+2026-03-15 18:22:45,754 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:22:45,755 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:45] "[32mPOST /note/delete/102 HTTP/1.1[0m" 302 -
+2026-03-15 18:22:45,766 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:22:45] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:23:05,904 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:05] "GET /add/5 HTTP/1.1" 200 -
+2026-03-15 18:23:17,815 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:23:17,816 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:17] "[32mPOST /add/5 HTTP/1.1[0m" 302 -
+2026-03-15 18:23:17,826 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:17] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:23:21,034 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:21] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:23:32,619 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:32] "POST /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:23:35,442 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:23:35,443 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:35] "[32mPOST /edit/104 HTTP/1.1[0m" 302 -
+2026-03-15 18:23:35,453 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:35] "GET / HTTP/1.1" 200 -
+2026-03-15 18:23:52,051 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:52] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:23:57,028 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:57] "POST /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:23:59,413 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:23:59,414 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:59] "[32mPOST /edit/104 HTTP/1.1[0m" 302 -
+2026-03-15 18:23:59,423 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:23:59] "GET / HTTP/1.1" 200 -
+2026-03-15 18:24:04,562 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:04] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:24:06,933 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:06] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:24:09,894 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:24:09,894 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:09] "[32mGET /history/restore/80 HTTP/1.1[0m" 302 -
+2026-03-15 18:24:09,905 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:09] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:24:13,890 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:13] "GET / HTTP/1.1" 200 -
+2026-03-15 18:24:17,275 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:17] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:24:20,885 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:20] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:24:23,374 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:24:23,375 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:23] "[32mGET /history/restore/81 HTTP/1.1[0m" 302 -
+2026-03-15 18:24:23,388 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:23] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:24:26,885 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:26] "GET / HTTP/1.1" 200 -
+2026-03-15 18:24:30,104 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:30] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:24:37,863 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:37] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:24:41,178 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:24:41,179 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:41] "[32mGET /history/restore/84 HTTP/1.1[0m" 302 -
+2026-03-15 18:24:41,190 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:41] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:24:43,680 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:43] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:24:45,232 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:24:45,233 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:45] "[32mGET /history/restore/84 HTTP/1.1[0m" 302 -
+2026-03-15 18:24:45,247 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:45] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:24:46,672 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:46] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:24:48,401 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:24:48,401 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:48] "[32mGET /history/restore/84 HTTP/1.1[0m" 302 -
+2026-03-15 18:24:48,414 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:48] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:24:49,757 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:49] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:24:51,503 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:24:51,504 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:51] "[32mGET /history/restore/83 HTTP/1.1[0m" 302 -
+2026-03-15 18:24:51,518 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:24:51] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:25:04,304 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:04] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:25:09,112 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:25:09,113 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:09] "[32mGET /history/restore/80 HTTP/1.1[0m" 302 -
+2026-03-15 18:25:09,125 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:09] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:25:12,831 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:12] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:25:14,705 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:25:14,706 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:14] "[32mGET /history/restore/81 HTTP/1.1[0m" 302 -
+2026-03-15 18:25:14,718 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:14] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:25:16,333 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:16] "GET /history/104 HTTP/1.1" 200 -
+2026-03-15 18:25:18,437 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:25:18,438 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:18] "[32mGET /history/restore/82 HTTP/1.1[0m" 302 -
+2026-03-15 18:25:18,450 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:18] "GET /edit/104 HTTP/1.1" 200 -
+2026-03-15 18:25:22,254 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:22] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:25:24,950 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:24] "GET /note/delete/104 HTTP/1.1" 200 -
+2026-03-15 18:25:26,963 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:25:26,964 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:26] "[32mPOST /note/delete/104 HTTP/1.1[0m" 302 -
+2026-03-15 18:25:26,976 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:26] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:25:34,100 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:34] "GET /add/5 HTTP/1.1" 200 -
+2026-03-15 18:25:51,461 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:25:51,461 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:51] "[32mPOST /add/5 HTTP/1.1[0m" 302 -
+2026-03-15 18:25:51,472 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:51] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:25:56,387 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:25:56] "GET /edit/105 HTTP/1.1" 200 -
+2026-03-15 18:26:02,673 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:02] "POST /edit/105 HTTP/1.1" 200 -
+2026-03-15 18:26:04,742 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:26:04,743 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:04] "[32mPOST /edit/105 HTTP/1.1[0m" 302 -
+2026-03-15 18:26:04,752 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:04] "GET / HTTP/1.1" 200 -
+2026-03-15 18:26:11,071 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:11] "GET /edit/105 HTTP/1.1" 200 -
+2026-03-15 18:26:16,530 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:16] "POST /edit/105 HTTP/1.1" 200 -
+2026-03-15 18:26:18,639 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:26:18,640 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:18] "[32mPOST /edit/105 HTTP/1.1[0m" 302 -
+2026-03-15 18:26:18,650 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:18] "GET / HTTP/1.1" 200 -
+2026-03-15 18:26:22,513 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:22] "GET /edit/105 HTTP/1.1" 200 -
+2026-03-15 18:26:25,684 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:25] "GET /history/105 HTTP/1.1" 200 -
+2026-03-15 18:26:28,568 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:26:28,568 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:28] "[32mGET /history/restore/92 HTTP/1.1[0m" 302 -
+2026-03-15 18:26:28,581 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:28] "GET /edit/105 HTTP/1.1" 200 -
+2026-03-15 18:26:34,136 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:26:34,137 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:34] "[32mGET /history/restore/93 HTTP/1.1[0m" 302 -
+2026-03-15 18:26:34,148 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:34] "GET /edit/105 HTTP/1.1" 200 -
+2026-03-15 18:26:38,068 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:26:38,069 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:38] "[32mGET /history/restore/94 HTTP/1.1[0m" 302 -
+2026-03-15 18:26:38,081 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:38] "GET /edit/105 HTTP/1.1" 200 -
+2026-03-15 18:26:48,984 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:48] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:26:55,473 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:55] "GET /note/delete/105 HTTP/1.1" 200 -
+2026-03-15 18:26:57,396 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:26:57,397 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:57] "[32mPOST /note/delete/105 HTTP/1.1[0m" 302 -
+2026-03-15 18:26:57,408 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:26:57] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 18:27:02,619 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:27:02] "GET / HTTP/1.1" 200 -
+2026-03-15 18:27:06,661 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:27:06] "GET /folder/add HTTP/1.1" 200 -
+2026-03-15 18:27:28,717 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:27:28] "GET / HTTP/1.1" 200 -
+2026-03-15 18:27:31,343 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:27:31] "GET /folder/14 HTTP/1.1" 200 -
+2026-03-15 18:27:35,259 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:27:35] "GET / HTTP/1.1" 200 -
+2026-03-15 18:27:54,683 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:27:54] "GET /edit/10 HTTP/1.1" 200 -
+2026-03-15 18:28:02,784 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:28:02] "GET / HTTP/1.1" 200 -
+2026-03-15 18:28:28,276 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:28:28] "GET /audit_report HTTP/1.1" 200 -
+2026-03-15 18:30:05,395 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:05] "GET /folder/add HTTP/1.1" 200 -
+2026-03-15 18:30:12,025 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:30:12,025 - __main__ - INFO - User 1 created folder: Ronda
+2026-03-15 18:30:12,026 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:12] "[32mPOST /folder/add HTTP/1.1[0m" 302 -
+2026-03-15 18:30:12,035 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:12] "GET / HTTP/1.1" 200 -
+2026-03-15 18:30:14,532 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:14] "GET /folder/25 HTTP/1.1" 200 -
+2026-03-15 18:30:17,444 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:17] "GET /add/25 HTTP/1.1" 200 -
+2026-03-15 18:30:33,523 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:30:33,524 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:33] "[32mPOST /add/25 HTTP/1.1[0m" 302 -
+2026-03-15 18:30:33,536 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:33] "GET /folder/25 HTTP/1.1" 200 -
+2026-03-15 18:30:35,944 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:35] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:30:49,472 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:49] "POST /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:30:51,458 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:30:51,459 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:51] "[32mPOST /edit/106 HTTP/1.1[0m" 302 -
+2026-03-15 18:30:51,471 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:51] "GET / HTTP/1.1" 200 -
+2026-03-15 18:30:53,281 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:53] "GET /folder/25 HTTP/1.1" 200 -
+2026-03-15 18:30:54,456 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:30:54] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:31:10,394 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:10] "POST /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:31:13,165 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:31:13,166 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:13] "[32mPOST /edit/106 HTTP/1.1[0m" 302 -
+2026-03-15 18:31:13,177 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:13] "GET / HTTP/1.1" 200 -
+2026-03-15 18:31:15,622 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:15] "GET /folder/25 HTTP/1.1" 200 -
+2026-03-15 18:31:21,672 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:21] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:31:23,037 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:23] "GET /history/106 HTTP/1.1" 200 -
+2026-03-15 18:31:25,591 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:31:25,592 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:25] "[32mGET /history/restore/100 HTTP/1.1[0m" 302 -
+2026-03-15 18:31:25,604 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:25] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:31:30,129 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:31:30,130 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:30] "[32mGET /history/restore/98 HTTP/1.1[0m" 302 -
+2026-03-15 18:31:30,142 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:30] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:31:39,634 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:31:39,635 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:39] "[32mGET /history/restore/99 HTTP/1.1[0m" 302 -
+2026-03-15 18:31:39,648 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:39] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:31:42,873 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:31:42] "GET /folder/25 HTTP/1.1" 200 -
+2026-03-15 18:32:14,281 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:14] "GET / HTTP/1.1" 200 -
+2026-03-15 18:32:19,804 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:19] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:32:21,586 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:21] "GET /history/106 HTTP/1.1" 200 -
+2026-03-15 18:32:25,364 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:32:25,365 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:25] "[32mGET /history/restore/103 HTTP/1.1[0m" 302 -
+2026-03-15 18:32:25,381 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:25] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:32:28,340 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:28] "GET /history/106 HTTP/1.1" 200 -
+2026-03-15 18:32:29,672 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:32:29,673 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:29] "[32mGET /history/restore/103 HTTP/1.1[0m" 302 -
+2026-03-15 18:32:29,693 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:29] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:32:31,699 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:31] "GET /history/106 HTTP/1.1" 200 -
+2026-03-15 18:32:33,106 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:32:33,107 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:33] "[32mGET /history/restore/103 HTTP/1.1[0m" 302 -
+2026-03-15 18:32:33,120 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:33] "GET /edit/106 HTTP/1.1" 200 -
+2026-03-15 18:32:35,049 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:35] "GET /history/106 HTTP/1.1" 200 -
+2026-03-15 18:32:49,466 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:49] "GET / HTTP/1.1" 200 -
+2026-03-15 18:32:51,863 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:51] "GET /folder/delete/25 HTTP/1.1" 200 -
+2026-03-15 18:32:54,471 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:32:54,472 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:54] "[32mPOST /folder/delete/25 HTTP/1.1[0m" 302 -
+2026-03-15 18:32:54,487 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:32:54] "GET / HTTP/1.1" 200 -
+2026-03-15 18:34:04,302 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:04] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:34:06,489 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:06] "GET /edit/63 HTTP/1.1" 200 -
+2026-03-15 18:34:14,283 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:14] "GET /edit/62 HTTP/1.1" 200 -
+2026-03-15 18:34:17,305 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:17] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:34:20,086 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:20] "GET /edit/101 HTTP/1.1" 200 -
+2026-03-15 18:34:23,556 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:23] "GET /history/101 HTTP/1.1" 200 -
+2026-03-15 18:34:26,396 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:34:26,397 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:26] "[32mGET /history/restore/59 HTTP/1.1[0m" 302 -
+2026-03-15 18:34:26,422 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:26] "GET /edit/101 HTTP/1.1" 200 -
+2026-03-15 18:34:40,616 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:40] "GET /download/6 HTTP/1.1" 200 -
+2026-03-15 18:34:40,717 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:40] "GET /download/6 HTTP/1.1" 200 -
+2026-03-15 18:34:45,702 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:45] "GET /download/6 HTTP/1.1" 200 -
+2026-03-15 18:34:45,774 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:45] "GET /download/6 HTTP/1.1" 200 -
+2026-03-15 18:34:52,846 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:52] "GET /download/6 HTTP/1.1" 200 -
+2026-03-15 18:34:52,936 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:34:52] "GET /download/6 HTTP/1.1" 200 -
+2026-03-15 18:35:05,192 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:05] "GET /download/6 HTTP/1.1" 200 -
+2026-03-15 18:35:05,273 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:05] "GET /download/6 HTTP/1.1" 200 -
+2026-03-15 18:35:24,740 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:24] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:35:29,000 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:29] "GET /edit/61 HTTP/1.1" 200 -
+2026-03-15 18:35:32,397 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:32] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:35:38,672 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:38] "GET /edit/10 HTTP/1.1" 200 -
+2026-03-15 18:35:43,493 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:43] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:35:45,019 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:45] "GET /edit/62 HTTP/1.1" 200 -
+2026-03-15 18:35:46,691 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:46] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:35:48,450 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:35:48] "GET /edit/61 HTTP/1.1" 200 -
+2026-03-15 18:36:02,289 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:02] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:36:04,071 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:04] "GET /edit/60 HTTP/1.1" 200 -
+2026-03-15 18:36:05,729 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:05] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:36:06,764 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:06] "GET /edit/101 HTTP/1.1" 200 -
+2026-03-15 18:36:09,451 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:09] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 18:36:12,179 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:12] "GET /edit/61 HTTP/1.1" 200 -
+2026-03-15 18:36:23,110 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:23] "GET / HTTP/1.1" 200 -
+2026-03-15 18:36:25,184 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:25] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:36:33,681 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:33] "GET /edit/71 HTTP/1.1" 200 -
+2026-03-15 18:36:37,523 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:37] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:36:39,111 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:39] "GET /edit/22 HTTP/1.1" 200 -
+2026-03-15 18:36:42,201 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:42] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:36:46,437 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:46] "GET /edit/43 HTTP/1.1" 200 -
+2026-03-15 18:36:48,434 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:48] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:36:50,335 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:50] "GET /edit/76 HTTP/1.1" 200 -
+2026-03-15 18:36:52,332 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:52] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:36:55,543 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:36:55] "GET /edit/36 HTTP/1.1" 200 -
+2026-03-15 18:37:00,586 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:00] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:37:03,022 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:03] "GET /edit/78 HTTP/1.1" 200 -
+2026-03-15 18:37:08,165 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:08] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:37:11,187 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:11] "GET /edit/49 HTTP/1.1" 200 -
+2026-03-15 18:37:20,157 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:20] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:37:22,095 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:22] "GET /edit/68 HTTP/1.1" 200 -
+2026-03-15 18:37:29,110 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:29] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:37:30,433 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:30] "GET /edit/37 HTTP/1.1" 200 -
+2026-03-15 18:37:32,829 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:32] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 18:37:35,058 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:35] "GET / HTTP/1.1" 200 -
+2026-03-15 18:37:40,064 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:40] "GET /folder/24 HTTP/1.1" 200 -
+2026-03-15 18:37:49,913 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 18:37:49] "GET /folder/10 HTTP/1.1" 200 -
+2026-03-15 18:48:49,839 - evernothing - WARNING - 404 error: http://localhost/nonexistent_route_xyz
+2026-03-15 18:48:50,074 - evernothing - INFO - New user registered: user_adm1
+2026-03-15 18:48:50,301 - evernothing - INFO - New user registered: user_adm2
+2026-03-15 18:48:50,646 - evernothing - INFO - New user registered: user_audit1
+2026-03-15 18:48:50,755 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:48:50,912 - evernothing - INFO - New user registered: user_audit2
+2026-03-15 18:48:51,023 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:48:51,224 - evernothing - INFO - New user registered: user_pw1
+2026-03-15 18:48:51,579 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:51,630 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:51,682 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:51,758 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:51,897 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:51,964 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,074 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,130 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,132 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,204 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,206 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,258 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,260 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,312 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,314 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,367 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,369 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,420 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,422 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,475 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,477 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,522 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,525 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,616 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,618 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,680 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,682 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,822 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,825 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:52,976 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:52,978 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:53,030 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,032 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:53,136 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:53,201 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,204 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:53,254 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,257 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:53,326 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:48:53,371 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,417 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,464 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,508 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,556 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,610 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,656 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,714 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,784 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,884 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,899 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,949 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:53,961 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:48:54,010 - evernothing - WARNING - Rate limit exceeded for registration from 127.0.0.1
+2026-03-15 18:50:00,419 - evernothing - WARNING - 404 error: http://localhost/nonexistent_route_xyz
+2026-03-15 18:50:00,659 - evernothing - INFO - New user registered: user_adm1
+2026-03-15 18:50:00,857 - evernothing - INFO - New user registered: user_adm2
+2026-03-15 18:50:01,220 - evernothing - INFO - New user registered: user_audit1
+2026-03-15 18:50:01,324 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:01,494 - evernothing - INFO - New user registered: user_audit2
+2026-03-15 18:50:01,605 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:01,833 - evernothing - INFO - New user registered: user_pw1
+2026-03-15 18:50:02,267 - evernothing - INFO - New user registered: user_pw2
+2026-03-15 18:50:02,605 - evernothing - INFO - New user registered: user_folder1
+2026-03-15 18:50:02,716 - evernothing - INFO - User 1 created folder: MyFolder
+2026-03-15 18:50:02,865 - evernothing - INFO - New user registered: user_note1
+2026-03-15 18:50:02,969 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:03,126 - evernothing - INFO - New user registered: user_folder4
+2026-03-15 18:50:03,230 - evernothing - INFO - User 1 created folder: Parent
+2026-03-15 18:50:03,472 - evernothing - INFO - New user registered: user_folder3
+2026-03-15 18:50:03,575 - evernothing - INFO - User 1 created folder: ToDelete
+2026-03-15 18:50:03,738 - evernothing - INFO - New user registered: user_note6
+2026-03-15 18:50:03,841 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:04,023 - evernothing - INFO - New user registered: user_desc3
+2026-03-15 18:50:04,129 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:04,298 - evernothing - INFO - New user registered: user_desc6
+2026-03-15 18:50:04,406 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:04,587 - evernothing - INFO - New user registered: user_desc1
+2026-03-15 18:50:04,693 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:04,859 - evernothing - INFO - New user registered: user_desc4
+2026-03-15 18:50:04,964 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:05,136 - evernothing - INFO - New user registered: user_desc2
+2026-03-15 18:50:05,242 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:05,415 - evernothing - INFO - New user registered: user_desc5
+2026-03-15 18:50:05,519 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:05,694 - evernothing - INFO - New user registered: user_note3
+2026-03-15 18:50:05,798 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:05,962 - evernothing - INFO - New user registered: user_dup
+2026-03-15 18:50:06,052 - evernothing - WARNING - Duplicate registration attempt: user_dup
+2026-03-15 18:50:06,193 - evernothing - INFO - New user registered: user_note4
+2026-03-15 18:50:06,297 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:06,512 - evernothing - INFO - New user registered: user_folder5
+2026-03-15 18:50:06,759 - evernothing - INFO - New user registered: user_note2
+2026-03-15 18:50:06,863 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:07,098 - evernothing - INFO - New user registered: user_exp1
+2026-03-15 18:50:07,211 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:07,450 - evernothing - INFO - New user registered: user_hist2
+2026-03-15 18:50:07,553 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:07,720 - evernothing - INFO - New user registered: user_note5
+2026-03-15 18:50:07,823 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:08,073 - evernothing - INFO - New user registered: user_logout
+2026-03-15 18:50:08,323 - evernothing - INFO - New user registered: user_hist1
+2026-03-15 18:50:08,434 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:08,513 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:50:08,658 - evernothing - INFO - New user registered: user_reg1
+2026-03-15 18:50:08,949 - evernothing - INFO - New user registered: user_redir
+2026-03-15 18:50:09,123 - evernothing - INFO - New user registered: user_folder2
+2026-03-15 18:50:09,234 - evernothing - INFO - User 1 created folder: OldName
+2026-03-15 18:50:09,414 - botocore.credentials - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-03-15 18:50:09,951 - evernothing - ERROR - S3 Sync Error: Failed to upload C:\Users\bills\AppData\Local\Temp\tmppmf4ysvu to evernothing-backup-2026/C:\Users\bills\AppData\Local\Temp\tmppmf4ysvu: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:50:09,951 - evernothing - INFO - New user registered: user_search4
+2026-03-15 18:50:10,216 - evernothing - INFO - New user registered: user_search1
+2026-03-15 18:50:10,337 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:10,491 - evernothing - INFO - New user registered: user_search2
+2026-03-15 18:50:10,608 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:10,762 - evernothing - INFO - New user registered: user_search3
+2026-03-15 18:50:11,065 - evernothing - INFO - New user registered: user_iso3
+2026-03-15 18:50:11,169 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:11,292 - evernothing - INFO - New user registered: user_iso4
+2026-03-15 18:50:11,544 - evernothing - INFO - New user registered: user_iso1
+2026-03-15 18:50:11,656 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:11,775 - evernothing - INFO - New user registered: user_iso2
+2026-03-15 18:50:42,065 - evernothing - WARNING - 404 error: http://localhost/nonexistent_route_xyz
+2026-03-15 18:50:42,279 - evernothing - INFO - New user registered: user_adm1
+2026-03-15 18:50:42,456 - evernothing - INFO - New user registered: user_adm2
+2026-03-15 18:50:42,756 - evernothing - INFO - New user registered: user_audit1
+2026-03-15 18:50:42,857 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:43,015 - evernothing - INFO - New user registered: user_audit2
+2026-03-15 18:50:43,116 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:43,331 - evernothing - INFO - New user registered: user_pw1
+2026-03-15 18:50:43,736 - evernothing - INFO - New user registered: user_pw2
+2026-03-15 18:50:44,047 - evernothing - INFO - New user registered: user_folder1
+2026-03-15 18:50:44,150 - evernothing - INFO - User 1 created folder: MyFolder
+2026-03-15 18:50:44,287 - evernothing - INFO - New user registered: user_note1
+2026-03-15 18:50:44,390 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:44,539 - evernothing - INFO - New user registered: user_folder4
+2026-03-15 18:50:44,642 - evernothing - INFO - User 1 created folder: Parent
+2026-03-15 18:50:44,866 - evernothing - INFO - New user registered: user_folder3
+2026-03-15 18:50:44,987 - evernothing - INFO - User 1 created folder: ToDelete
+2026-03-15 18:50:45,157 - evernothing - INFO - New user registered: user_note6
+2026-03-15 18:50:45,269 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:45,439 - evernothing - INFO - New user registered: user_desc3
+2026-03-15 18:50:45,542 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:45,697 - evernothing - INFO - New user registered: user_desc6
+2026-03-15 18:50:45,800 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:45,951 - evernothing - INFO - New user registered: user_desc1
+2026-03-15 18:50:46,056 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:46,203 - evernothing - INFO - New user registered: user_desc4
+2026-03-15 18:50:46,304 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:46,456 - evernothing - INFO - New user registered: user_desc2
+2026-03-15 18:50:46,558 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:46,708 - evernothing - INFO - New user registered: user_desc5
+2026-03-15 18:50:46,829 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:46,990 - evernothing - INFO - New user registered: user_note3
+2026-03-15 18:50:47,091 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:47,239 - evernothing - INFO - New user registered: user_dup
+2026-03-15 18:50:47,325 - evernothing - WARNING - Duplicate registration attempt: user_dup
+2026-03-15 18:50:47,454 - evernothing - INFO - New user registered: user_note4
+2026-03-15 18:50:47,558 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:47,768 - evernothing - INFO - New user registered: user_folder5
+2026-03-15 18:50:47,998 - evernothing - INFO - New user registered: user_note2
+2026-03-15 18:50:48,100 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:48,319 - evernothing - INFO - New user registered: user_exp1
+2026-03-15 18:50:48,420 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:48,717 - evernothing - INFO - New user registered: user_hist2
+2026-03-15 18:50:48,820 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:48,967 - evernothing - INFO - New user registered: user_note5
+2026-03-15 18:50:49,067 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:49,302 - evernothing - INFO - New user registered: user_logout
+2026-03-15 18:50:49,533 - evernothing - INFO - New user registered: user_hist1
+2026-03-15 18:50:49,633 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:49,710 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:50:49,838 - evernothing - INFO - New user registered: user_reg1
+2026-03-15 18:50:50,103 - evernothing - INFO - New user registered: user_redir
+2026-03-15 18:50:50,271 - evernothing - INFO - New user registered: user_folder2
+2026-03-15 18:50:50,374 - evernothing - INFO - User 1 created folder: OldName
+2026-03-15 18:50:50,555 - botocore.credentials - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-03-15 18:50:51,068 - evernothing - ERROR - S3 Sync Error: Failed to upload C:\Users\bills\AppData\Local\Temp\tmpetkdr0ff to evernothing-backup-2026/C:\Users\bills\AppData\Local\Temp\tmpetkdr0ff: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:50:51,068 - evernothing - INFO - New user registered: user_search4
+2026-03-15 18:50:51,298 - evernothing - INFO - New user registered: user_search1
+2026-03-15 18:50:51,401 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:51,551 - evernothing - INFO - New user registered: user_search2
+2026-03-15 18:50:51,655 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:51,809 - evernothing - INFO - New user registered: user_search3
+2026-03-15 18:50:52,083 - evernothing - INFO - New user registered: user_iso3
+2026-03-15 18:50:52,184 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:52,296 - evernothing - INFO - New user registered: user_iso4
+2026-03-15 18:50:52,526 - evernothing - INFO - New user registered: user_iso1
+2026-03-15 18:50:52,628 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:50:52,741 - evernothing - INFO - New user registered: user_iso2
+2026-03-15 18:51:01,263 - evernothing - WARNING - 404 error: http://localhost/nonexistent_route_xyz
+2026-03-15 18:51:01,488 - evernothing - INFO - New user registered: user_adm1
+2026-03-15 18:51:01,667 - evernothing - INFO - New user registered: user_adm2
+2026-03-15 18:51:02,015 - evernothing - INFO - New user registered: user_audit1
+2026-03-15 18:51:02,121 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:02,276 - evernothing - INFO - New user registered: user_audit2
+2026-03-15 18:51:02,382 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:02,623 - evernothing - INFO - New user registered: user_pw1
+2026-03-15 18:51:03,060 - evernothing - INFO - New user registered: user_pw2
+2026-03-15 18:51:03,388 - evernothing - INFO - New user registered: user_folder1
+2026-03-15 18:51:03,490 - evernothing - INFO - User 1 created folder: MyFolder
+2026-03-15 18:51:03,627 - evernothing - INFO - New user registered: user_note1
+2026-03-15 18:51:03,730 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:03,882 - evernothing - INFO - New user registered: user_folder4
+2026-03-15 18:51:03,985 - evernothing - INFO - User 1 created folder: Parent
+2026-03-15 18:51:04,206 - evernothing - INFO - New user registered: user_folder3
+2026-03-15 18:51:04,310 - evernothing - INFO - User 1 created folder: ToDelete
+2026-03-15 18:51:04,456 - evernothing - INFO - New user registered: user_note6
+2026-03-15 18:51:04,556 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:04,715 - evernothing - INFO - New user registered: user_desc3
+2026-03-15 18:51:04,816 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:04,961 - evernothing - INFO - New user registered: user_desc6
+2026-03-15 18:51:05,062 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:05,211 - evernothing - INFO - New user registered: user_desc1
+2026-03-15 18:51:05,314 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:05,463 - evernothing - INFO - New user registered: user_desc4
+2026-03-15 18:51:05,566 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:05,715 - evernothing - INFO - New user registered: user_desc2
+2026-03-15 18:51:05,816 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:05,960 - evernothing - INFO - New user registered: user_desc5
+2026-03-15 18:51:06,061 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:06,217 - evernothing - INFO - New user registered: user_note3
+2026-03-15 18:51:06,333 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:06,483 - evernothing - INFO - New user registered: user_dup
+2026-03-15 18:51:06,571 - evernothing - WARNING - Duplicate registration attempt: user_dup
+2026-03-15 18:51:06,700 - evernothing - INFO - New user registered: user_note4
+2026-03-15 18:51:06,801 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:07,002 - evernothing - INFO - New user registered: user_folder5
+2026-03-15 18:51:07,228 - evernothing - INFO - New user registered: user_note2
+2026-03-15 18:51:07,329 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:07,546 - evernothing - INFO - New user registered: user_exp1
+2026-03-15 18:51:07,646 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:07,874 - evernothing - INFO - New user registered: user_hist2
+2026-03-15 18:51:07,977 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:08,123 - evernothing - INFO - New user registered: user_note5
+2026-03-15 18:51:08,229 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:08,510 - evernothing - INFO - New user registered: user_logout
+2026-03-15 18:51:08,742 - evernothing - INFO - New user registered: user_hist1
+2026-03-15 18:51:08,843 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:08,923 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 18:51:09,051 - evernothing - INFO - New user registered: user_reg1
+2026-03-15 18:51:09,318 - evernothing - INFO - New user registered: user_redir
+2026-03-15 18:51:09,488 - evernothing - INFO - New user registered: user_folder2
+2026-03-15 18:51:09,589 - evernothing - INFO - User 1 created folder: OldName
+2026-03-15 18:51:09,790 - botocore.credentials - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-03-15 18:51:10,648 - evernothing - ERROR - S3 Sync Error: Failed to upload C:\Users\bills\AppData\Local\Temp\tmp6anxqo0n to evernothing-backup-2026/C:\Users\bills\AppData\Local\Temp\tmp6anxqo0n: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 18:51:10,648 - evernothing - INFO - New user registered: user_search4
+2026-03-15 18:51:10,874 - evernothing - INFO - New user registered: user_search1
+2026-03-15 18:51:10,987 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:11,136 - evernothing - INFO - New user registered: user_search2
+2026-03-15 18:51:11,237 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:11,387 - evernothing - INFO - New user registered: user_search3
+2026-03-15 18:51:11,655 - evernothing - INFO - New user registered: user_iso3
+2026-03-15 18:51:11,757 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:11,872 - evernothing - INFO - New user registered: user_iso4
+2026-03-15 18:51:12,107 - evernothing - INFO - New user registered: user_iso1
+2026-03-15 18:51:12,209 - evernothing - INFO - User 1 created folder: F
+2026-03-15 18:51:12,321 - evernothing - INFO - New user registered: user_iso2
+2026-03-15 19:00:29,327 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:00:29] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 19:00:30,752 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:00:30] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 19:00:39,024 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:00:39] "GET /note/delete/9 HTTP/1.1" 200 -
+2026-03-15 19:00:53,750 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:00:53] "GET / HTTP/1.1" 200 -
+2026-03-15 19:01:24,079 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:01:24] "GET /edit/98 HTTP/1.1" 200 -
+2026-03-15 19:01:38,752 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:01:38] "GET /folder/11 HTTP/1.1" 200 -
+2026-03-15 19:04:15,923 - evernothing - WARNING - 404 error: http://localhost/nonexistent_route_xyz
+2026-03-15 19:04:16,144 - evernothing - INFO - New user registered: user_adm1
+2026-03-15 19:04:16,330 - evernothing - INFO - New user registered: user_adm2
+2026-03-15 19:04:16,648 - evernothing - INFO - New user registered: user_audit1
+2026-03-15 19:04:16,750 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:16,904 - evernothing - INFO - New user registered: user_audit2
+2026-03-15 19:04:17,006 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:17,205 - evernothing - INFO - New user registered: user_pw1
+2026-03-15 19:04:17,610 - evernothing - INFO - New user registered: user_pw2
+2026-03-15 19:04:17,923 - evernothing - INFO - New user registered: user_folder1
+2026-03-15 19:04:18,025 - evernothing - INFO - User 1 created folder: MyFolder
+2026-03-15 19:04:18,157 - evernothing - INFO - New user registered: user_note1
+2026-03-15 19:04:18,258 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:18,405 - evernothing - INFO - New user registered: user_folder4
+2026-03-15 19:04:18,506 - evernothing - INFO - User 1 created folder: Parent
+2026-03-15 19:04:18,755 - evernothing - INFO - New user registered: user_folder3
+2026-03-15 19:04:18,858 - evernothing - INFO - User 1 created folder: ToDelete
+2026-03-15 19:04:19,002 - evernothing - INFO - New user registered: user_note6
+2026-03-15 19:04:19,103 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:19,257 - evernothing - INFO - New user registered: user_desc3
+2026-03-15 19:04:19,358 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:19,500 - evernothing - INFO - New user registered: user_desc6
+2026-03-15 19:04:19,601 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:19,747 - evernothing - INFO - New user registered: user_desc1
+2026-03-15 19:04:19,848 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:19,992 - evernothing - INFO - New user registered: user_desc4
+2026-03-15 19:04:20,094 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:20,250 - evernothing - INFO - New user registered: user_desc2
+2026-03-15 19:04:20,353 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:20,498 - evernothing - INFO - New user registered: user_desc5
+2026-03-15 19:04:20,601 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:20,758 - evernothing - INFO - New user registered: user_note3
+2026-03-15 19:04:20,859 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:21,009 - evernothing - INFO - New user registered: user_dup
+2026-03-15 19:04:21,095 - evernothing - WARNING - Duplicate registration attempt: user_dup
+2026-03-15 19:04:21,226 - evernothing - INFO - New user registered: user_note4
+2026-03-15 19:04:21,326 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:21,523 - evernothing - INFO - New user registered: user_folder5
+2026-03-15 19:04:21,754 - evernothing - INFO - New user registered: user_note2
+2026-03-15 19:04:21,857 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:22,071 - evernothing - INFO - New user registered: user_exp1
+2026-03-15 19:04:22,172 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:22,400 - evernothing - INFO - New user registered: user_hist2
+2026-03-15 19:04:22,503 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:22,652 - evernothing - INFO - New user registered: user_note5
+2026-03-15 19:04:22,754 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:22,995 - evernothing - INFO - New user registered: user_logout
+2026-03-15 19:04:23,225 - evernothing - INFO - New user registered: user_hist1
+2026-03-15 19:04:23,327 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:23,407 - evernothing - WARNING - Rate limit exceeded for login from 127.0.0.1
+2026-03-15 19:04:23,534 - evernothing - INFO - New user registered: user_reg1
+2026-03-15 19:04:23,797 - evernothing - INFO - New user registered: user_redir
+2026-03-15 19:04:23,967 - evernothing - INFO - New user registered: user_folder2
+2026-03-15 19:04:24,068 - evernothing - INFO - User 1 created folder: OldName
+2026-03-15 19:04:24,241 - botocore.credentials - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-03-15 19:04:24,750 - evernothing - ERROR - S3 Sync Error: Failed to upload C:\Users\bills\AppData\Local\Temp\tmpzjk6qw_w to evernothing-backup-2026/C:\Users\bills\AppData\Local\Temp\tmpzjk6qw_w: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 19:04:24,750 - evernothing - INFO - New user registered: user_search4
+2026-03-15 19:04:24,982 - evernothing - INFO - New user registered: user_search1
+2026-03-15 19:04:25,085 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:25,237 - evernothing - INFO - New user registered: user_search2
+2026-03-15 19:04:25,340 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:25,491 - evernothing - INFO - New user registered: user_search3
+2026-03-15 19:04:25,766 - evernothing - INFO - New user registered: user_iso3
+2026-03-15 19:04:25,871 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:25,989 - evernothing - INFO - New user registered: user_iso4
+2026-03-15 19:04:26,220 - evernothing - INFO - New user registered: user_iso1
+2026-03-15 19:04:26,322 - evernothing - INFO - User 1 created folder: F
+2026-03-15 19:04:26,434 - evernothing - INFO - New user registered: user_iso2
+2026-03-15 19:06:21,612 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.163:5000
+2026-03-15 19:06:21,612 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2026-03-15 19:06:55,635 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:06:55] "GET / HTTP/1.1" 200 -
+2026-03-15 19:06:57,763 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:06:57] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 19:07:05,683 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:07:05] "GET /edit/3 HTTP/1.1" 200 -
+2026-03-15 19:07:24,420 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:07:24] "GET / HTTP/1.1" 200 -
+2026-03-15 19:07:29,159 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:07:29] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 19:07:48,189 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:07:48] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 19:08:03,296 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:08:03] "GET / HTTP/1.1" 200 -
+2026-03-15 19:08:05,491 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:08:05] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 19:08:07,818 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:08:07] "GET /edit/37 HTTP/1.1" 200 -
+2026-03-15 19:08:25,029 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:08:25] "POST /edit/37 HTTP/1.1" 200 -
+2026-03-15 19:08:27,028 - flask_wtf.csrf - INFO - The CSRF token is missing.
+2026-03-15 19:08:27,029 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:08:27] "[31m[1mPOST /edit/37 HTTP/1.1[0m" 400 -
+2026-03-15 19:12:38,733 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:12:38] "GET / HTTP/1.1" 200 -
+2026-03-15 19:13:11,983 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.163:5000
+2026-03-15 19:13:11,983 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2026-03-15 19:13:36,927 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:13:36] "GET / HTTP/1.1" 200 -
+2026-03-15 19:13:48,675 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:13:48] "GET /folder/add HTTP/1.1" 200 -
+2026-03-15 19:13:52,993 - botocore.credentials - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-03-15 19:13:53,995 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 19:13:53,995 - __main__ - INFO - User 1 created folder: test
+2026-03-15 19:13:53,996 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:13:53] "[32mPOST /folder/add HTTP/1.1[0m" 302 -
+2026-03-15 19:13:54,009 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:13:54] "GET / HTTP/1.1" 200 -
+2026-03-15 19:13:57,105 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:13:57] "GET /folder/26 HTTP/1.1" 200 -
+2026-03-15 19:13:59,956 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:13:59] "GET /add/26 HTTP/1.1" 200 -
+2026-03-15 19:14:32,032 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 19:14:32,033 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:14:32] "[32mPOST /add/26 HTTP/1.1[0m" 302 -
+2026-03-15 19:14:32,044 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:14:32] "GET /folder/26 HTTP/1.1" 200 -
+2026-03-15 19:14:34,867 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:14:34] "GET /edit/107 HTTP/1.1" 200 -
+2026-03-15 19:14:37,621 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:14:37] "GET /history/107 HTTP/1.1" 200 -
+2026-03-15 19:14:41,764 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:14:41] "GET /history/restore/108 HTTP/1.1" 200 -
+2026-03-15 19:14:45,659 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:14:45] "GET /history/107 HTTP/1.1" 200 -
+2026-03-15 19:14:52,254 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:14:52] "GET /edit/107 HTTP/1.1" 200 -
+2026-03-15 19:15:41,056 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:15:41] "GET / HTTP/1.1" 200 -
+2026-03-15 19:15:45,136 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:15:45] "GET /folder/12 HTTP/1.1" 200 -
+2026-03-15 19:15:49,467 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:15:49] "GET /edit/18 HTTP/1.1" 200 -
+2026-03-15 19:16:09,277 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:16:09] "GET /edit/85 HTTP/1.1" 200 -
+2026-03-15 19:16:19,076 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:16:19] "GET /edit/84 HTTP/1.1" 200 -
+2026-03-15 19:16:32,720 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:16:32] "GET /edit/50 HTTP/1.1" 200 -
+2026-03-15 19:20:44,585 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:20:44] "GET / HTTP/1.1" 200 -
+2026-03-15 19:20:49,394 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:20:49] "GET /folder/12 HTTP/1.1" 200 -
+2026-03-15 19:21:43,970 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.163:5000
+2026-03-15 19:21:43,970 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2026-03-15 19:21:54,949 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:21:54] "GET / HTTP/1.1" 200 -
+2026-03-15 19:22:23,440 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:22:23] "GET /folder/12 HTTP/1.1" 200 -
+2026-03-15 19:33:03,411 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.163:5000
+2026-03-15 19:33:03,412 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2026-03-15 19:33:15,453 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:15] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 19:33:18,883 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:18] "GET / HTTP/1.1" 200 -
+2026-03-15 19:33:28,425 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:28] "GET /folder/5 HTTP/1.1" 200 -
+2026-03-15 19:33:30,184 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:30] "GET /edit/9 HTTP/1.1" 200 -
+2026-03-15 19:33:34,401 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:34] "GET / HTTP/1.1" 200 -
+2026-03-15 19:33:35,780 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:35] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 19:33:51,441 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:51] "GET /edit/60 HTTP/1.1" 200 -
