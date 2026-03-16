@@ -841,3 +841,66 @@
 2026-03-15 19:33:34,401 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:34] "GET / HTTP/1.1" 200 -
 2026-03-15 19:33:35,780 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:35] "GET /folder/9 HTTP/1.1" 200 -
 2026-03-15 19:33:51,441 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 19:33:51] "GET /edit/60 HTTP/1.1" 200 -
+2026-03-15 22:01:09,841 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:09] "GET / HTTP/1.1" 200 -
+2026-03-15 22:01:15,243 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:15] "GET /folder/24 HTTP/1.1" 200 -
+2026-03-15 22:01:20,551 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:20] "GET / HTTP/1.1" 200 -
+2026-03-15 22:01:21,972 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:21] "GET /folder/24 HTTP/1.1" 200 -
+2026-03-15 22:01:23,855 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:23] "GET / HTTP/1.1" 200 -
+2026-03-15 22:01:25,210 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:25] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 22:01:26,790 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:26] "GET /edit/49 HTTP/1.1" 200 -
+2026-03-15 22:01:56,817 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:56] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 22:01:59,884 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:01:59] "GET /edit/37 HTTP/1.1" 200 -
+2026-03-15 22:02:02,446 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:02] "GET / HTTP/1.1" 200 -
+2026-03-15 22:02:05,895 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:05] "GET /folder/14 HTTP/1.1" 200 -
+2026-03-15 22:02:07,285 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:07] "GET /edit/69 HTTP/1.1" 200 -
+2026-03-15 22:02:10,139 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:10] "GET / HTTP/1.1" 200 -
+2026-03-15 22:02:13,092 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:13] "GET /folder/26 HTTP/1.1" 200 -
+2026-03-15 22:02:15,524 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:15] "GET / HTTP/1.1" 200 -
+2026-03-15 22:02:17,573 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:17] "GET /folder/12 HTTP/1.1" 200 -
+2026-03-15 22:02:26,266 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:26] "GET / HTTP/1.1" 200 -
+2026-03-15 22:02:28,758 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:28] "GET /folder/11 HTTP/1.1" 200 -
+2026-03-15 22:02:30,158 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:30] "GET /edit/16 HTTP/1.1" 200 -
+2026-03-15 22:02:34,946 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:34] "GET / HTTP/1.1" 200 -
+2026-03-15 22:02:37,352 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:37] "GET /folder/11 HTTP/1.1" 200 -
+2026-03-15 22:02:42,655 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:42] "GET / HTTP/1.1" 200 -
+2026-03-15 22:02:44,439 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:44] "GET /folder/26 HTTP/1.1" 200 -
+2026-03-15 22:02:46,314 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:46] "GET / HTTP/1.1" 200 -
+2026-03-15 22:02:50,451 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:50] "GET /folder/11 HTTP/1.1" 200 -
+2026-03-15 22:02:52,335 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:52] "GET / HTTP/1.1" 200 -
+2026-03-15 22:02:55,709 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:02:55] "GET /folder/13 HTTP/1.1" 200 -
+2026-03-15 22:03:01,749 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:03:01] "GET / HTTP/1.1" 200 -
+2026-03-15 22:03:04,787 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:03:04] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 22:03:09,764 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:03:09] "GET / HTTP/1.1" 200 -
+2026-03-15 22:03:13,539 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:03:13] "GET /folder/10 HTTP/1.1" 200 -
+2026-03-15 22:03:37,185 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:03:37] "GET / HTTP/1.1" 200 -
+2026-03-15 22:03:45,702 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:03:45] "GET /search?q=ssn HTTP/1.1" 200 -
+2026-03-15 22:03:52,293 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:03:52] "GET /search?q=ssn&folder=&date_from=&date_to= HTTP/1.1" 200 -
+2026-03-15 22:03:57,522 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:03:57] "GET /search?q=ssn&folder=&date_from=&date_to=&regex=on HTTP/1.1" 200 -
+2026-03-15 22:04:04,520 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:04:04] "GET /search?q=SSN&folder=&date_from=&date_to=&regex=on HTTP/1.1" 200 -
+2026-03-15 22:04:16,984 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:04:16] "GET /search?q=138&folder=&date_from=&date_to=&regex=on HTTP/1.1" 200 -
+2026-03-15 22:04:22,848 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:04:22] "GET /edit/57 HTTP/1.1" 200 -
+2026-03-15 22:04:29,048 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:04:29] "GET / HTTP/1.1" 200 -
+2026-03-15 22:04:31,104 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:04:31] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 22:04:37,443 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:04:37] "GET /edit/10 HTTP/1.1" 200 -
+2026-03-15 22:04:47,850 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:04:47] "POST /edit/10 HTTP/1.1" 200 -
+2026-03-15 22:04:49,516 - botocore.credentials - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-03-15 22:04:50,300 - __main__ - ERROR - S3 Sync Error: Failed to upload evernothing.db to evernothing-backup-2026/evernothing.db: An error occurred (NoSuchBucket) when calling the PutObject operation: The specified bucket does not exist
+2026-03-15 22:05:34,322 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:05:34] "[32mPOST /edit/10 HTTP/1.1[0m" 302 -
+2026-03-15 22:05:34,354 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:05:34] "GET / HTTP/1.1" 200 -
+2026-03-15 22:05:37,973 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.163:5000
+2026-03-15 22:05:37,973 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2026-03-15 22:05:47,553 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:05:47] "GET / HTTP/1.1" 200 -
+2026-03-15 22:05:52,901 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:05:52] "GET /folder/9 HTTP/1.1" 200 -
+2026-03-15 22:05:54,489 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:05:54] "GET /edit/10 HTTP/1.1" 200 -
+2026-03-15 22:06:01,141 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:06:01] "GET / HTTP/1.1" 200 -
+2026-03-15 22:06:03,262 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:06:03] "GET /search?q=138 HTTP/1.1" 200 -
+2026-03-15 22:06:14,586 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:06:14] "GET / HTTP/1.1" 200 -
+2026-03-15 22:06:19,829 - werkzeug - INFO - 127.0.0.1 - - [15/Mar/2026 22:06:19] "GET /search?q=SSN HTTP/1.1" 200 -
+2026-03-15 22:09:59,619 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.163:5000
+2026-03-15 22:09:59,619 - werkzeug - INFO - [33mPress CTRL+C to quit[0m

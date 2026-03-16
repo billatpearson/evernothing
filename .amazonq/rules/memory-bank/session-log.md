@@ -1,5 +1,55 @@
 # EverNothing - Session Log
 
+## Session: Full UI Redesign
+
+### Changes Made
+
+- **`STYLE` constant**: Complete rewrite with CSS variables (`--gold`, `--red`, `--bg`, etc.), sticky nav bar, card layouts, responsive grid, button classes (`.btn`, `.btn-primary`, `.btn-danger`, `.btn-sm`), item lists with hover-reveal actions, table styles, breadcrumb styles, confirm-box styles, mobile viewport meta tag
+- **All templates redesigned**: `T_FOLDERS`, `T_ADD_FOLDER`, `T_ADD_SUBFOLDER`, `T_RENAME_FOLDER`, `T_CHANGE_PASSWORD`, `T_DELETE_NOTE`, `T_EDIT_CONFIRM`, `T_NOTES`, `T_ADD`, `T_EDIT`, `T_LOGIN`, `T_REGISTER`, `T_SEARCH`, `T_DELETE_FOLDER`, `T_HISTORY`, `T_ADMIN_LOGIN`, `T_ADMIN_DASHBOARD`, `T_ADMIN_EDIT_USER`, `T_ADMIN_EDIT_USER_CONFIRM`, `T_ADMIN_DELETE_USER`, `T_FORGOT_PASSWORD`, `T_RESET_PASSWORD`, `T_AUDIT_REPORT`, `T_SESSIONS`, `T_ADMIN_AUDIT_LOGS`
+- **Inline rollback confirm**: Updated to match new style
+- **Duplicate note fix**: Deleted duplicate `Bash Setup` row (id 84); hardened duplicate check in `add()` to use case-insensitive stripped comparison
+
+### Key Design Decisions
+
+- Sticky top nav bar on every page; logout always top-right in red
+- Login/Register/Forgot/Reset: centered card layout (no nav)
+- Home + Folder view: two-column responsive grid
+- Hover-reveal action buttons on list items
+- Confirm/delete pages use `.confirm-box` card style
+- Color-coded audit action tags: green=CREATE, gold=UPDATE, red=DELETE
+- CSS variables make theme changes trivial
+- Mobile: grid collapses to single column at 600px
+
+---
+
+## Session: Module Refactor (IN PROGRESS)
+
+### Goal
+Split monolithic `evernothing.py` into 5 focused files:
+1. `evernothing_db.py` — DB, encryption, utilities ✅ DONE
+2. `evernothing_templates.py` — `STYLE` + all `T_*` constants ❌ TODO
+3. `evernothing_routes.py` — all web + admin routes, `User` class, `load_user`, `sync_s3` ❌ TODO
+4. `evernothing_api.py` — all `/api/*` JSON routes, `api_login_required` decorator ❌ TODO
+5. `evernothing.py` — thin entry point: imports all modules, calls `init_db()`, `backup_database()`, runs app ❌ TODO
+
+### Completed: `evernothing_db.py`
+Contains: `encrypt()`/`decrypt()` (AES-GCM), `db()`, `init_db()`, `backup_database()`, `format_date()`, `get_breadcrumbs()`, `log_change()`, `delete_recursive()`, `validate_input()`, `validate_email()`, `validate_password()`, `allowed_file()`.
+Uses `DB = os.environ.get('DB_FILE', 'evernothing.db')`.
+
+### Key Refactor Decisions
+- `evernothing.py` remains the single run target (Termux compatibility)
+- `test_evernothing.py` imports `evernothing` — thin entry point must re-export all names tests depend on
+- `/api/*` routes use `@csrf.exempt` + custom `api_login_required` (returns JSON 401, not redirect)
+- `T_ADMIN_S3_BACKUPS` is currently defined AFTER `if __name__ == '__main__'` in original file — fix positioning during refactor
+- `sync_s3()` belongs in `evernothing_routes.py` (uses boto3, called after every DB commit)
+- `User` class and `load_user` belong in `evernothing_routes.py`
+- Flask `app` object created in thin `evernothing.py`, passed to routes/api modules (or use blueprints)
+
+### Names Tests Depend On (must be importable from `evernothing`)
+`app`, `login_manager`, `db`, `encrypt`, `decrypt`, `init_db`, `sync_s3`, `rate_limiter` (module with `rate_limit_store`)
+
+---
+
 ## Session: Description Field + Test Infrastructure
 
 ### Changes Made
