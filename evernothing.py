@@ -382,6 +382,15 @@ def init_db():
         timestamp TEXT,
         ip_address TEXT
     );
+    CREATE TABLE IF NOT EXISTS sync_queue(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT,
+        entity_id INTEGER,
+        operation TEXT,
+        payload TEXT,
+        changed_at TEXT,
+        synced_at TEXT
+    );
     """)
     for _col_sql in [
         "ALTER TABLE notes ADD COLUMN description TEXT",
@@ -420,6 +429,20 @@ def init_db():
         """)
     except Exception as e:
         print(f"Warning: Attachments table check failed: {e}")
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sync_queue(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT,
+                entity_id INTEGER,
+                operation TEXT,
+                payload TEXT,
+                changed_at TEXT,
+                synced_at TEXT
+            )
+        """)
+    except Exception as e:
+        print(f"Warning: sync_queue migration failed: {e}")
     try:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(user_id)")
@@ -479,18 +502,51 @@ def _s3_client():
     except Exception:
         return boto3.client('s3', region_name=AWS_REGION)
 
+DEVICE_ID = os.environ.get('DEVICE_ID', __import__('socket').gethostname())
+
+def queue_change(cur, entity_type, entity_id, operation, payload):
+    """Record a change in sync_queue for delta S3 upload."""
+    cur.execute(
+        "INSERT INTO sync_queue (entity_type, entity_id, operation, payload, changed_at) VALUES(?,?,?,?,?)",
+        (entity_type, entity_id, operation, json.dumps(payload),
+         datetime.datetime.now(timezone.utc).isoformat())
+    )
+
 def sync_s3():
-    """Upload database to S3 with SSE-KMS encryption."""
+    """Upload only unsynced delta changes to S3 as a JSON file."""
     if not boto3:
         logger.warning("S3 sync skipped: boto3 not available")
         return
     try:
+        con = db()
+        cur = con.cursor()
+        cur.execute("SELECT id, entity_type, entity_id, operation, payload, changed_at FROM sync_queue WHERE synced_at IS NULL")
+        rows = cur.fetchall()
+        if not rows:
+            con.close()
+            return
+        changes = [
+            {"op": r[3], "entity": r[1], "id": r[2], "data": json.loads(r[4]), "at": r[5]}
+            for r in rows
+        ]
+        ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        s3_key = f"changes/{DEVICE_ID}/{ts}.json"
+        payload_bytes = json.dumps(changes).encode("utf-8")
         s3 = _s3_client()
-        extra = {'ServerSideEncryption': 'aws:kms'}
+        extra = {"ServerSideEncryption": "aws:kms", "ContentType": "application/json"}
         if KMS_KEY_ID:
-            extra['SSEKMSKeyId'] = KMS_KEY_ID
-        s3.upload_file(DB, S3_BUCKET_NAME, DB, ExtraArgs=extra)
-        logger.info(f"S3 sync successful (SSE-KMS): {DB} -> s3://{S3_BUCKET_NAME}/{DB}")
+            extra["SSEKMSKeyId"] = KMS_KEY_ID
+        import io
+        s3.upload_fileobj(io.BytesIO(payload_bytes), S3_BUCKET_NAME, s3_key, ExtraArgs=extra)
+        ids = [r[0] for r in rows]
+        now = datetime.datetime.now(timezone.utc).isoformat()
+        cur.execute(
+            f"UPDATE sync_queue SET synced_at=? WHERE id IN ({','.join('?'*len(ids))})",
+            [now] + ids
+        )
+        con.commit()
+        con.close()
+        logger.info(f"S3 delta sync: {len(changes)} change(s) -> s3://{S3_BUCKET_NAME}/{s3_key}")
     except Exception as e:
         logger.error(f"S3 Sync Error: {e}")
         print(f"S3 Sync Error: {e}")
@@ -616,6 +672,7 @@ def add_folder():
                 "INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,NULL)",
                 (current_user.id, encrypt(name))
             )
+            queue_change(cur, 'folder', cur.lastrowid, 'INSERT', {'user_id': current_user.id, 'name': name})
             con.commit()
             sync_s3()
             logger.info(f"User {current_user.id} created folder: {name}")
@@ -637,6 +694,7 @@ def add_subfolder(pid):
             "INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,?)",
             (current_user.id, encrypt(request.form['name']), pid)
         )
+        queue_change(cur, 'folder', cur.lastrowid, 'INSERT', {'user_id': current_user.id, 'name': request.form['name'], 'parent_id': pid})
         con.commit()
         sync_s3()
         con.close()        
@@ -661,6 +719,7 @@ def delete_folder(fid):
 
     if request.method == "POST":
         delete_recursive(cur, fid, current_user.id)
+        queue_change(cur, 'folder', fid, 'DELETE', {'user_id': current_user.id})
         con.commit()
         con.close()
         sync_s3()
@@ -680,6 +739,7 @@ def rename_folder(fid):
         return redirect("/")
     if request.method == "POST":
         cur.execute("UPDATE folders SET name=? WHERE id=? AND user_id=?", (encrypt(request.form['name']), fid, current_user.id))
+        queue_change(cur, 'folder', fid, 'UPDATE', {'user_id': current_user.id, 'name': request.form['name']})
         con.commit()
         con.close()
         sync_s3()
@@ -697,6 +757,7 @@ def delete_note(nid):
         return redirect("/")
     if request.method == "POST":
         cur.execute("DELETE FROM notes WHERE id=? AND user_id=?", (nid, current_user.id))
+        queue_change(cur, 'note', nid, 'DELETE', {'user_id': current_user.id})
         con.commit()
         con.close()
         sync_s3()
@@ -873,6 +934,7 @@ def add(fid):
                 )
                 nid = cur.lastrowid
                 log_change(cur, current_user.id, 'CREATE', 'note', nid, {}, {'note': note_val, 'content': content_val, 'description': desc_val, 'folder_id': fid}, request.remote_addr)
+                queue_change(cur, 'note', nid, 'INSERT', {'user_id': current_user.id, 'key': note_val, 'folder_id': fid, 'description': desc_val})
                 cur.execute(
                     "INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
                     (nid, current_user.id, encrypt(note_val), encrypt(content_val), encrypt(desc_val), fid, datetime.datetime.now(timezone.utc).isoformat())
@@ -976,6 +1038,7 @@ def edit(id):
                     ),
                 )
                 log_change(cur, current_user.id, 'UPDATE', 'note', id, old_vals, new_vals, request.remote_addr)
+                queue_change(cur, 'note', id, 'UPDATE', {'user_id': current_user.id, 'key': request.form['note'], 'folder_id': request.form.get('folder_id'), 'description': new_desc})
                 cur.execute(
                     "INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
                     (id, current_user.id, encrypt(request.form['note']), encrypt(request.form['content']), encrypt(new_desc), request.form.get('folder_id'), now)
