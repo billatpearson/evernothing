@@ -1,0 +1,9 @@
+============================================
+ EverNothing - Test and Restart
+============================================
+[1/3] Stopping server...
+      No PID file found, skipping.
+[2/3] Running unit tests...
+Database backed up to: Backups/evernothing_backup_20260320_213932.db
+
+[FAILED] Tests failed. Server NOT restarted.
