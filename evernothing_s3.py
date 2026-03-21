@@ -24,15 +24,15 @@ except ImportError:
     # Fallback to environment variables if aws_config not available
     S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing-backup-2026')
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'TBD')
-    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'TBD')
+    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
     DB_FILE = os.environ.get('DB_FILE', 'evernothing.db')
 
 def sync_to_s3():
     """Upload evernothing.db to S3 bucket"""
     
     # Validate configuration
-    if AWS_ACCESS_KEY_ID == 'TBD' or AWS_SECRET_ACCESS_KEY == 'TBD':
+    if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY:
         print("ERROR: AWS credentials not configured")
         print("Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
         return False
