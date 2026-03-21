@@ -2,5 +2,6 @@ evernothing.db
 *.db
 *logs
 *log
+*.pyc
 .env
 secret.key

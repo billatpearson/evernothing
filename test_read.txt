@@ -1,0 +1,12 @@
+{% for backup in backups %}
+<tr style="border-bottom:1px solid #333;">
+<td style="padding:8px; font-size:small;">{{backup.key}}</td>
+<td style="padding:8px;">{{backup.size}}</td>
+<td style="padding:8px;">{{backup.modified}}</td>
+<td style="padding:8px;"><a href="/admin/s3_restore/{{backup.key}}" style="color:#0f0;">[Restore]</a></td>
+</tr>
+{% else %}
+<tr><td colspan="4" style="padding:20px; text-align:center; color:#888;">No backups found or S3 not configured</td></tr>
+{% endfor %}
+</table>
+"""
