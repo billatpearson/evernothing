@@ -85,6 +85,15 @@ class EvernothingTestCase(unittest.TestCase):
                 timestamp TEXT,
                 ip_address TEXT
             );
+            CREATE TABLE sync_queue(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT,
+                entity_id INTEGER,
+                operation TEXT,
+                payload TEXT,
+                changed_at TEXT,
+                synced_at TEXT
+            );
             """)
             con.execute(
                 "INSERT INTO users (username, password, email) VALUES (?,?,?)",
@@ -435,6 +444,112 @@ class EvernothingTestCase(unittest.TestCase):
         with sqlite3.connect(self.db_path) as con:
             r = con.execute("SELECT id FROM users WHERE username='otheruser'").fetchone()
         self.assertIsNone(r)
+
+
+    # --- 13. Sync queue (delta S3) ---
+
+    @patch('evernothing.sync_s3')
+    def test_sync_queue_on_note_create(self, mock_sync):
+        self._login()
+        self.client.post('/folder/add', data={'name': 'SQF'}, follow_redirects=True)
+        with sqlite3.connect(self.db_path) as con:
+            fid = con.execute("SELECT id FROM folders").fetchone()[0]
+        self.client.post(f'/add/{fid}', data={'note': 'SyncNote', 'content': 'val', 'description': ''})
+        with sqlite3.connect(self.db_path) as con:
+            r = con.execute(
+                "SELECT operation, entity_type FROM sync_queue WHERE entity_type='note' AND operation='INSERT'"
+            ).fetchone()
+        self.assertIsNotNone(r)
+        self.assertEqual(r[0], 'INSERT')
+
+    @patch('evernothing.sync_s3')
+    def test_sync_queue_on_note_update(self, mock_sync):
+        self._login()
+        self.client.post('/folder/add', data={'name': 'SQF2'}, follow_redirects=True)
+        with sqlite3.connect(self.db_path) as con:
+            fid = con.execute("SELECT id FROM folders").fetchone()[0]
+        self.client.post(f'/add/{fid}', data={'note': 'SyncUpdate', 'content': 'v1', 'description': ''})
+        with sqlite3.connect(self.db_path) as con:
+            nid = con.execute("SELECT id FROM notes WHERE note_key='SyncUpdate'").fetchone()[0]
+        self.client.post(f'/edit/{nid}', data={
+            'note': 'SyncUpdate', 'content': 'v2', 'folder_id': fid,
+            'description': '', 'confirm': 'yes'
+        })
+        with sqlite3.connect(self.db_path) as con:
+            r = con.execute(
+                "SELECT operation FROM sync_queue WHERE entity_type='note' AND entity_id=? AND operation='UPDATE'",
+                (nid,)
+            ).fetchone()
+        self.assertIsNotNone(r)
+
+    @patch('evernothing.sync_s3')
+    def test_sync_queue_on_note_delete(self, mock_sync):
+        self._login()
+        self.client.post('/folder/add', data={'name': 'SQF3'}, follow_redirects=True)
+        with sqlite3.connect(self.db_path) as con:
+            fid = con.execute("SELECT id FROM folders").fetchone()[0]
+        self.client.post(f'/add/{fid}', data={'note': 'SyncDel', 'content': 'x', 'description': ''})
+        with sqlite3.connect(self.db_path) as con:
+            nid = con.execute("SELECT id FROM notes WHERE note_key='SyncDel'").fetchone()[0]
+        self.client.post(f'/note/delete/{nid}', follow_redirects=True)
+        with sqlite3.connect(self.db_path) as con:
+            r = con.execute(
+                "SELECT operation FROM sync_queue WHERE entity_type='note' AND entity_id=? AND operation='DELETE'",
+                (nid,)
+            ).fetchone()
+        self.assertIsNotNone(r)
+
+    @patch('evernothing.sync_s3')
+    def test_sync_queue_on_note_rollback(self, mock_sync):
+        self._login()
+        self.client.post('/folder/add', data={'name': 'SQF4'}, follow_redirects=True)
+        with sqlite3.connect(self.db_path) as con:
+            fid = con.execute("SELECT id FROM folders").fetchone()[0]
+        self.client.post(f'/add/{fid}', data={'note': 'SyncRoll', 'content': 'v1', 'description': ''})
+        with sqlite3.connect(self.db_path) as con:
+            nid = con.execute("SELECT id FROM notes WHERE note_key='SyncRoll'").fetchone()[0]
+        self.client.post(f'/edit/{nid}', data={
+            'note': 'SyncRoll', 'content': 'v2', 'folder_id': fid,
+            'description': '', 'confirm': 'yes'
+        })
+        with sqlite3.connect(self.db_path) as con:
+            hid = con.execute(
+                "SELECT id FROM note_history WHERE note_id=? ORDER BY id ASC LIMIT 1", (nid,)
+            ).fetchone()[0]
+        self.client.post(f'/history/restore/{hid}', follow_redirects=True)
+        with sqlite3.connect(self.db_path) as con:
+            val = con.execute("SELECT note_value FROM notes WHERE id=?", (nid,)).fetchone()[0]
+        self.assertEqual(val, 'v1')
+
+    @patch('evernothing.sync_s3')
+    def test_sync_queue_payload_contains_key(self, mock_sync):
+        import json
+        self._login()
+        self.client.post('/folder/add', data={'name': 'SQF5'}, follow_redirects=True)
+        with sqlite3.connect(self.db_path) as con:
+            fid = con.execute("SELECT id FROM folders").fetchone()[0]
+        self.client.post(f'/add/{fid}', data={'note': 'PayloadNote', 'content': 'pval', 'description': 'pdesc'})
+        with sqlite3.connect(self.db_path) as con:
+            row = con.execute(
+                "SELECT payload FROM sync_queue WHERE entity_type='note' AND operation='INSERT'"
+            ).fetchone()
+        self.assertIsNotNone(row)
+        payload = json.loads(row[0])
+        self.assertEqual(payload['key'], 'PayloadNote')
+        self.assertEqual(payload['description'], 'pdesc')
+
+    @patch('evernothing.sync_s3')
+    def test_sync_queue_unsynced_rows_start_null(self, mock_sync):
+        self._login()
+        self.client.post('/folder/add', data={'name': 'SQF6'}, follow_redirects=True)
+        with sqlite3.connect(self.db_path) as con:
+            fid = con.execute("SELECT id FROM folders").fetchone()[0]
+        self.client.post(f'/add/{fid}', data={'note': 'UnsyncedNote', 'content': 'u', 'description': ''})
+        with sqlite3.connect(self.db_path) as con:
+            r = con.execute(
+                "SELECT synced_at FROM sync_queue WHERE entity_type='note' AND operation='INSERT'"
+            ).fetchone()
+        self.assertIsNone(r[0])
 
 
 if __name__ == '__main__':
