@@ -1,678 +1,634 @@
 """
-EverNothing Android Application
-Kivy-based mobile interface for EverNothing note-taking app
+EverNothing Android App (Kivy)
 
-Installation (Termux):
+Installation (Termux on Android):
   pkg install python
   pip install kivy requests
-  python main.py
 
-Run from terminal (Windows):
+Installation (desktop testing):
+  pip install kivy requests
+
+Run:
   python android/main.py
 
 Configuration:
-  Set SERVER_URL to your Flask backend (default: http://127.0.0.1:5000)
+  Set EVERNOTHING_SERVER env var to your Flask server IP/port
+  e.g. export EVERNOTHING_SERVER=http://192.168.1.100:5000
+  Default: http://127.0.0.1:5000
 """
 
 try:
     from kivy.app import App
 except ModuleNotFoundError as e:
-    raise SystemExit(
-        f"Kivy not found for this Python interpreter: {e}\n"
-        "Run from terminal: python android/main.py\n"
-        "Or install Kivy: pip install kivy"
-    ) from e
+    raise SystemExit(f"Kivy not found: {e}\nInstall with: pip install kivy") from e
 
 from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
+from kivy.uix.popup import Popup
 from kivy.core.window import Window
+from kivy.metrics import dp
 import requests
 import os
 
 SERVER_URL = os.environ.get('EVERNOTHING_SERVER', 'http://127.0.0.1:5000')
 
-# Color scheme: black background, gold text, red accents
-Window.clearcolor = (0, 0, 0, 1)
+# Theme colors
+GOLD = (1, 0.84, 0, 1)
+GOLD_DIM = (0.72, 0.59, 0.05, 1)
+RED = (0.8, 0.13, 0, 1)
+BG = (0.04, 0.04, 0.04, 1)
+BG2 = (0.07, 0.07, 0.07, 1)
+WHITE = (1, 1, 1, 1)
+
+Window.clearcolor = BG
+
+
+# --- Helpers ---
+
+def gold_label(text, size=16, bold=False, **kwargs):
+    return Label(text=text, color=GOLD, font_size=dp(size), bold=bold,
+                 size_hint_y=None, height=dp(size + 14), **kwargs)
+
+def gold_input(password=False, **kwargs):
+    return TextInput(
+        password=password, multiline=False,
+        background_color=BG2, foreground_color=GOLD,
+        cursor_color=GOLD, hint_text_color=GOLD_DIM,
+        size_hint_y=None, height=dp(40),
+        **kwargs
+    )
+
+def gold_button(text, on_press=None, danger=False, **kwargs):
+    btn = Button(
+        text=text,
+        background_color=RED if danger else (0.15, 0.15, 0.15, 1),
+        color=GOLD,
+        size_hint_y=None, height=dp(44),
+        font_size=dp(15),
+        **kwargs
+    )
+    if on_press:
+        btn.bind(on_press=on_press)
+    return btn
+
+def show_popup(title, message):
+    content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+    content.add_widget(Label(text=message, color=GOLD, font_size=dp(14)))
+    btn = Button(text='OK', size_hint_y=None, height=dp(40),
+                 background_color=RED, color=GOLD)
+    content.add_widget(btn)
+    popup = Popup(title=title, content=content, size_hint=(0.85, 0.4),
+                  background_color=BG2, title_color=GOLD)
+    btn.bind(on_press=popup.dismiss)
+    popup.open()
+
+
+# --- API Client ---
 
 class APIClient:
     def __init__(self):
         self.session = requests.Session()
-        self.base_url = SERVER_URL
-    
+        self.base = SERVER_URL
+
+    def _post(self, path, data):
+        try:
+            return self.session.post(f'{self.base}{path}', json=data, timeout=10)
+        except Exception as e:
+            return None
+
+    def _get(self, path, params=None):
+        try:
+            return self.session.get(f'{self.base}{path}', params=params, timeout=10)
+        except Exception as e:
+            return None
+
+    def _delete(self, path):
+        try:
+            return self.session.delete(f'{self.base}{path}', timeout=10)
+        except Exception as e:
+            return None
+
+    def _put(self, path, data):
+        try:
+            return self.session.put(f'{self.base}{path}', json=data, timeout=10)
+        except Exception as e:
+            return None
+
     def login(self, username, password):
-        try:
-            r = self.session.post(f'{self.base_url}/login', 
-                                 data={'username': username, 'password': password},
-                                 allow_redirects=False)
-            return r.status_code == 302
-        except Exception as e:
-            print(f"Login error: {e}")
-            return False
-    
-    def register(self, username, password, email):
-        try:
-            r = self.session.post(f'{self.base_url}/register',
-                                 data={'username': username, 'password': password, 'email': email},
-                                 allow_redirects=False)
-            return r.status_code == 302
-        except Exception as e:
-            print(f"Register error: {e}")
-            return False
-    
-    def get_folders(self):
-        try:
-            r = self.session.get(f'{self.base_url}/')
-            if 'Login' in r.text:
-                return None
-            # Parse HTML for folders (simplified)
-            folders = []
-            for line in r.text.split('\n'):
-                if '/folder/' in line and '<a href=' in line:
-                    parts = line.split('>')
-                    if len(parts) > 1:
-                        name = parts[1].split('<')[0]
-                        fid = line.split('/folder/')[1].split('"')[0]
-                        folders.append({'id': fid, 'name': name})
-            return folders
-        except Exception as e:
-            print(f"Get folders error: {e}")
-            return None
-    
-    def get_folder_contents(self, fid):
-        try:
-            r = self.session.get(f'{self.base_url}/folder/{fid}')
-            notes, subfolders = [], []
-            for line in r.text.split('\n'):
-                if '/edit/' in line and '<a href=' in line:
-                    name = line.split('>')[1].split('<')[0]
-                    nid = line.split('/edit/')[1].split('"')[0]
-                    notes.append({'id': nid, 'name': name})
-                elif '/folder/' in line and '<a href=' in line and f'/folder/{fid}' not in line:
-                    name = line.split('>')[1].split('<')[0]
-                    sfid = line.split('/folder/')[1].split('"')[0]
-                    if sfid != fid:
-                        subfolders.append({'id': sfid, 'name': name})
-            return {'notes': notes, 'subfolders': subfolders}
-        except Exception as e:
-            print(f"Get folder error: {e}")
-            return {'notes': [], 'subfolders': []}
-    
-    def create_folder(self, name, parent_id=None):
-        try:
-            url = f'{self.base_url}/folder/add' if not parent_id else f'{self.base_url}/folder/{parent_id}/add_folder'
-            r = self.session.post(url, data={'name': name}, allow_redirects=False)
-            return r.status_code == 302
-        except Exception as e:
-            print(f"Create folder error: {e}")
-            return False
-    
-    def get_note(self, nid):
-        try:
-            r = self.session.get(f'{self.base_url}/edit/{nid}')
-            # Parse note details from HTML
-            note = {'id': nid, 'key': '', 'value': '', 'folder_id': ''}
-            for line in r.text.split('\n'):
-                if 'name=note value=' in line:
-                    note['key'] = line.split("value='")[1].split("'")[0] if "value='" in line else ''
-                elif '<textarea name=content' in line:
-                    idx = r.text.find('<textarea name=content')
-                    end_idx = r.text.find('</textarea>', idx)
-                    note['value'] = r.text[idx:end_idx].split('>')[1] if idx > 0 else ''
-            return note
-        except Exception as e:
-            print(f"Get note error: {e}")
-            return None
-    
-    def update_note(self, nid, note, content, folder_id):
-        try:
-            r = self.session.post(f'{self.base_url}/edit/{nid}',
-                                 data={'note': note, 'content': content, 'folder_id': folder_id, 'confirm': 'yes'},
-                                 allow_redirects=False)
-            return r.status_code == 302
-        except Exception as e:
-            print(f"Update note error: {e}")
-            return False
-    
-    def delete_note(self, nid):
-        try:
-            r = self.session.post(f'{self.base_url}/note/delete/{nid}', allow_redirects=False)
-            return r.status_code == 302
-        except Exception as e:
-            print(f"Delete note error: {e}")
-            return False
-    
-    def delete_folder(self, fid):
-        try:
-            r = self.session.post(f'{self.base_url}/folder/delete/{fid}', allow_redirects=False)
-            return r.status_code == 302
-        except Exception as e:
-            print(f"Delete folder error: {e}")
-            return False
-    
-    def rename_folder(self, fid, name):
-        try:
-            r = self.session.post(f'{self.base_url}/folder/rename/{fid}',
-                                 data={'name': name}, allow_redirects=False)
-            return r.status_code == 302
-        except Exception as e:
-            print(f"Rename folder error: {e}")
-            return False
-    
-    def search(self, query):
-        try:
-            r = self.session.get(f'{self.base_url}/search?q={query}')
-            notes = []
-            for line in r.text.split('\n'):
-                if '/edit/' in line and '<a href=' in line:
-                    name = line.split('>')[1].split('<')[0]
-                    nid = line.split('/edit/')[1].split('"')[0]
-                    notes.append({'id': nid, 'name': name})
-            return notes
-        except Exception as e:
-            print(f"Search error: {e}")
-            return []
-    
-    def change_password(self, old_password, new_password):
-        try:
-            r = self.session.post(f'{self.base_url}/change_password',
-                                 data={'old_password': old_password, 'new_password': new_password},
-                                 allow_redirects=False)
-            return r.status_code == 302
-        except Exception as e:
-            print(f"Change password error: {e}")
-            return False
-    
+        r = self._post('/api/login', {'username': username, 'password': password})
+        if r and r.status_code == 200:
+            return True, r.json().get('username')
+        msg = r.json().get('error', 'Login failed') if r else 'Cannot reach server'
+        return False, msg
+
     def logout(self):
-        try:
-            self.session.get(f'{self.base_url}/logout')
-        except:
-            pass
+        self._post('/api/logout', {})
+
+    def get_folders(self):
+        r = self._get('/api/folders')
+        return r.json() if r and r.status_code == 200 else []
+
+    def create_folder(self, name, parent_id=None):
+        r = self._post('/api/folders', {'name': name, 'parent_id': parent_id})
+        return r and r.status_code == 200
+
+    def delete_folder(self, fid):
+        r = self._delete(f'/api/folders/{fid}')
+        return r and r.status_code == 200
+
+    def get_folder_notes(self, fid):
+        r = self._get(f'/api/folders/{fid}/notes')
+        return r.json() if r and r.status_code == 200 else []
+
+    def get_note(self, nid):
+        r = self._get(f'/api/notes/{nid}')
+        return r.json() if r and r.status_code == 200 else None
+
+    def create_note(self, folder_id, key, value, description=''):
+        r = self._post('/api/notes', {'key': key, 'value': value, 'folder_id': folder_id, 'description': description})
+        if r and r.status_code == 200:
+            return True, None
+        msg = r.json().get('error', 'Failed') if r else 'Cannot reach server'
+        return False, msg
+
+    def update_note(self, nid, key, value, folder_id, description=''):
+        r = self._put(f'/api/notes/{nid}', {'key': key, 'value': value, 'folder_id': folder_id, 'description': description})
+        return r and r.status_code == 200
+
+    def delete_note(self, nid):
+        r = self._delete(f'/api/notes/{nid}')
+        return r and r.status_code == 200
+
+    def search(self, q):
+        r = self._get('/api/search', {'q': q})
+        return r.json() if r and r.status_code == 200 else []
+
+
+# --- Screens ---
 
 class LoginScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        
-        layout.add_widget(Label(text='EverNothing', font_size=32, color=(1, 0.84, 0, 1)))
-        layout.add_widget(Label(text='Username:', color=(1, 0.84, 0, 1)))
-        self.username = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1), 
-                                  foreground_color=(1, 0.84, 0, 1))
+        layout = BoxLayout(orientation='vertical', padding=dp(30), spacing=dp(12))
+        layout.add_widget(Label(text='◆ EverNothing', font_size=dp(28), color=GOLD,
+                                bold=True, size_hint_y=None, height=dp(50)))
+        layout.add_widget(Label(text='Sign in to your notes', font_size=dp(13),
+                                color=GOLD_DIM, size_hint_y=None, height=dp(24)))
+        layout.add_widget(gold_label('Username'))
+        self.username = gold_input(hint_text='Username')
         layout.add_widget(self.username)
-        
-        layout.add_widget(Label(text='Password:', color=(1, 0.84, 0, 1)))
-        self.password = TextInput(password=True, multiline=False, 
-                                  background_color=(0.1, 0.1, 0.1, 1),
-                                  foreground_color=(1, 0.84, 0, 1))
+        layout.add_widget(gold_label('Password'))
+        self.password = gold_input(password=True, hint_text='Password')
         layout.add_widget(self.password)
-        
-        self.error = Label(text='', color=(1, 0, 0, 1))
+        self.error = Label(text='', color=RED, font_size=dp(13),
+                           size_hint_y=None, height=dp(24))
         layout.add_widget(self.error)
-        
-        btn_layout = BoxLayout(spacing=10)
-        login_btn = Button(text='Login', background_color=(1, 0, 0, 1), 
-                          color=(1, 0.84, 0, 1))
-        login_btn.bind(on_press=self.do_login)
-        btn_layout.add_widget(login_btn)
-        
-        register_btn = Button(text='Register', background_color=(1, 0, 0, 1),
-                             color=(1, 0.84, 0, 1))
-        register_btn.bind(on_press=self.show_register)
-        btn_layout.add_widget(register_btn)
-        layout.add_widget(btn_layout)
-        
+        layout.add_widget(gold_button('Login', on_press=self.do_login))
+        layout.add_widget(Label())  # spacer
         self.add_widget(layout)
-    
-    def do_login(self, instance):
-        app = App.get_running_app()
-        if app.api.login(self.username.text, self.password.text):
-            app.root.current = 'folders'
-            app.root.get_screen('folders').load_folders()
-        else:
-            self.error.text = 'Invalid username or password'
-    
-    def show_register(self, instance):
-        self.manager.current = 'register'
 
-class RegisterScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        
-        layout.add_widget(Label(text='Register', font_size=24, color=(1, 0.84, 0, 1)))
-        layout.add_widget(Label(text='Username:', color=(1, 0.84, 0, 1)))
-        self.username = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1),
-                                  foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.username)
-        
-        layout.add_widget(Label(text='Email:', color=(1, 0.84, 0, 1)))
-        self.email = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1),
-                               foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.email)
-        
-        layout.add_widget(Label(text='Password:', color=(1, 0.84, 0, 1)))
-        self.password = TextInput(password=True, multiline=False,
-                                  background_color=(0.1, 0.1, 0.1, 1),
-                                  foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.password)
-        
-        self.error = Label(text='', color=(1, 0, 0, 1))
-        layout.add_widget(self.error)
-        
-        btn_layout = BoxLayout(spacing=10)
-        create_btn = Button(text='Create', background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        create_btn.bind(on_press=self.do_register)
-        btn_layout.add_widget(create_btn)
-        
-        cancel_btn = Button(text='Cancel', background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        cancel_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'login'))
-        btn_layout.add_widget(cancel_btn)
-        layout.add_widget(btn_layout)
-        
-        self.add_widget(layout)
-    
-    def do_register(self, instance):
+    def do_login(self, _):
         app = App.get_running_app()
-        if app.api.register(self.username.text, self.password.text, self.email.text):
-            self.manager.current = 'login'
+        ok, result = app.api.login(self.username.text.strip(), self.password.text)
+        if ok:
+            self.error.text = ''
+            self.password.text = ''
+            self.manager.transition = SlideTransition(direction='left')
+            self.manager.current = 'folders'
+            self.manager.get_screen('folders').load()
         else:
-            self.error.text = 'Username already exists'
+            self.error.text = result
+
 
 class FoldersScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        
-        header = BoxLayout(size_hint_y=0.1, spacing=10)
-        header.add_widget(Label(text='Folders', font_size=24, color=(1, 0.84, 0, 1)))
-        
-        settings_btn = Button(text='Settings', size_hint_x=0.25, background_color=(1, 0, 0, 1),
-                             color=(1, 0.84, 0, 1))
-        settings_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'settings'))
-        header.add_widget(settings_btn)
-        
-        search_btn = Button(text='Search', size_hint_x=0.25, background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        search_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'search'))
-        header.add_widget(search_btn)
-        
-        logout_btn = Button(text='Logout', size_hint_x=0.25, background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        logout_btn.bind(on_press=self.do_logout)
-        header.add_widget(logout_btn)
-        self.layout.add_widget(header)
-        
+        root = BoxLayout(orientation='vertical')
+
+        # Nav bar
+        nav = BoxLayout(size_hint_y=None, height=dp(50), padding=dp(6), spacing=dp(6))
+        nav.add_widget(Label(text='◆ EverNothing', color=GOLD, bold=True, font_size=dp(16)))
+        nav.add_widget(gold_button('Search', on_press=lambda _: self._go('search'), size_hint_x=0.25))
+        nav.add_widget(gold_button('Logout', on_press=self.do_logout, danger=True, size_hint_x=0.25))
+        root.add_widget(nav)
+
+        # Folder list
         self.scroll = ScrollView()
-        self.folder_list = GridLayout(cols=1, spacing=5, size_hint_y=None)
-        self.folder_list.bind(minimum_height=self.folder_list.setter('height'))
-        self.scroll.add_widget(self.folder_list)
-        self.layout.add_widget(self.scroll)
-        
-        add_btn = Button(text='Create Folder', size_hint_y=0.1, 
-                        background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
-        add_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'add_folder'))
-        self.layout.add_widget(add_btn)
-        
-        self.add_widget(self.layout)
-    
-    def load_folders(self):
+        self.list = GridLayout(cols=1, spacing=dp(4), size_hint_y=None, padding=dp(8))
+        self.list.bind(minimum_height=self.list.setter('height'))
+        self.scroll.add_widget(self.list)
+        root.add_widget(self.scroll)
+
+        # Add folder button
+        root.add_widget(gold_button('+ Create Folder', on_press=self._add_folder,
+                                    size_hint_y=None, height=dp(48)))
+        self.add_widget(root)
+
+    def load(self):
         app = App.get_running_app()
         folders = app.api.get_folders()
-        self.folder_list.clear_widgets()
-        
-        if folders:
-            for folder in folders:
-                btn = Button(text=folder['name'], size_hint_y=None, height=50,
-                           background_color=(0.1, 0.1, 0.1, 1), color=(1, 0.84, 0, 1))
-                btn.bind(on_press=lambda x, fid=folder['id']: self.open_folder(fid))
-                self.folder_list.add_widget(btn)
-    
-    def open_folder(self, fid):
-        folder_screen = self.manager.get_screen('folder')
-        folder_screen.folder_id = fid
-        folder_screen.load_contents()
+        # Only top-level folders
+        top = [f for f in folders if f['parent_id'] is None]
+        self.list.clear_widgets()
+        if not top:
+            self.list.add_widget(gold_label('No folders. Create one below.', size=14))
+            return
+        for f in sorted(top, key=lambda x: x['name'].lower()):
+            row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(6))
+            btn = Button(text=f"📁 {f['name']}", background_color=BG2, color=GOLD,
+                         font_size=dp(15), size_hint_x=0.75)
+            fid = f['id']
+            btn.bind(on_press=lambda _, fid=fid, name=f['name']: self._open(fid, name))
+            del_btn = gold_button('✕', danger=True, size_hint_x=0.25)
+            del_btn.bind(on_press=lambda _, fid=fid, name=f['name']: self._confirm_delete(fid, name))
+            row.add_widget(btn)
+            row.add_widget(del_btn)
+            self.list.add_widget(row)
+
+    def _open(self, fid, name):
+        s = self.manager.get_screen('folder')
+        s.folder_id = fid
+        s.folder_name = name
+        s.load()
+        self.manager.transition = SlideTransition(direction='left')
         self.manager.current = 'folder'
-    
-    def do_logout(self, instance):
+
+    def _add_folder(self, _):
+        self.manager.get_screen('add_folder').parent_id = None
+        self.manager.get_screen('add_folder').back_screen = 'folders'
+        self.manager.transition = SlideTransition(direction='left')
+        self.manager.current = 'add_folder'
+
+    def _confirm_delete(self, fid, name):
+        content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        content.add_widget(Label(text=f'Delete "{name}" and all its contents?', color=GOLD))
+        btns = BoxLayout(spacing=dp(8), size_hint_y=None, height=dp(44))
+        yes = gold_button('Yes, Delete', danger=True)
+        no = gold_button('Cancel')
+        btns.add_widget(yes)
+        btns.add_widget(no)
+        content.add_widget(btns)
+        popup = Popup(title='Confirm Delete', content=content,
+                      size_hint=(0.85, 0.4), background_color=BG2, title_color=GOLD)
+        yes.bind(on_press=lambda _: self._do_delete(fid, popup))
+        no.bind(on_press=popup.dismiss)
+        popup.open()
+
+    def _do_delete(self, fid, popup):
+        popup.dismiss()
+        App.get_running_app().api.delete_folder(fid)
+        self.load()
+
+    def _go(self, screen):
+        self.manager.transition = SlideTransition(direction='left')
+        self.manager.current = screen
+
+    def do_logout(self, _):
         App.get_running_app().api.logout()
+        self.manager.transition = SlideTransition(direction='right')
         self.manager.current = 'login'
+
 
 class FolderScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.folder_id = None
-        self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        
-        header = BoxLayout(size_hint_y=0.1, spacing=10)
-        back_btn = Button(text='Back', size_hint_x=0.3, background_color=(1, 0, 0, 1),
-                         color=(1, 0.84, 0, 1))
-        back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'folders'))
-        header.add_widget(back_btn)
-        header.add_widget(Label(text='Folder', font_size=20, color=(1, 0.84, 0, 1)))
-        self.layout.add_widget(header)
-        
+        self.folder_name = ''
+        self.root_layout = BoxLayout(orientation='vertical')
+
+        nav = BoxLayout(size_hint_y=None, height=dp(50), padding=dp(6), spacing=dp(6))
+        self.back_btn = gold_button('← Back', on_press=self._back, size_hint_x=0.3)
+        self.title_lbl = Label(text='', color=GOLD, bold=True, font_size=dp(16))
+        nav.add_widget(self.back_btn)
+        nav.add_widget(self.title_lbl)
+        self.root_layout.add_widget(nav)
+
         self.scroll = ScrollView()
-        self.content_list = GridLayout(cols=1, spacing=5, size_hint_y=None)
-        self.content_list.bind(minimum_height=self.content_list.setter('height'))
-        self.scroll.add_widget(self.content_list)
-        self.layout.add_widget(self.scroll)
-        
-        btn_layout = BoxLayout(size_hint_y=0.1, spacing=10)
-        add_note_btn = Button(text='Add Note', background_color=(1, 0, 0, 1),
-                             color=(1, 0.84, 0, 1))
-        add_note_btn.bind(on_press=self.show_add_note)
-        btn_layout.add_widget(add_note_btn)
-        
-        add_folder_btn = Button(text='Add Subfolder', background_color=(1, 0, 0, 1),
-                               color=(1, 0.84, 0, 1))
-        add_folder_btn.bind(on_press=self.show_add_subfolder)
-        btn_layout.add_widget(add_folder_btn)
-        self.layout.add_widget(btn_layout)
-        
-        self.add_widget(self.layout)
-    
-    def load_contents(self):
+        self.list = GridLayout(cols=1, spacing=dp(4), size_hint_y=None, padding=dp(8))
+        self.list.bind(minimum_height=self.list.setter('height'))
+        self.scroll.add_widget(self.list)
+        self.root_layout.add_widget(self.scroll)
+
+        add_btn = gold_button('+ Add Note', on_press=self._add_note,
+                              size_hint_y=None, height=dp(48))
+        self.root_layout.add_widget(add_btn)
+        self.add_widget(self.root_layout)
+
+    def load(self):
+        self.title_lbl.text = f'📁 {self.folder_name}'
         app = App.get_running_app()
-        contents = app.api.get_folder_contents(self.folder_id)
-        self.content_list.clear_widgets()
-        
-        if contents['notes']:
-            self.content_list.add_widget(Label(text='Notes:', color=(1, 0.84, 0, 1),
-                                              size_hint_y=None, height=30))
-            for note in contents['notes']:
-                btn = Button(text=note['name'], size_hint_y=None, height=50,
-                           background_color=(0.1, 0.1, 0.1, 1), color=(1, 0.84, 0, 1))
-                btn.bind(on_press=lambda x, nid=note['id']: self.open_note(nid))
-                self.content_list.add_widget(btn)
-        
-        if contents['subfolders']:
-            self.content_list.add_widget(Label(text='Subfolders:', color=(1, 0.84, 0, 1),
-                                              size_hint_y=None, height=30))
-            for subfolder in contents['subfolders']:
-                btn = Button(text=subfolder['name'], size_hint_y=None, height=50,
-                           background_color=(0.1, 0.1, 0.1, 1), color=(1, 0.84, 0, 1))
-                btn.bind(on_press=lambda x, fid=subfolder['id']: self.open_subfolder(fid))
-                self.content_list.add_widget(btn)
-    
-    def open_note(self, nid):
-        edit_screen = self.manager.get_screen('edit_note')
-        edit_screen.load_note(nid)
+        notes = app.api.get_folder_notes(self.folder_id)
+        self.list.clear_widgets()
+        if not notes:
+            self.list.add_widget(gold_label('No notes. Add one below.', size=14))
+            return
+        for n in notes:
+            row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(6))
+            btn = Button(text=n['key'], background_color=BG2, color=GOLD,
+                         font_size=dp(14), size_hint_x=0.75, halign='left',
+                         text_size=(None, None))
+            nid = n['id']
+            btn.bind(on_press=lambda _, nid=nid: self._open_note(nid))
+            del_btn = gold_button('✕', danger=True, size_hint_x=0.25)
+            del_btn.bind(on_press=lambda _, nid=nid, name=n['key']: self._confirm_delete(nid, name))
+            row.add_widget(btn)
+            row.add_widget(del_btn)
+            self.list.add_widget(row)
+
+    def _open_note(self, nid):
+        s = self.manager.get_screen('edit_note')
+        s.folder_id = self.folder_id
+        s.load(nid)
+        self.manager.transition = SlideTransition(direction='left')
         self.manager.current = 'edit_note'
-    
-    def open_subfolder(self, fid):
-        self.folder_id = fid
-        self.load_contents()
-    
-    def show_add_note(self, instance):
-        add_note_screen = self.manager.get_screen('add_note')
-        add_note_screen.folder_id = self.folder_id
+
+    def _add_note(self, _):
+        s = self.manager.get_screen('add_note')
+        s.folder_id = self.folder_id
+        s.clear()
+        self.manager.transition = SlideTransition(direction='left')
         self.manager.current = 'add_note'
-    
-    def show_add_subfolder(self, instance):
-        add_folder_screen = self.manager.get_screen('add_folder')
-        add_folder_screen.parent_id = self.folder_id
-        self.manager.current = 'add_folder'
+
+    def _confirm_delete(self, nid, name):
+        content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        content.add_widget(Label(text=f'Delete "{name}"?', color=GOLD))
+        btns = BoxLayout(spacing=dp(8), size_hint_y=None, height=dp(44))
+        yes = gold_button('Yes, Delete', danger=True)
+        no = gold_button('Cancel')
+        btns.add_widget(yes)
+        btns.add_widget(no)
+        content.add_widget(btns)
+        popup = Popup(title='Confirm Delete', content=content,
+                      size_hint=(0.85, 0.35), background_color=BG2, title_color=GOLD)
+        yes.bind(on_press=lambda _: self._do_delete(nid, popup))
+        no.bind(on_press=popup.dismiss)
+        popup.open()
+
+    def _do_delete(self, nid, popup):
+        popup.dismiss()
+        App.get_running_app().api.delete_note(nid)
+        self.load()
+
+    def _back(self, _):
+        self.manager.transition = SlideTransition(direction='right')
+        self.manager.current = 'folders'
+        self.manager.get_screen('folders').load()
+
 
 class AddFolderScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.parent_id = None
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        
-        layout.add_widget(Label(text='Create Folder', font_size=24, color=(1, 0.84, 0, 1)))
-        layout.add_widget(Label(text='Folder name:', color=(1, 0.84, 0, 1)))
-        self.name = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1),
-                             foreground_color=(1, 0.84, 0, 1))
+        self.back_screen = 'folders'
+        layout = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(12))
+        layout.add_widget(gold_label('Create Folder', size=20, bold=True))
+        layout.add_widget(gold_label('Folder Name'))
+        self.name = gold_input(hint_text='Enter folder name')
         layout.add_widget(self.name)
-        
-        btn_layout = BoxLayout(spacing=10)
-        create_btn = Button(text='Create', background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        create_btn.bind(on_press=self.do_create)
-        btn_layout.add_widget(create_btn)
-        
-        cancel_btn = Button(text='Cancel', background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        cancel_btn.bind(on_press=self.do_cancel)
-        btn_layout.add_widget(cancel_btn)
-        layout.add_widget(btn_layout)
-        
+        self.error = Label(text='', color=RED, size_hint_y=None, height=dp(24))
+        layout.add_widget(self.error)
+        layout.add_widget(gold_button('Create', on_press=self.do_create))
+        layout.add_widget(gold_button('Cancel', on_press=self._cancel))
+        layout.add_widget(Label())
         self.add_widget(layout)
-    
-    def do_create(self, instance):
-        app = App.get_running_app()
-        if app.api.create_folder(self.name.text, self.parent_id):
+
+    def do_create(self, _):
+        name = self.name.text.strip()
+        if not name:
+            self.error.text = 'Name required'
+            return
+        ok = App.get_running_app().api.create_folder(name, self.parent_id)
+        if ok:
             self.name.text = ''
-            if self.parent_id:
-                self.manager.current = 'folder'
-                self.manager.get_screen('folder').load_contents()
-            else:
-                self.manager.current = 'folders'
-                self.manager.get_screen('folders').load_folders()
-    
-    def do_cancel(self, instance):
-        self.name.text = ''
-        self.manager.current = 'folder' if self.parent_id else 'folders'
+            self.error.text = ''
+            self._cancel(None)
+        else:
+            self.error.text = 'Failed to create folder'
+
+    def _cancel(self, _):
+        self.manager.transition = SlideTransition(direction='right')
+        self.manager.current = self.back_screen
+        self.manager.get_screen(self.back_screen).load()
+
 
 class AddNoteScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.folder_id = None
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        
-        layout.add_widget(Label(text='Add Note', font_size=24, color=(1, 0.84, 0, 1)))
-        layout.add_widget(Label(text='Note:', color=(1, 0.84, 0, 1)))
-        self.note = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1),
-                             foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.note)
-        
-        layout.add_widget(Label(text='Contents:', color=(1, 0.84, 0, 1)))
-        self.content = TextInput(multiline=True, background_color=(0.1, 0.1, 0.1, 1),
-                                foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.content)
-        
-        self.error = Label(text='', color=(1, 0, 0, 1))
+        layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(8))
+
+        nav = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
+        nav.add_widget(gold_button('← Back', on_press=self._cancel, size_hint_x=0.3))
+        nav.add_widget(Label(text='Add Note', color=GOLD, bold=True, font_size=dp(16)))
+        layout.add_widget(nav)
+
+        layout.add_widget(gold_label('Title'))
+        self.key = gold_input(hint_text='Note title')
+        layout.add_widget(self.key)
+
+        layout.add_widget(gold_label('Description (optional)'))
+        self.desc = gold_input(hint_text='Short description')
+        layout.add_widget(self.desc)
+
+        layout.add_widget(gold_label('Contents'))
+        self.value = TextInput(
+            multiline=True, background_color=BG2, foreground_color=GOLD,
+            cursor_color=GOLD, font_size=dp(13), size_hint_y=1
+        )
+        layout.add_widget(self.value)
+
+        self.error = Label(text='', color=RED, size_hint_y=None, height=dp(24))
         layout.add_widget(self.error)
-        
-        btn_layout = BoxLayout(spacing=10, size_hint_y=0.15)
-        add_btn = Button(text='Add', background_color=(1, 0, 0, 1),
-                        color=(1, 0.84, 0, 1))
-        add_btn.bind(on_press=self.do_add)
-        btn_layout.add_widget(add_btn)
-        
-        cancel_btn = Button(text='Cancel', background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        cancel_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'folder'))
-        btn_layout.add_widget(cancel_btn)
-        layout.add_widget(btn_layout)
-        
+        layout.add_widget(gold_button('Add Note', on_press=self.do_add,
+                                      size_hint_y=None, height=dp(48)))
         self.add_widget(layout)
-    
-    def do_add(self, instance):
-        if not self.note.text.strip() or not self.content.text.strip():
-            self.error.text = 'Note and content cannot be empty'
+
+    def clear(self):
+        self.key.text = ''
+        self.desc.text = ''
+        self.value.text = ''
+        self.error.text = ''
+
+    def do_add(self, _):
+        key = self.key.text.strip()
+        value = self.value.text.strip()
+        if not key or not value:
+            self.error.text = 'Title and contents required'
             return
-        
-        app = App.get_running_app()
-        if app.api.create_note(self.folder_id, self.note.text, self.content.text):
-            self.note.text = ''
-            self.content.text = ''
-            self.error.text = ''
-            self.manager.current = 'folder'
-            self.manager.get_screen('folder').load_contents()
+        ok, err = App.get_running_app().api.create_note(self.folder_id, key, value, self.desc.text[:255])
+        if ok:
+            self.clear()
+            self._cancel(None)
         else:
-            self.error.text = 'Failed to create note'
+            self.error.text = err or 'Failed to create note'
 
-class EvernothingApp(App):
-    def build(self):
-        self.api = APIClient()
-        sm = ScreenManager()
-        sm.add_widget(LoginScreen(name='login'))
-        sm.add_widget(RegisterScreen(name='register'))
-        sm.add_widget(FoldersScreen(name='folders'))
-        sm.add_widget(FolderScreen(name='folder'))
-        sm.add_widget(AddFolderScreen(name='add_folder'))
-        sm.add_widget(AddNoteScreen(name='add_note'))
-        sm.add_widget(EditNoteScreen(name='edit_note'))
-        sm.add_widget(SearchScreen(name='search'))
-        sm.add_widget(SettingsScreen(name='settings'))
-        return sm
-
-if __name__ == '__main__':
-    EvernothingApp().run()
+    def _cancel(self, _):
+        self.manager.transition = SlideTransition(direction='right')
+        self.manager.current = 'folder'
+        self.manager.get_screen('folder').load()
 
 
 class EditNoteScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.note_id = None
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        
-        layout.add_widget(Label(text='Edit Note', font_size=24, color=(1, 0.84, 0, 1)))
-        layout.add_widget(Label(text='Note:', color=(1, 0.84, 0, 1)))
-        self.note = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1),
-                             foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.note)
-        
-        layout.add_widget(Label(text='Contents:', color=(1, 0.84, 0, 1)))
-        self.content = TextInput(multiline=True, background_color=(0.1, 0.1, 0.1, 1),
-                                foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.content)
-        
-        btn_layout = BoxLayout(spacing=10, size_hint_y=0.15)
-        save_btn = Button(text='Save', background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
-        save_btn.bind(on_press=self.do_save)
-        btn_layout.add_widget(save_btn)
-        
-        delete_btn = Button(text='Delete', background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
-        delete_btn.bind(on_press=self.do_delete)
-        btn_layout.add_widget(delete_btn)
-        
-        cancel_btn = Button(text='Cancel', background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
-        cancel_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'folder'))
-        btn_layout.add_widget(cancel_btn)
-        layout.add_widget(btn_layout)
-        
+        self.folder_id = None
+        layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(8))
+
+        nav = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
+        nav.add_widget(gold_button('← Back', on_press=self._back, size_hint_x=0.3))
+        nav.add_widget(Label(text='Edit Note', color=GOLD, bold=True, font_size=dp(16)))
+        nav.add_widget(gold_button('Delete', on_press=self._confirm_delete,
+                                   danger=True, size_hint_x=0.25))
+        layout.add_widget(nav)
+
+        layout.add_widget(gold_label('Title'))
+        self.key = gold_input()
+        layout.add_widget(self.key)
+
+        layout.add_widget(gold_label('Description (optional)'))
+        self.desc = gold_input()
+        layout.add_widget(self.desc)
+
+        layout.add_widget(gold_label('Contents'))
+        self.value = TextInput(
+            multiline=True, background_color=BG2, foreground_color=GOLD,
+            cursor_color=GOLD, font_size=dp(13), size_hint_y=1
+        )
+        layout.add_widget(self.value)
+
+        self.error = Label(text='', color=RED, size_hint_y=None, height=dp(24))
+        layout.add_widget(self.error)
+        layout.add_widget(gold_button('Save', on_press=self.do_save,
+                                      size_hint_y=None, height=dp(48)))
         self.add_widget(layout)
-    
-    def load_note(self, note_id):
-        self.note_id = note_id
-        app = App.get_running_app()
-        note_data = app.api.get_note(note_id)
-        if note_data:
-            self.note.text = note_data['key']
-            self.content.text = note_data['value']
-    
-    def do_save(self, instance):
-        app = App.get_running_app()
-        folder_id = self.manager.get_screen('folder').folder_id
-        if app.api.update_note(self.note_id, self.note.text, self.content.text, folder_id):
-            self.manager.current = 'folder'
-            self.manager.get_screen('folder').load_contents()
-    
-    def do_delete(self, instance):
-        app = App.get_running_app()
-        if app.api.delete_note(self.note_id):
-            self.manager.current = 'folder'
-            self.manager.get_screen('folder').load_contents()
+
+    def load(self, nid):
+        self.note_id = nid
+        note = App.get_running_app().api.get_note(nid)
+        if note:
+            self.key.text = note['key']
+            self.desc.text = note.get('description', '')
+            self.value.text = note['value']
+            self.folder_id = note['folder_id']
+            self.error.text = ''
+        else:
+            self.error.text = 'Failed to load note'
+
+    def do_save(self, _):
+        key = self.key.text.strip()
+        value = self.value.text.strip()
+        if not key or not value:
+            self.error.text = 'Title and contents required'
+            return
+        ok = App.get_running_app().api.update_note(
+            self.note_id, key, value, self.folder_id, self.desc.text[:255])
+        if ok:
+            self._back(None)
+        else:
+            self.error.text = 'Failed to save'
+
+    def _confirm_delete(self, _):
+        content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        content.add_widget(Label(text=f'Delete "{self.key.text}"?', color=GOLD))
+        btns = BoxLayout(spacing=dp(8), size_hint_y=None, height=dp(44))
+        yes = gold_button('Yes, Delete', danger=True)
+        no = gold_button('Cancel')
+        btns.add_widget(yes)
+        btns.add_widget(no)
+        content.add_widget(btns)
+        popup = Popup(title='Confirm Delete', content=content,
+                      size_hint=(0.85, 0.35), background_color=BG2, title_color=GOLD)
+        yes.bind(on_press=lambda _: self._do_delete(popup))
+        no.bind(on_press=popup.dismiss)
+        popup.open()
+
+    def _do_delete(self, popup):
+        popup.dismiss()
+        App.get_running_app().api.delete_note(self.note_id)
+        self._back(None)
+
+    def _back(self, _):
+        self.manager.transition = SlideTransition(direction='right')
+        self.manager.current = 'folder'
+        self.manager.get_screen('folder').load()
+
 
 class SearchScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        
-        header = BoxLayout(size_hint_y=0.1, spacing=10)
-        back_btn = Button(text='Back', size_hint_x=0.3, background_color=(1, 0, 0, 1),
-                         color=(1, 0.84, 0, 1))
-        back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'folders'))
-        header.add_widget(back_btn)
-        header.add_widget(Label(text='Search', font_size=20, color=(1, 0.84, 0, 1)))
-        layout.add_widget(header)
-        
-        search_box = BoxLayout(size_hint_y=0.1, spacing=10)
-        self.search_input = TextInput(multiline=False, background_color=(0.1, 0.1, 0.1, 1),
-                                     foreground_color=(1, 0.84, 0, 1))
-        search_box.add_widget(self.search_input)
-        search_btn = Button(text='Search', size_hint_x=0.3, background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        search_btn.bind(on_press=self.do_search)
-        search_box.add_widget(search_btn)
-        layout.add_widget(search_box)
-        
+        layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(8))
+
+        nav = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
+        nav.add_widget(gold_button('← Back', on_press=self._back, size_hint_x=0.3))
+        nav.add_widget(Label(text='Search', color=GOLD, bold=True, font_size=dp(16)))
+        layout.add_widget(nav)
+
+        search_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
+        self.query = gold_input(hint_text='Search notes...')
+        search_row.add_widget(self.query)
+        search_row.add_widget(gold_button('Go', on_press=self.do_search, size_hint_x=0.25))
+        layout.add_widget(search_row)
+
         self.scroll = ScrollView()
-        self.results_list = GridLayout(cols=1, spacing=5, size_hint_y=None)
-        self.results_list.bind(minimum_height=self.results_list.setter('height'))
-        self.scroll.add_widget(self.results_list)
+        self.results = GridLayout(cols=1, spacing=dp(4), size_hint_y=None, padding=dp(4))
+        self.results.bind(minimum_height=self.results.setter('height'))
+        self.scroll.add_widget(self.results)
         layout.add_widget(self.scroll)
-        
         self.add_widget(layout)
-    
-    def do_search(self, instance):
-        app = App.get_running_app()
-        results = app.api.search(self.search_input.text)
-        self.results_list.clear_widgets()
-        
-        if results:
-            for note in results:
-                btn = Button(text=note['name'], size_hint_y=None, height=50,
-                           background_color=(0.1, 0.1, 0.1, 1), color=(1, 0.84, 0, 1))
-                btn.bind(on_press=lambda x, nid=note['id']: self.open_note(nid))
-                self.results_list.add_widget(btn)
-        else:
-            self.results_list.add_widget(Label(text='No results', color=(1, 0.84, 0, 1)))
-    
-    def open_note(self, nid):
-        edit_screen = self.manager.get_screen('edit_note')
-        edit_screen.load_note(nid)
+
+    def do_search(self, _):
+        q = self.query.text.strip()
+        if not q:
+            return
+        notes = App.get_running_app().api.search(q)
+        self.results.clear_widgets()
+        if not notes:
+            self.results.add_widget(gold_label('No matches.', size=14))
+            return
+        for n in notes:
+            btn = Button(text=f"{n['key']}  ({n['updated_at']})",
+                         background_color=BG2, color=GOLD,
+                         font_size=dp(13), size_hint_y=None, height=dp(48))
+            nid = n['id']
+            btn.bind(on_press=lambda _, nid=nid: self._open(nid))
+            self.results.add_widget(btn)
+
+    def _open(self, nid):
+        s = self.manager.get_screen('edit_note')
+        s.load(nid)
+        self.manager.transition = SlideTransition(direction='left')
         self.manager.current = 'edit_note'
 
-class SettingsScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        
-        layout.add_widget(Label(text='Settings', font_size=24, color=(1, 0.84, 0, 1)))
-        
-        layout.add_widget(Label(text='Old Password:', color=(1, 0.84, 0, 1)))
-        self.old_password = TextInput(password=True, multiline=False,
-                                      background_color=(0.1, 0.1, 0.1, 1),
-                                      foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.old_password)
-        
-        layout.add_widget(Label(text='New Password:', color=(1, 0.84, 0, 1)))
-        self.new_password = TextInput(password=True, multiline=False,
-                                      background_color=(0.1, 0.1, 0.1, 1),
-                                      foreground_color=(1, 0.84, 0, 1))
-        layout.add_widget(self.new_password)
-        
-        self.error = Label(text='', color=(1, 0, 0, 1))
-        layout.add_widget(self.error)
-        
-        btn_layout = BoxLayout(spacing=10, size_hint_y=0.15)
-        change_btn = Button(text='Change Password', background_color=(1, 0, 0, 1),
-                           color=(1, 0.84, 0, 1))
-        change_btn.bind(on_press=self.do_change_password)
-        btn_layout.add_widget(change_btn)
-        
-        back_btn = Button(text='Back', background_color=(1, 0, 0, 1), color=(1, 0.84, 0, 1))
-        back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'folders'))
-        btn_layout.add_widget(back_btn)
-        layout.add_widget(btn_layout)
-        
-        self.add_widget(layout)
-    
-    def do_change_password(self, instance):
-        app = App.get_running_app()
-        if app.api.change_password(self.old_password.text, self.new_password.text):
-            self.error.text = 'Password changed successfully'
-            self.old_password.text = ''
-            self.new_password.text = ''
-        else:
-            self.error.text = 'Failed to change password'
+    def _back(self, _):
+        self.manager.transition = SlideTransition(direction='right')
+        self.manager.current = 'folders'
+
+
+# --- App ---
+
+class EvernothingApp(App):
+    def build(self):
+        self.api = APIClient()
+        sm = ScreenManager()
+        sm.add_widget(LoginScreen(name='login'))
+        sm.add_widget(FoldersScreen(name='folders'))
+        sm.add_widget(FolderScreen(name='folder'))
+        sm.add_widget(AddFolderScreen(name='add_folder'))
+        sm.add_widget(AddNoteScreen(name='add_note'))
+        sm.add_widget(EditNoteScreen(name='edit_note'))
+        sm.add_widget(SearchScreen(name='search'))
+        return sm
+
+    def get_application_name(self):
+        return 'EverNothing'
+
+
+if __name__ == '__main__':
+    EvernothingApp().run()
