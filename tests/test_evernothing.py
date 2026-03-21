@@ -95,6 +95,9 @@ class EvernothingTestCase(unittest.TestCase):
                 ("otheruser", generate_password_hash("Password1"), "other@example.com")
             )
 
+        os.environ['ADMIN_USER'] = 'admin'
+        os.environ['ADMIN_PASS'] = 'admin'
+
         import rate_limiter
         rate_limiter.rate_limit_store.clear()
 

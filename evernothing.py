@@ -181,6 +181,12 @@ EXPORT:
  EOF
 """
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from flask import Flask, request, redirect, render_template_string, make_response, session
 from flask_wtf.csrf import CSRFProtect
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -204,6 +210,7 @@ except ImportError:
     AWS_PROFILE = os.environ.get('AWS_PROFILE', 'billspeiser2')
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+KMS_KEY_ID = os.environ.get('KMS_KEY_ID')
 
 # Configure logging
 os.makedirs('log', exist_ok=True)
@@ -224,8 +231,9 @@ app.secret_key = _secret_key
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['WTF_CSRF_ENABLED'] = True
 csrf = CSRFProtect(app)
-app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(hours=int(os.environ.get('SESSION_TIMEOUT_HOURS', '2')))
-app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=int(os.environ.get('REMEMBER_COOKIE_DAYS', '30')))
+_remember_days = int(os.environ.get('REMEMBER_COOKIE_DAYS', '30'))
+app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=_remember_days)
+app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=_remember_days)
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -277,20 +285,21 @@ login_manager.session_protection = "strong"
 @app.before_request
 def validate_session():
     if current_user.is_authenticated:
-        # Skip timeout check if "remember me" is active
-        if not session.get('remember_me'):
+        remember_me = session.get('remember_me', False)
+
+        # Enforce inactivity timeout only for non-remember-me sessions
+        if not remember_me:
             session.permanent = True
-            if 'session_id' in session and 'last_activity' in session:
-                # Check session timeout (2 hours of inactivity)
+            if 'last_activity' in session:
                 last_activity = datetime.datetime.fromisoformat(session['last_activity'])
-                if datetime.datetime.now(timezone.utc) - last_activity > datetime.timedelta(hours=2):
+                timeout_hours = int(os.environ.get('SESSION_TIMEOUT_HOURS', '2'))
+                if datetime.datetime.now(timezone.utc) - last_activity > datetime.timedelta(hours=timeout_hours):
                     logout_user()
                     session.clear()
                     return redirect('/login?timeout=1')
-                # Update last activity
-                session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
-        
-        # Validate session still exists in database
+            session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
+
+        # Only validate DB session if session_id is present (remember-me reloads may not have it)
         if 'session_id' in session:
             con = db()
             cur = con.cursor()
@@ -459,29 +468,44 @@ def compress_old_backups(days=5, backup_dir="Backups"):
 compress_old_backups()
 
 # --- AWS SYNC ---
+def _s3_client():
+    """Return a boto3 S3 client using env vars or profile."""
+    if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
+        return boto3.client('s3', region_name=AWS_REGION,
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
+    try:
+        return boto3.Session(profile_name=AWS_PROFILE).client('s3')
+    except Exception:
+        return boto3.client('s3', region_name=AWS_REGION)
+
 def sync_s3():
-    """Asynchronously sync database to S3"""
+    """Upload database to S3 with SSE-KMS encryption."""
     if not boto3:
         logger.warning("S3 sync skipped: boto3 not available")
         return
-    
     try:
-        # Try to use the specific profile if configured, else default
-        try:
-            if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-                s3 = boto3.client('s3', region_name=AWS_REGION,
-                    aws_access_key_id=AWS_ACCESS_KEY_ID,
-                    aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
-            else:
-                s3 = boto3.Session(profile_name=AWS_PROFILE).client('s3')
-        except Exception:
-            s3 = boto3.client('s3', region_name=AWS_REGION)
-        
-        s3.upload_file(DB, S3_BUCKET_NAME, DB)
-        logger.info(f"S3 sync successful: {DB} -> s3://{S3_BUCKET_NAME}/{DB}")
+        s3 = _s3_client()
+        extra = {'ServerSideEncryption': 'aws:kms'}
+        if KMS_KEY_ID:
+            extra['SSEKMSKeyId'] = KMS_KEY_ID
+        s3.upload_file(DB, S3_BUCKET_NAME, DB, ExtraArgs=extra)
+        logger.info(f"S3 sync successful (SSE-KMS): {DB} -> s3://{S3_BUCKET_NAME}/{DB}")
     except Exception as e:
         logger.error(f"S3 Sync Error: {e}")
         print(f"S3 Sync Error: {e}")
+
+def restore_from_s3():
+    """Download DB from S3 if local file is missing (recovery on startup)."""
+    if not boto3 or os.path.exists(DB):
+        return
+    try:
+        s3 = _s3_client()
+        s3.download_file(S3_BUCKET_NAME, DB, DB)
+        logger.info(f"Restored {DB} from s3://{S3_BUCKET_NAME}/{DB}")
+        print(f"Restored database from S3: {DB}")
+    except Exception as e:
+        logger.warning(f"S3 restore skipped: {e}")
 
 # --- AUTH ---
 class User(UserMixin):
@@ -1138,16 +1162,7 @@ def admin_s3_backups():
     backups = []
     try:
         if boto3:
-            try:
-                if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-                    s3 = boto3.client('s3', region_name=AWS_REGION,
-                        aws_access_key_id=AWS_ACCESS_KEY_ID,
-                        aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
-                else:
-                    s3 = boto3.Session(profile_name=AWS_PROFILE).client('s3')
-            except:
-                s3 = boto3.client('s3', region_name=AWS_REGION)
-            
+            s3 = _s3_client()
             response = s3.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix='backups/')
             if 'Contents' in response:
                 for obj in response['Contents']:
@@ -1170,16 +1185,7 @@ def admin_s3_restore(key):
     
     try:
         if boto3:
-            try:
-                if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-                    s3 = boto3.client('s3', region_name=AWS_REGION,
-                        aws_access_key_id=AWS_ACCESS_KEY_ID,
-                        aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
-                else:
-                    s3 = boto3.Session(profile_name=AWS_PROFILE).client('s3')
-            except:
-                s3 = boto3.client('s3', region_name=AWS_REGION)
-            
+            s3 = _s3_client()
             # Download backup
             backup_file = f"restore_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
             s3.download_file(S3_BUCKET_NAME, key, backup_file)
