@@ -10,8 +10,6 @@ Access:
 
 Configuration (env vars or .env):
     S3_BUCKET_NAME, AWS_REGION, AWS_PROFILE, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-    INSPECTOR_USER  (default: inspector)
-    INSPECTOR_PASS  (default: inspect1!)
 """
 
 try:
@@ -21,7 +19,7 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, request, redirect, render_template_string, session, send_file, jsonify
+from flask import Flask, request, redirect, render_template_string, send_file
 import os, json, datetime, io
 
 try:
@@ -38,12 +36,9 @@ except ImportError:
 
 AWS_ACCESS_KEY_ID     = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-INSPECTOR_USER        = os.environ.get('INSPECTOR_USER', 'inspector')
-INSPECTOR_PASS        = os.environ.get('INSPECTOR_PASS', 'inspect1!')
 
 app = Flask('EverNothingInspector')
-app.secret_key = os.environ.get('INSPECTOR_SECRET_KEY', os.urandom(24).hex())
-app.config['WTF_CSRF_ENABLED'] = False
+app.secret_key = os.urandom(24).hex()
 
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
@@ -74,9 +69,9 @@ def list_objects(prefix=''):
         for page in paginator.paginate(Bucket=S3_BUCKET_NAME, Prefix=prefix):
             for obj in page.get('Contents', []):
                 items.append({
-                    'key':      obj['Key'],
-                    'size':     obj['Size'],
-                    'modified': obj['LastModified'].strftime('%m/%d/%Y %H:%M'),
+                    'key':          obj['Key'],
+                    'size':         obj['Size'],
+                    'modified':     obj['LastModified'].strftime('%m/%d/%Y %H:%M'),
                     'modified_raw': obj['LastModified'].isoformat(),
                 })
         return items, None
@@ -92,16 +87,6 @@ def get_object_bytes(key):
         return resp['Body'].read(), None
     except Exception as e:
         return None, str(e)
-
-# --- Auth ---
-def login_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get('logged_in'):
-            return redirect('/inspector/login')
-        return f(*args, **kwargs)
-    return decorated
 
 # --- Style ---
 STYLE = """
@@ -119,64 +104,36 @@ a:hover { color: var(--red-bright); }
 .nav-brand { font-size: 1.1rem; font-weight: 700; color: var(--gold); letter-spacing: 1px; margin-right: 10px; }
 .nav a { font-size: .85rem; padding: 4px 10px; border-radius: var(--radius); border: 1px solid transparent; }
 .nav a:hover { border-color: var(--red); color: var(--red-bright); }
-.nav .nav-logout { margin-left: auto; color: var(--red); border-color: var(--red); }
-.nav .nav-logout:hover { background: var(--red); color: #000; }
+.tab.active { border-color: var(--red) !important; color: var(--gold) !important; background: var(--bg3); }
 .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
 h3 { color: var(--gold); margin-bottom: 16px; font-weight: 600; }
-h4 { color: var(--gold-dim); margin: 20px 0 10px; font-size: .95rem; text-transform: uppercase; letter-spacing: 1px; }
 .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
 td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
 tr:hover td { background: var(--bg3); }
-.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: var(--radius); border: 1px solid var(--gold-dim); background: transparent; color: var(--gold); font-size: .85rem; font-family: inherit; cursor: pointer; text-decoration: none; transition: all .15s; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: var(--radius); border: 1px solid var(--gold-dim); background: transparent; color: var(--gold); font-size: .85rem; cursor: pointer; text-decoration: none; transition: all .15s; }
 .btn:hover { background: var(--gold-dim); color: #000; }
-.btn-primary { background: var(--gold-dim); color: #000; font-weight: 600; }
-.btn-primary:hover { background: var(--gold); border-color: var(--gold); }
 .btn-sm { padding: 3px 10px; font-size: .78rem; }
-.btn-group { display: flex; gap: 10px; margin-top: 16px; }
-label { display: block; font-size: .85rem; color: var(--gold-dim); margin-bottom: 4px; margin-top: 12px; }
-input[type=text], input[type=password] { background: var(--bg2); color: var(--gold); border: 1px solid #444; border-radius: var(--radius); padding: 8px 12px; font-size: .9rem; font-family: inherit; width: 100%; outline: none; }
-input:focus { border-color: var(--gold-dim); }
 err { display: block; color: var(--red-bright); background: #1a0000; border: 1px solid var(--red); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; font-size: .9rem; }
-.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: #888; }
 .timestamp { font-size: .8rem; color: #666; }
 .tag-insert { color: #0c0; } .tag-update { color: var(--gold-dim); } .tag-delete { color: var(--red); }
 pre { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-size: .8rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all; color: var(--gold); }
 .footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg2); border-top: 1px solid var(--border); color: #555; text-align: center; font-size: .75rem; padding: 5px; z-index: 99; }
-.tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
-.tab { padding: 8px 18px; border-radius: var(--radius) var(--radius) 0 0; border: 1px solid var(--border); border-bottom: none; font-size: .9rem; color: var(--gold-dim); cursor: pointer; text-decoration: none; }
-.tab.active { background: var(--bg2); color: var(--gold); border-color: var(--red); }
-.tab:hover { color: var(--gold); }
 .info { color: #888; font-size: .85rem; margin-bottom: 12px; }
 </style>
 <div class="footer">{{ build_date }}</div>
 """
 
-T_LOGIN = STYLE + """
-<div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
-  <div class="card" style="width:100%;max-width:380px">
-    <h3 style="text-align:center;margin-bottom:4px">&#128269; S3 Inspector</h3>
-    <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">EverNothing Bucket: <b>{{bucket}}</b></p>
-    {% if error %}<err>{{error}}</err>{% endif %}
-    <form method=post>
-      <label>Username</label><input name=username autofocus>
-      <label>Password</label><input type=password name=password>
-      <div class="btn-group" style="margin-top:16px">
-        <button class="btn btn-primary" style="flex:1;justify-content:center">Login</button>
-      </div>
-    </form>
-  </div>
-</div>
-"""
-
-T_BACKUPS = STYLE + """
+NAV = """
 <nav class="nav">
   <span class="nav-brand">&#128269; S3 Inspector</span>
-  <a href=/inspector/backups class="tab {% if tab=='backups' %}active{% endif %}">&#128190; Backups</a>
-  <a href=/inspector/deltas class="tab {% if tab=='deltas' %}active{% endif %}">&#9889; Deltas</a>
-  <a href=/inspector/logout class="nav-logout">Logout</a>
+  <a href=/inspector/backups class="tab {b}">&#128190; Backups</a>
+  <a href=/inspector/deltas class="tab {d}">&#9889; Deltas</a>
 </nav>
+"""
+
+T_BACKUPS = STYLE + NAV.format(b='active', d='') + """
 <div class="container">
   <h3>Full Database Backups</h3>
   <p class="info">Bucket: <b>{{bucket}}</b> &nbsp;|&nbsp; {{backups|length}} backup(s)</p>
@@ -188,9 +145,7 @@ T_BACKUPS = STYLE + """
       <td style="font-size:.82rem;font-family:monospace">{{b.key}}</td>
       <td class="timestamp">{{'{:,}'.format(b.size)}} bytes</td>
       <td class="timestamp">{{b.modified}}</td>
-      <td>
-        <a href="/inspector/download?key={{b.key|urlencode}}" class="btn btn-sm">&#11123; Download</a>
-      </td>
+      <td><a href="/inspector/download?key={{b.key|urlencode}}" class="btn btn-sm">&#11123; Download</a></td>
     </tr>
     {% else %}
     <tr><td colspan=4 style="color:#555;padding:20px">No backups found.</td></tr>
@@ -199,13 +154,7 @@ T_BACKUPS = STYLE + """
 </div>
 """
 
-T_DELTAS = STYLE + """
-<nav class="nav">
-  <span class="nav-brand">&#128269; S3 Inspector</span>
-  <a href=/inspector/backups class="tab {% if tab=='backups' %}active{% endif %}">&#128190; Backups</a>
-  <a href=/inspector/deltas class="tab {% if tab=='deltas' %}active{% endif %}">&#9889; Deltas</a>
-  <a href=/inspector/logout class="nav-logout">Logout</a>
-</nav>
+T_DELTAS = STYLE + NAV.format(b='', d='active') + """
 <div class="container">
   <h3>Delta Change Files</h3>
   <p class="info">Bucket: <b>{{bucket}}</b> &nbsp;|&nbsp; {{deltas|length}} delta file(s)</p>
@@ -229,13 +178,7 @@ T_DELTAS = STYLE + """
 </div>
 """
 
-T_DELTA_VIEW = STYLE + """
-<nav class="nav">
-  <span class="nav-brand">&#128269; S3 Inspector</span>
-  <a href=/inspector/backups class="tab">&#128190; Backups</a>
-  <a href=/inspector/deltas class="tab active">&#9889; Deltas</a>
-  <a href=/inspector/logout class="nav-logout">Logout</a>
-</nav>
+T_DELTA_VIEW = STYLE + NAV.format(b='', d='active') + """
 <div class="container">
   <h3>Delta: <span style="font-family:monospace;font-size:.9rem;color:var(--gold-dim)">{{key}}</span></h3>
   <div style="margin-bottom:16px">
@@ -268,48 +211,30 @@ T_DELTA_VIEW = STYLE + """
 """
 
 # --- Routes ---
-@app.route('/inspector/login', methods=['GET', 'POST'])
-def inspector_login():
-    if request.method == 'POST':
-        if request.form.get('username') == INSPECTOR_USER and request.form.get('password') == INSPECTOR_PASS:
-            session['logged_in'] = True
-            return redirect('/inspector/backups')
-        return render_template_string(T_LOGIN, error='Invalid credentials', bucket=S3_BUCKET_NAME)
-    return render_template_string(T_LOGIN, error=None, bucket=S3_BUCKET_NAME)
-
-@app.route('/inspector/logout')
-def inspector_logout():
-    session.clear()
-    return redirect('/inspector/login')
-
 @app.route('/')
 @app.route('/inspector')
 def inspector_root():
     return redirect('/inspector/backups')
 
 @app.route('/inspector/backups')
-@login_required
 def inspector_backups():
     items, error = list_objects('')
-    # Include root evernothing.db + anything under backups/
     backups = sorted(
         [i for i in items if i['key'] == 'evernothing.db' or i['key'].startswith('backups/')],
         key=lambda x: x['modified_raw'], reverse=True
     )
-    return render_template_string(T_BACKUPS, backups=backups, error=error, bucket=S3_BUCKET_NAME, tab='backups')
+    return render_template_string(T_BACKUPS, backups=backups, error=error, bucket=S3_BUCKET_NAME)
 
 @app.route('/inspector/deltas')
-@login_required
 def inspector_deltas():
     items, error = list_objects('changes/')
     deltas = sorted(items, key=lambda x: x['modified_raw'], reverse=True)
     for d in deltas:
-        parts = d['key'].split('/')  # changes/{device}/{timestamp}.json
+        parts = d['key'].split('/')
         d['device'] = parts[1] if len(parts) >= 3 else '?'
-    return render_template_string(T_DELTAS, deltas=deltas, error=error, bucket=S3_BUCKET_NAME, tab='deltas')
+    return render_template_string(T_DELTAS, deltas=deltas, error=error, bucket=S3_BUCKET_NAME)
 
 @app.route('/inspector/delta')
-@login_required
 def inspector_delta():
     key = request.args.get('key', '')
     if not key:
@@ -327,7 +252,6 @@ def inspector_delta():
     return render_template_string(T_DELTA_VIEW, key=key, changes=changes, error=error)
 
 @app.route('/inspector/download')
-@login_required
 def inspector_download():
     key = request.args.get('key', '')
     if not key:
