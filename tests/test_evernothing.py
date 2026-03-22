@@ -19,7 +19,7 @@ class EvernothingTestCase(unittest.TestCase):
         evernothing.DB = self.db_path
         app.config['TESTING'] = True
         app.config['WTF_CSRF_ENABLED'] = False
-        evernothing.login_manager.session_protection = None
+        evernothing.login_manager.session_protection = "basic"
         self.client = app.test_client()
 
         with sqlite3.connect(self.db_path) as con:
@@ -111,7 +111,7 @@ class EvernothingTestCase(unittest.TestCase):
         rate_limiter.rate_limit_store.clear()
 
     def tearDown(self):
-        evernothing.login_manager.session_protection = "strong"
+        evernothing.login_manager.session_protection = "basic"
         try:
             os.close(self.db_fd)
             os.unlink(self.db_path)
@@ -380,7 +380,7 @@ class EvernothingTestCase(unittest.TestCase):
     def test_change_password(self, mock_sync):
         self._login()
         response = self.client.post('/change_password', data={
-            'old_password': 'Password1', 'new_password': 'NewPass2'
+            'old_password': 'Password1', 'new_password': 'NewPass2', 'verify_password': 'NewPass2'
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         with sqlite3.connect(self.db_path) as con:
@@ -391,9 +391,16 @@ class EvernothingTestCase(unittest.TestCase):
     def test_change_password_wrong_old(self):
         self._login()
         response = self.client.post('/change_password', data={
-            'old_password': 'wrongpass', 'new_password': 'NewPass2'
+            'old_password': 'wrongpass', 'new_password': 'NewPass2', 'verify_password': 'NewPass2'
         }, follow_redirects=True)
         self.assertIn(b'Invalid old password', response.data)
+
+    def test_change_password_mismatch(self):
+        self._login()
+        response = self.client.post('/change_password', data={
+            'old_password': 'Password1', 'new_password': 'NewPass2', 'verify_password': 'Different2'
+        }, follow_redirects=True)
+        self.assertIn(b'do not match', response.data)
 
     # --- 10. Export ---
 
