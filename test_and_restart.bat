@@ -42,7 +42,7 @@ if not exist "%APP_DIR%\log" mkdir "%APP_DIR%\log"
 
 powershell -Command "Start-Process -FilePath '%PYTHON%' -ArgumentList '%APP_DIR%\evernothing.py' -WorkingDirectory '%APP_DIR%' -WindowStyle Hidden -RedirectStandardOutput '%APP_DIR%\log\server.log' -RedirectStandardError '%APP_DIR%\log\server_err.log'"
 
-timeout /t 2 /nobreak >nul
+timeout /t 4 /nobreak >nul
 
 :: Save PID
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (

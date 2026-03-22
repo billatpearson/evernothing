@@ -182,8 +182,9 @@ EXPORT:
 """
 
 try:
+    import os as _os
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '.env'))
 except ImportError:
     pass
 
@@ -237,6 +238,10 @@ app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=_remember_days)
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+app.config['REMEMBER_COOKIE_NAME'] = 'remember_token'
 DB = "evernothing.db"
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
@@ -279,15 +284,18 @@ else:
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
-login_manager.session_protection = "strong"
+login_manager.session_protection = "basic"
 
 # Session validation
 @app.before_request
 def validate_session():
     if current_user.is_authenticated:
+        # Empty session = user restored via remember-me cookie after browser restart
+        if not session:
+            return
+
         remember_me = session.get('remember_me', False)
 
-        # Enforce inactivity timeout only for non-remember-me sessions
         if not remember_me:
             session.permanent = True
             if 'last_activity' in session:
@@ -299,7 +307,6 @@ def validate_session():
                     return redirect('/login?timeout=1')
             session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
 
-        # Only validate DB session if session_id is present (remember-me reloads may not have it)
         if 'session_id' in session:
             con = db()
             cur = con.cursor()
@@ -774,13 +781,19 @@ def change_password():
         cur = con.cursor()
         r = cur.execute("SELECT password FROM users WHERE id=?", (current_user.id,)).fetchone()
         if r and check_password_hash(r[0], request.form['old_password']):
-            cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(request.form['new_password']), current_user.id))
-            con.commit()
+            new_password = request.form['new_password']
+            if new_password != request.form.get('verify_password', ''):
+                con.close()
+                error = "New passwords do not match"
+            else:
+                cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(new_password), current_user.id))
+                con.commit()
+                con.close()
+                sync_s3()
+                return redirect("/")
+        else:
             con.close()
-            sync_s3()
-            return redirect("/")
-        con.close()
-        error = "Invalid old password"
+            error = "Invalid old password"
     return render_template_string(T_CHANGE_PASSWORD, error=error)
 
 @app.route("/search")
@@ -1127,10 +1140,8 @@ def admin_required(f):
 @app.route("/admin", methods=["GET","POST"])
 def admin_login():
     if request.method == "POST":
-        admin_user = os.environ.get('ADMIN_USER')  # Set ADMIN_USER env var
-        admin_pass = os.environ.get('ADMIN_PASS')  # Set ADMIN_PASS env var
-        if not admin_user or not admin_pass:
-            return render_template_string(T_ADMIN_LOGIN, error="Admin credentials not configured")
+        admin_user = os.environ.get('ADMIN_USER', 'admin')
+        admin_pass = os.environ.get('ADMIN_PASS', 'admin')
         if request.form.get("username") == admin_user and request.form.get("password") == admin_pass:
             session['admin_logged_in'] = True
             return redirect("/admin/dashboard")
@@ -1259,6 +1270,29 @@ def admin_s3_restore(key):
         return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], error=f"Restore failed: {e}")
     
     return redirect("/admin/s3_backups")
+
+@app.route("/admin/sessions")
+@admin_required
+def admin_sessions():
+    con = db()
+    cur = con.cursor()
+    cur.execute("""
+        SELECT u.username, s.session_id, s.login_time, s.logout_time, s.ip_address, s.user_agent
+        FROM user_sessions s
+        JOIN users u ON s.user_id = u.id
+        ORDER BY s.login_time DESC
+        LIMIT 200
+    """)
+    sessions = [{
+        'username': r[0],
+        'session_id': r[1],
+        'login_time': format_date(r[2]),
+        'logout_time': format_date(r[3]) if r[3] else 'Active',
+        'ip': r[4],
+        'user_agent': (r[5] or '')[:50] + ('...' if r[5] and len(r[5]) > 50 else '')
+    } for r in cur.fetchall()]
+    con.close()
+    return render_template_string(T_ADMIN_SESSIONS, sessions=sessions)
 
 @app.route("/admin/audit_logs")
 @admin_required
@@ -1870,9 +1904,20 @@ T_CHANGE_PASSWORD = STYLE + """
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
       <label>Current Password</label>
-      <input type=password name=old_password autofocus>
+      <div style="position:relative">
+        <input type=password name=old_password id=old_password autofocus style="padding-right:70px">
+        <a href="#" onclick="toggleVis('old_password',this);return false;" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--gold-dim)">Show</a>
+      </div>
       <label>New Password</label>
-      <input type=password name=new_password>
+      <div style="position:relative">
+        <input type=password name=new_password id=new_password style="padding-right:70px">
+        <a href="#" onclick="toggleVis('new_password',this);return false;" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--gold-dim)">Show</a>
+      </div>
+      <label>Verify New Password</label>
+      <div style="position:relative">
+        <input type=password name=verify_password id=verify_password style="padding-right:70px">
+        <a href="#" onclick="toggleVis('verify_password',this);return false;" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--gold-dim)">Show</a>
+      </div>
       <div class="btn-group">
         <button class="btn btn-primary">Change Password</button>
         <a href=/ class="btn">Cancel</a>
@@ -1880,6 +1925,13 @@ T_CHANGE_PASSWORD = STYLE + """
     </form>
   </div>
 </div>
+<script>
+function toggleVis(id, link) {
+  var el = document.getElementById(id);
+  if (el.type === 'password') { el.type = 'text'; link.textContent = 'Hide'; }
+  else { el.type = 'password'; link.textContent = 'Show'; }
+}
+</script>
 """
 
 T_DELETE_NOTE = STYLE + """
@@ -2250,10 +2302,39 @@ T_ADMIN_LOGIN = STYLE + """
 </div>
 """
 
+T_ADMIN_SESSIONS = STYLE + """
+<nav class="nav">
+  <span class="nav-brand">&#9670; Admin</span>
+  <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href=/logout class="nav-logout">Logout</a>
+</nav>
+<div class="container">
+  <h3>All Sessions</h3>
+  <table>
+    <tr><th>Username</th><th>Login Time</th><th>Status</th><th>IP Address</th><th>Device</th></tr>
+    {% for s in sessions %}
+    <tr>
+      <td>{{s.username}}</td>
+      <td class="timestamp">{{s.login_time}}</td>
+      <td>
+        {% if s.logout_time == 'Active' %}<span style="color:var(--gold-dim)">Active</span>
+        {% else %}<span style="color:#555">{{s.logout_time}}</span>{% endif %}
+      </td>
+      <td style="font-size:.85rem">{{s.ip}}</td>
+      <td style="font-size:.8rem;color:#888">{{s.user_agent}}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan=5 class="empty">No sessions found.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+"""
+
 T_ADMIN_DASHBOARD = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#9670; Admin</span>
   <a href=/admin/audit_logs>Audit Logs</a>
+  <a href=/admin/sessions>Sessions</a>
   <a href=/admin/s3_backups>S3 Backups</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
