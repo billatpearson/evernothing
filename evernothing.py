@@ -1891,8 +1891,9 @@ err { display: block; color: var(--red-bright); background: #1a0000; border: 1px
 .badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: #888; }
 .timestamp { font-size: .8rem; color: #666; }
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
-td { padding: 3px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { text-align: left; padding: 10px 12px; border: 1px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
+td { padding: 3px 12px; vertical-align: top; }
+tr { border: 1px solid #cc2200; }
 tr:hover td { background: var(--bg3); }
 .search-box { display: flex; gap: 8px; margin-bottom: 20px; }
 .search-box input { flex: 1; }
