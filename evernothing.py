@@ -969,7 +969,6 @@ def add(fid):
                 )
                 nid = cur.lastrowid
                 log_change(cur, current_user.id, 'CREATE', 'note', nid, {}, {'note': note_val, 'content': content_val, 'description': desc_val, 'folder_id': fid}, request.remote_addr)
-                queue_change(cur, 'note', nid, 'INSERT')
                 cur.execute(
                     "INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
                     (nid, current_user.id, encrypt(note_val), encrypt(content_val), encrypt(desc_val), fid, datetime.datetime.now(timezone.utc).isoformat())
@@ -992,6 +991,7 @@ def add(fid):
                             error = "File too large or empty"
                             con.close()
                 con.commit()
+                queue_change(cur, 'note', nid, 'INSERT')
                 con.close()
                 sync_s3()
                 return redirect(f"/folder/{fid}")
@@ -1073,12 +1073,12 @@ def edit(id):
                     ),
                 )
                 log_change(cur, current_user.id, 'UPDATE', 'note', id, old_vals, new_vals, request.remote_addr)
-                queue_change(cur, 'note', id, 'UPDATE')
                 cur.execute(
                     "INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
                     (id, current_user.id, encrypt(request.form['note']), encrypt(request.form['content']), encrypt(new_desc), request.form.get('folder_id'), now)
                 )
                 con.commit()
+                queue_change(cur, 'note', id, 'UPDATE')
                 con.close()
                 sync_s3()
                 return redirect("/")
