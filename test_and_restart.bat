@@ -21,6 +21,12 @@ if exist "%PID_FILE%" (
 ) else (
     echo       No PID file found, skipping.
 )
+
+:: --- Kill any orphaned evernothing.py processes on port 5000 ---
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
+    taskkill /F /PID %%p >nul 2>&1
+    echo       Killed orphaned process on port 5000 ^(PID %%p^).
+)
 timeout /t 1 /nobreak >nul
 
 :: --- Run tests ---
