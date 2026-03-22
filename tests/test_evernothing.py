@@ -542,7 +542,7 @@ class EvernothingTestCase(unittest.TestCase):
             ).fetchone()
         self.assertIsNotNone(row)
         payload = json.loads(row[0])
-        self.assertEqual(payload['key'], 'PayloadNote')
+        self.assertEqual(payload['note_key'], 'PayloadNote')
         self.assertEqual(payload['description'], 'pdesc')
 
     @patch('evernothing.sync_s3')
