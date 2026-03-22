@@ -1811,7 +1811,7 @@ a:hover { color: var(--red-bright); }
 .nav .sep { color: #444; }
 .nav .nav-logout { margin-left: auto; color: var(--red); border-color: var(--red); }
 .nav .nav-logout:hover { background: var(--red); color: #000; }
-.container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+.container { max-width: 1100px; margin: 0; padding: 24px 20px; }
 h2, h3 { color: var(--gold); margin-bottom: 16px; font-weight: 600; letter-spacing: .5px; }
 h4 { color: var(--gold-dim); margin: 20px 0 10px; font-size: .95rem; text-transform: uppercase; letter-spacing: 1px; }
 .card {
