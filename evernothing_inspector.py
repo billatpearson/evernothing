@@ -50,14 +50,19 @@ def inject_build_date():
 def _s3():
     if not boto3:
         return None
-    if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-        return boto3.client('s3', region_name=AWS_REGION,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
     try:
-        return boto3.Session(profile_name=AWS_PROFILE).client('s3')
-    except Exception:
+        if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
+            return boto3.client('s3', region_name=AWS_REGION,
+                aws_access_key_id=AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
+        if AWS_PROFILE:
+            try:
+                return boto3.Session(profile_name=AWS_PROFILE).client('s3')
+            except Exception:
+                pass
         return boto3.client('s3', region_name=AWS_REGION)
+    except Exception:
+        return None
 
 def list_objects(prefix=''):
     s3 = _s3()
