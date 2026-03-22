@@ -510,6 +510,7 @@ def _s3_client():
         return boto3.client('s3', region_name=AWS_REGION)
 
 DEVICE_ID = os.environ.get('DEVICE_ID', __import__('socket').gethostname())
+_bucket_policy_applied = False
 
 def queue_change(cur, entity_type, entity_id, operation):
     """Record a change in sync_queue with the complete row as payload."""
@@ -531,6 +532,98 @@ def queue_change(cur, entity_type, entity_id, operation):
          datetime.datetime.now(timezone.utc).isoformat())
     )
 
+# Minimum required S3 actions for this application
+_REQUIRED_S3_ACTIONS = [
+    "s3:PutObject",
+    "s3:GetObject",
+    "s3:ListBucket",
+    "s3:HeadBucket",
+    "s3:CreateBucket",
+    "s3:PutBucketPolicy",
+    "s3:PutBucketVersioning",
+    "s3:PutPublicAccessBlock"
+]
+
+def get_iam_policy():
+    """Return the least-privilege IAM policy document scoped to the configured bucket."""
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "EverNothingObjectAccess",
+                "Effect": "Allow",
+                "Action": ["s3:PutObject", "s3:GetObject"],
+                "Resource": f"arn:aws:s3:::{S3_BUCKET_NAME}/*"
+            },
+            {
+                "Sid": "EverNothingBucketAccess",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:ListBucket",
+                    "s3:HeadBucket",
+                    "s3:CreateBucket",
+                    "s3:PutBucketPolicy",
+                    "s3:PutBucketVersioning",
+                    "s3:PutPublicAccessBlock"
+                ],
+                "Resource": f"arn:aws:s3:::{S3_BUCKET_NAME}"
+            }
+        ]
+    }
+
+
+def _apply_bucket_policy(s3, bucket_name):
+    """Apply a least-privilege bucket policy scoped to the calling IAM principal."""
+    try:
+        sts_kwargs = {'region_name': AWS_REGION}
+        if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
+            sts_kwargs['aws_access_key_id'] = AWS_ACCESS_KEY_ID
+            sts_kwargs['aws_secret_access_key'] = AWS_SECRET_ACCESS_KEY
+        caller_arn = boto3.client('sts', **sts_kwargs).get_caller_identity()['Arn']
+    except Exception as e:
+        logger.warning(f"Could not determine caller ARN for bucket policy: {e}")
+        return
+
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "DenyAllExceptCallerPrincipal",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Action": "s3:*",
+                "Resource": [
+                    f"arn:aws:s3:::{bucket_name}",
+                    f"arn:aws:s3:::{bucket_name}/*"
+                ],
+                "Condition": {
+                    "StringNotEquals": {
+                        "aws:PrincipalArn": caller_arn
+                    }
+                }
+            },
+            {
+                "Sid": "DenyInsecureTransport",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Action": "s3:*",
+                "Resource": [
+                    f"arn:aws:s3:::{bucket_name}",
+                    f"arn:aws:s3:::{bucket_name}/*"
+                ],
+                "Condition": {
+                    "Bool": {"aws:SecureTransport": "false"}
+                }
+            }
+        ]
+    }
+    try:
+        s3.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
+        logger.info(f"Bucket policy applied to {bucket_name}")
+    except Exception as e:
+        logger.warning(f"Could not apply bucket policy: {e}")
+
+
 def sync_s3():
     """Upload unsynced delta changes and full DB backup to S3."""
     if not boto3:
@@ -539,6 +632,10 @@ def sync_s3():
     try:
         import io
         s3 = _s3_client()
+        global _bucket_policy_applied
+        if not _bucket_policy_applied:
+            _apply_bucket_policy(s3, S3_BUCKET_NAME)
+            _bucket_policy_applied = True
         extra_json = {"ServerSideEncryption": "aws:kms", "ContentType": "application/json"}
         extra_db = {"ServerSideEncryption": "aws:kms"}
         if KMS_KEY_ID:
@@ -1253,6 +1350,33 @@ def admin_delete_user(uid):
     con.close()
     return render_template_string(T_ADMIN_DELETE_USER, user=user)
 
+@app.route("/admin/iam_policy")
+@admin_required
+def admin_iam_policy():
+    policy = json.dumps(get_iam_policy(), indent=2)
+    return render_template_string(STYLE + """
+<nav class="nav">
+  <span class="nav-brand">&#9670; Admin</span>
+  <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href=/logout class="nav-logout">Logout</a>
+</nav>
+<div class="container">
+  <h3>Least-Privilege IAM Policy</h3>
+  <p style="color:#888;font-size:.85rem;margin-bottom:16px">
+    Apply this policy to the IAM user or role used by EverNothing.
+    It grants only the minimum S3 actions required, scoped to
+    <b>arn:aws:s3:::{{ bucket }}</b> only.
+  </p>
+  <div class="card">
+    <pre style="white-space:pre-wrap;font-size:.85rem;color:var(--gold)">{{ policy }}</pre>
+  </div>
+  <p style="color:#555;font-size:.8rem;margin-top:12px">
+    CLI equivalent: <code>python evernothing_s3.py --iam-policy</code>
+  </p>
+</div>
+""", policy=policy, bucket=S3_BUCKET_NAME)
+
+
 @app.route("/admin/s3_backups")
 @admin_required
 def admin_s3_backups():
@@ -1647,7 +1771,7 @@ STYLE = """
   --radius: 6px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 15px; }
+html { font-size: 17px; }
 body {
   background: var(--bg);
   color: var(--gold);
@@ -1702,7 +1826,8 @@ h4 { color: var(--gold-dim); margin: 20px 0 10px; font-size: .95rem; text-transf
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
+  padding: 3px 12px;
+  margin-bottom: 1px;
   border-radius: var(--radius);
   border: 1px solid transparent;
   transition: all .15s;
@@ -1767,7 +1892,7 @@ err { display: block; color: var(--red-bright); background: #1a0000; border: 1px
 .timestamp { font-size: .8rem; color: #666; }
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
-td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td { padding: 3px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
 tr:hover td { background: var(--bg3); }
 .search-box { display: flex; gap: 8px; margin-bottom: 20px; }
 .search-box input { flex: 1; }
@@ -2360,6 +2485,7 @@ T_ADMIN_DASHBOARD = STYLE + """
   <a href=/admin/audit_logs>Audit Logs</a>
   <a href=/admin/sessions>Sessions</a>
   <a href=/admin/s3_backups>S3 Backups</a>
+  <a href=/admin/iam_policy>IAM Policy</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
