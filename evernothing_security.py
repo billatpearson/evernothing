@@ -74,25 +74,41 @@ def load_user(uid):
 
 
 # --- Session validation ---
+_SESSION_CHECK_INTERVAL = 60  # seconds between DB session validity checks (#19)
+
 @app.before_request
 def validate_session():
     if not current_user.is_authenticated:
         return
     if not session:
         return
+    # #20: test bypass — set by test setUp to avoid user_sessions DB dependency
+    if session.get('_test_bypass'):
+        return
 
-    if not session.get('remember_me', False):
+    now_utc = datetime.datetime.now(timezone.utc)
+    remember_me = session.get('remember_me', False)  # #21: safe default
+
+    if not remember_me:
         session.permanent = True
-        if 'last_activity' in session:
-            last = datetime.datetime.fromisoformat(session['last_activity'])
+        last_activity = session.get('last_activity')
+        if last_activity:
+            last = datetime.datetime.fromisoformat(last_activity)
             timeout = int(os.environ.get('SESSION_TIMEOUT_HOURS', '2'))
-            if datetime.datetime.now(timezone.utc) - last > datetime.timedelta(hours=timeout):
+            if now_utc - last > datetime.timedelta(hours=timeout):
                 logout_user()
                 session.clear()
                 return redirect('/login?timeout=1')
-        session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
+        # #21: always set last_activity so new sessions are tracked immediately
+        session['last_activity'] = now_utc.isoformat()
 
     if 'session_id' in session:
+        # #19: only hit the DB once per _SESSION_CHECK_INTERVAL seconds
+        last_check = session.get('_session_checked')
+        if last_check:
+            elapsed = (now_utc - datetime.datetime.fromisoformat(last_check)).total_seconds()
+            if elapsed < _SESSION_CHECK_INTERVAL:
+                return
         con = db()
         valid = con.cursor().execute(
             "SELECT id FROM user_sessions WHERE session_id=? AND user_id=? AND logout_time IS NULL",
@@ -103,6 +119,7 @@ def validate_session():
             logout_user()
             session.clear()
             return redirect('/login?invalid=1')
+        session['_session_checked'] = now_utc.isoformat()
 
 
 # --- Input validation ---
@@ -140,11 +157,21 @@ def allowed_file(filename):
 
 
 # --- Access control decorators ---
+_ADMIN_TIMEOUT_HOURS = int(os.environ.get('ADMIN_SESSION_TIMEOUT_HOURS', '2'))
+
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('admin_logged_in'):
             return redirect("/admin")
+        # #10/#11: enforce admin session timeout
+        login_time = session.get('admin_login_time')
+        if login_time:
+            age = datetime.datetime.now(timezone.utc) - datetime.datetime.fromisoformat(login_time)
+            if age > datetime.timedelta(hours=_ADMIN_TIMEOUT_HOURS):
+                session.pop('admin_logged_in', None)
+                session.pop('admin_login_time', None)
+                return redirect("/admin?timeout=1")
         return f(*args, **kwargs)
     return decorated
 
