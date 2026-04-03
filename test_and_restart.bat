@@ -21,6 +21,12 @@ if exist "%PID_FILE%" (
 ) else (
     echo       No PID file found, skipping.
 )
+
+:: --- Kill any orphaned evernothing.py processes on port 5000 ---
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
+    taskkill /F /PID %%p >nul 2>&1
+    echo       Killed orphaned process on port 5000 ^(PID %%p^).
+)
 timeout /t 1 /nobreak >nul
 
 :: --- Run tests ---
@@ -42,7 +48,7 @@ if not exist "%APP_DIR%\log" mkdir "%APP_DIR%\log"
 
 powershell -Command "Start-Process -FilePath '%PYTHON%' -ArgumentList '%APP_DIR%\evernothing.py' -WorkingDirectory '%APP_DIR%' -WindowStyle Hidden -RedirectStandardOutput '%APP_DIR%\log\server.log' -RedirectStandardError '%APP_DIR%\log\server_err.log'"
 
-timeout /t 2 /nobreak >nul
+timeout /t 4 /nobreak >nul
 
 :: Save PID
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (

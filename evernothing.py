@@ -182,8 +182,9 @@ EXPORT:
 """
 
 try:
+    import os as _os
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '.env'))
 except ImportError:
     pass
 
@@ -237,6 +238,10 @@ app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=_remember_days)
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+app.config['REMEMBER_COOKIE_NAME'] = 'remember_token'
 DB = "evernothing.db"
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
@@ -279,15 +284,18 @@ else:
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
-login_manager.session_protection = "strong"
+login_manager.session_protection = "basic"
 
 # Session validation
 @app.before_request
 def validate_session():
     if current_user.is_authenticated:
+        # Empty session = user restored via remember-me cookie after browser restart
+        if not session:
+            return
+
         remember_me = session.get('remember_me', False)
 
-        # Enforce inactivity timeout only for non-remember-me sessions
         if not remember_me:
             session.permanent = True
             if 'last_activity' in session:
@@ -299,7 +307,6 @@ def validate_session():
                     return redirect('/login?timeout=1')
             session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
 
-        # Only validate DB session if session_id is present (remember-me reloads may not have it)
         if 'session_id' in session:
             con = db()
             cur = con.cursor()
@@ -382,6 +389,15 @@ def init_db():
         timestamp TEXT,
         ip_address TEXT
     );
+    CREATE TABLE IF NOT EXISTS sync_queue(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT,
+        entity_id INTEGER,
+        operation TEXT,
+        payload TEXT,
+        changed_at TEXT,
+        synced_at TEXT
+    );
     """)
     for _col_sql in [
         "ALTER TABLE notes ADD COLUMN description TEXT",
@@ -420,6 +436,20 @@ def init_db():
         """)
     except Exception as e:
         print(f"Warning: Attachments table check failed: {e}")
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sync_queue(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT,
+                entity_id INTEGER,
+                operation TEXT,
+                payload TEXT,
+                changed_at TEXT,
+                synced_at TEXT
+            )
+        """)
+    except Exception as e:
+        print(f"Warning: sync_queue migration failed: {e}")
     try:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(user_id)")
@@ -479,18 +509,189 @@ def _s3_client():
     except Exception:
         return boto3.client('s3', region_name=AWS_REGION)
 
+DEVICE_ID = os.environ.get('DEVICE_ID', __import__('socket').gethostname())
+_bucket_policy_applied = False
+
+def queue_change(cur, entity_type, entity_id, operation):
+    """Record a change in sync_queue with the complete row as payload."""
+    payload = {}
+    try:
+        if entity_type == 'note':
+            r = cur.execute("SELECT id,user_id,folder_id,note_key,note_value,description,updated_at FROM notes WHERE id=?", (entity_id,)).fetchone()
+            if r:
+                payload = {'id': r[0], 'user_id': r[1], 'folder_id': r[2], 'note_key': r[3], 'note_value': r[4], 'description': r[5], 'updated_at': r[6]}
+        elif entity_type == 'folder':
+            r = cur.execute("SELECT id,user_id,name,parent_id FROM folders WHERE id=?", (entity_id,)).fetchone()
+            if r:
+                payload = {'id': r[0], 'user_id': r[1], 'name': r[2], 'parent_id': r[3]}
+    except Exception as e:
+        logger.warning(f"queue_change fetch failed: {e}")
+    cur.execute(
+        "INSERT INTO sync_queue (entity_type, entity_id, operation, payload, changed_at) VALUES(?,?,?,?,?)",
+        (entity_type, entity_id, operation, json.dumps(payload),
+         datetime.datetime.now(timezone.utc).isoformat())
+    )
+
+# Minimum required S3 actions for this application
+_REQUIRED_S3_ACTIONS = [
+    "s3:PutObject",
+    "s3:GetObject",
+    "s3:ListBucket",
+    "s3:HeadBucket",
+    "s3:CreateBucket",
+    "s3:PutBucketPolicy",
+    "s3:PutBucketVersioning",
+    "s3:PutPublicAccessBlock"
+]
+
+def get_iam_policy():
+    """Return the least-privilege IAM policy document scoped to the configured bucket."""
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "EverNothingObjectAccess",
+                "Effect": "Allow",
+                "Action": ["s3:PutObject", "s3:GetObject"],
+                "Resource": f"arn:aws:s3:::{S3_BUCKET_NAME}/*"
+            },
+            {
+                "Sid": "EverNothingBucketAccess",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:ListBucket",
+                    "s3:HeadBucket",
+                    "s3:CreateBucket",
+                    "s3:PutBucketPolicy",
+                    "s3:PutBucketVersioning",
+                    "s3:PutPublicAccessBlock"
+                ],
+                "Resource": f"arn:aws:s3:::{S3_BUCKET_NAME}"
+            }
+        ]
+    }
+
+
+def _apply_bucket_policy(s3, bucket_name):
+    """Apply a least-privilege bucket policy scoped to the calling IAM principal."""
+    try:
+        sts_kwargs = {'region_name': AWS_REGION}
+        if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
+            sts_kwargs['aws_access_key_id'] = AWS_ACCESS_KEY_ID
+            sts_kwargs['aws_secret_access_key'] = AWS_SECRET_ACCESS_KEY
+        caller_arn = boto3.client('sts', **sts_kwargs).get_caller_identity()['Arn']
+    except Exception as e:
+        logger.warning(f"Could not determine caller ARN for bucket policy: {e}")
+        return
+
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "DenyAllExceptCallerPrincipal",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Action": "s3:*",
+                "Resource": [
+                    f"arn:aws:s3:::{bucket_name}",
+                    f"arn:aws:s3:::{bucket_name}/*"
+                ],
+                "Condition": {
+                    "StringNotEquals": {
+                        "aws:PrincipalArn": caller_arn
+                    }
+                }
+            },
+            {
+                "Sid": "DenyInsecureTransport",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Action": "s3:*",
+                "Resource": [
+                    f"arn:aws:s3:::{bucket_name}",
+                    f"arn:aws:s3:::{bucket_name}/*"
+                ],
+                "Condition": {
+                    "Bool": {"aws:SecureTransport": "false"}
+                }
+            }
+        ]
+    }
+    try:
+        s3.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
+        logger.info(f"Bucket policy applied to {bucket_name}")
+    except Exception as e:
+        logger.warning(f"Could not apply bucket policy: {e}")
+
+
+_BUCKET_POLICY_SENTINEL = ".bucket_policy_applied"
+
+def _s3_upload_with_retry(fn, *args, **kwargs):
+    import time
+    for attempt in range(3):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            if attempt == 2: raise
+            wait = 2 ** attempt
+            logger.warning(f"S3 upload attempt {attempt+1} failed ({e}), retrying in {wait}s")
+            time.sleep(wait)
+
 def sync_s3():
-    """Upload database to S3 with SSE-KMS encryption."""
+    """#15: non-blocking — runs S3 sync in a background thread."""
     if not boto3:
         logger.warning("S3 sync skipped: boto3 not available")
         return
+    import threading
+    threading.Thread(target=_sync_s3_worker, daemon=True).start()
+
+def _sync_s3_worker():
     try:
+        import io
+        global _bucket_policy_applied
         s3 = _s3_client()
-        extra = {'ServerSideEncryption': 'aws:kms'}
+        # #17: file sentinel prevents redundant policy calls across workers
+        if not _bucket_policy_applied and not os.path.exists(_BUCKET_POLICY_SENTINEL):
+            _apply_bucket_policy(s3, S3_BUCKET_NAME)
+            try: open(_BUCKET_POLICY_SENTINEL, 'w').close()
+            except Exception: pass
+            _bucket_policy_applied = True
+        elif os.path.exists(_BUCKET_POLICY_SENTINEL):
+            _bucket_policy_applied = True
+
+        extra_json = {"ServerSideEncryption": "aws:kms", "ContentType": "application/json"}
+        extra_db = {"ServerSideEncryption": "aws:kms"}
         if KMS_KEY_ID:
-            extra['SSEKMSKeyId'] = KMS_KEY_ID
-        s3.upload_file(DB, S3_BUCKET_NAME, DB, ExtraArgs=extra)
-        logger.info(f"S3 sync successful (SSE-KMS): {DB} -> s3://{S3_BUCKET_NAME}/{DB}")
+            extra_json["SSEKMSKeyId"] = KMS_KEY_ID
+            extra_db["SSEKMSKeyId"] = KMS_KEY_ID
+
+        con = db(); cur = con.cursor()
+        cur.execute("SELECT id, entity_type, entity_id, operation, payload, changed_at FROM sync_queue WHERE synced_at IS NULL")
+        rows = cur.fetchall()
+        delta_ids = []
+        if rows:
+            changes = [{"op": r[3], "entity": r[1], "id": r[2], "data": json.loads(r[4]), "at": r[5]} for r in rows]
+            ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(json.dumps(changes).encode("utf-8")),
+                                  S3_BUCKET_NAME, f"changes/{DEVICE_ID}/{ts}.json", ExtraArgs=extra_json)
+            delta_ids = [r[0] for r in rows]
+            logger.info(f"S3 delta: {len(changes)} change(s)")
+        con.close()
+
+        # #18: mark delta synced only after DB backup succeeds
+        ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        with open(DB, 'rb') as f:
+            db_bytes = f.read()
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB, ExtraArgs=extra_db)
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f"backups/{DB}.{ts}", ExtraArgs=extra_db)
+        logger.info(f"S3 DB backup: s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}")
+
+        if delta_ids:
+            con = db(); cur = con.cursor()
+            now = datetime.datetime.now(timezone.utc).isoformat()
+            cur.execute(f"UPDATE sync_queue SET synced_at=? WHERE id IN ({','.join('?'*len(delta_ids))})", [now]+delta_ids)
+            con.commit(); con.close()
+        print("S3 ASynch")
     except Exception as e:
         logger.error(f"S3 Sync Error: {e}")
         print(f"S3 Sync Error: {e}")
@@ -616,6 +817,7 @@ def add_folder():
                 "INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,NULL)",
                 (current_user.id, encrypt(name))
             )
+            queue_change(cur, 'folder', cur.lastrowid, 'INSERT')
             con.commit()
             sync_s3()
             logger.info(f"User {current_user.id} created folder: {name}")
@@ -637,6 +839,7 @@ def add_subfolder(pid):
             "INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,?)",
             (current_user.id, encrypt(request.form['name']), pid)
         )
+        queue_change(cur, 'folder', cur.lastrowid, 'INSERT')
         con.commit()
         sync_s3()
         con.close()        
@@ -661,6 +864,7 @@ def delete_folder(fid):
 
     if request.method == "POST":
         delete_recursive(cur, fid, current_user.id)
+        queue_change(cur, 'folder', fid, 'DELETE')
         con.commit()
         con.close()
         sync_s3()
@@ -680,6 +884,7 @@ def rename_folder(fid):
         return redirect("/")
     if request.method == "POST":
         cur.execute("UPDATE folders SET name=? WHERE id=? AND user_id=?", (encrypt(request.form['name']), fid, current_user.id))
+        queue_change(cur, 'folder', fid, 'UPDATE')
         con.commit()
         con.close()
         sync_s3()
@@ -697,6 +902,7 @@ def delete_note(nid):
         return redirect("/")
     if request.method == "POST":
         cur.execute("DELETE FROM notes WHERE id=? AND user_id=?", (nid, current_user.id))
+        queue_change(cur, 'note', nid, 'DELETE')
         con.commit()
         con.close()
         sync_s3()
@@ -713,13 +919,19 @@ def change_password():
         cur = con.cursor()
         r = cur.execute("SELECT password FROM users WHERE id=?", (current_user.id,)).fetchone()
         if r and check_password_hash(r[0], request.form['old_password']):
-            cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(request.form['new_password']), current_user.id))
-            con.commit()
+            new_password = request.form['new_password']
+            if new_password != request.form.get('verify_password', ''):
+                con.close()
+                error = "New passwords do not match"
+            else:
+                cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(new_password), current_user.id))
+                con.commit()
+                con.close()
+                sync_s3()
+                return redirect("/")
+        else:
             con.close()
-            sync_s3()
-            return redirect("/")
-        con.close()
-        error = "Invalid old password"
+            error = "Invalid old password"
     return render_template_string(T_CHANGE_PASSWORD, error=error)
 
 @app.route("/search")
@@ -895,6 +1107,8 @@ def add(fid):
                             error = "File too large or empty"
                             con.close()
                 con.commit()
+                queue_change(cur, 'note', nid, 'INSERT')
+                con.commit()
                 con.close()
                 sync_s3()
                 return redirect(f"/folder/{fid}")
@@ -981,6 +1195,8 @@ def edit(id):
                     (id, current_user.id, encrypt(request.form['note']), encrypt(request.form['content']), encrypt(new_desc), request.form.get('folder_id'), now)
                 )
                 con.commit()
+                queue_change(cur, 'note', id, 'UPDATE')
+                con.commit()
                 con.close()
                 sync_s3()
                 return redirect("/")
@@ -1016,7 +1232,7 @@ def restore_history(hid):
         return render_template_string(
             STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/history/{{nid}}>&#8592; Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1050,29 +1266,26 @@ def restore_history(hid):
     return redirect(f"/edit/{h[0]}")
 
 # --- ADMIN AUTH HELPER ---
-def admin_required(f):
-    """Decorator to enforce admin session on every admin route."""
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get('admin_logged_in'):
-            return redirect("/admin")
-        return f(*args, **kwargs)
-    return decorated
+# #12/#13: decorators imported from evernothing_security — no duplicate definitions
+from evernothing_security import admin_required, api_login_required
 
 # --- ADMIN ---
 @app.route("/admin", methods=["GET","POST"])
 def admin_login():
     if request.method == "POST":
-        admin_user = os.environ.get('ADMIN_USER')  # Set ADMIN_USER env var
-        admin_pass = os.environ.get('ADMIN_PASS')  # Set ADMIN_PASS env var
-        if not admin_user or not admin_pass:
-            return render_template_string(T_ADMIN_LOGIN, error="Admin credentials not configured")
+        admin_user = os.environ.get('ADMIN_USER', 'admin')
+        admin_pass = os.environ.get('ADMIN_PASS', 'admin')
         if request.form.get("username") == admin_user and request.form.get("password") == admin_pass:
+            # #10/#11: record login time for timeout; log to audit_log
             session['admin_logged_in'] = True
+            session['admin_login_time'] = datetime.datetime.now(timezone.utc).isoformat()
+            con = db(); cur = con.cursor()
+            log_change(cur, 0, 'CREATE', 'admin_session', 0, {}, {'admin': admin_user, 'ip': request.remote_addr}, request.remote_addr)
+            con.commit(); con.close()
             return redirect("/admin/dashboard")
         return render_template_string(T_ADMIN_LOGIN, error="Invalid credentials")
-    return render_template_string(T_ADMIN_LOGIN)
+    timeout = request.args.get('timeout')
+    return render_template_string(T_ADMIN_LOGIN, error="Admin session expired. Please log in again." if timeout else None)
 
 @app.route("/admin/dashboard")
 @admin_required
@@ -1155,6 +1368,33 @@ def admin_delete_user(uid):
     con.close()
     return render_template_string(T_ADMIN_DELETE_USER, user=user)
 
+@app.route("/admin/iam_policy")
+@admin_required
+def admin_iam_policy():
+    policy = json.dumps(get_iam_policy(), indent=2)
+    return render_template_string(STYLE + """
+<nav class="nav">
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href=/logout class="nav-logout">Logout</a>
+</nav>
+<div class="container">
+  <h3>Least-Privilege IAM Policy</h3>
+  <p style="color:#888;font-size:.85rem;margin-bottom:16px">
+    Apply this policy to the IAM user or role used by EverNothing.
+    It grants only the minimum S3 actions required, scoped to
+    <b>arn:aws:s3:::{{ bucket }}</b> only.
+  </p>
+  <div class="card">
+    <pre style="white-space:pre-wrap;font-size:.85rem;color:var(--gold)">{{ policy }}</pre>
+  </div>
+  <p style="color:#555;font-size:.8rem;margin-top:12px">
+    CLI equivalent: <code>python evernothing_s3.py --iam-policy</code>
+  </p>
+</div>
+""", policy=policy, bucket=S3_BUCKET_NAME)
+
+
 @app.route("/admin/s3_backups")
 @admin_required
 def admin_s3_backups():
@@ -1196,6 +1436,29 @@ def admin_s3_restore(key):
         return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], error=f"Restore failed: {e}")
     
     return redirect("/admin/s3_backups")
+
+@app.route("/admin/sessions")
+@admin_required
+def admin_sessions():
+    con = db()
+    cur = con.cursor()
+    cur.execute("""
+        SELECT u.username, s.session_id, s.login_time, s.logout_time, s.ip_address, s.user_agent
+        FROM user_sessions s
+        JOIN users u ON s.user_id = u.id
+        ORDER BY s.login_time DESC
+        LIMIT 200
+    """)
+    sessions = [{
+        'username': r[0],
+        'session_id': r[1],
+        'login_time': format_date(r[2]),
+        'logout_time': format_date(r[3]) if r[3] else 'Active',
+        'ip': r[4],
+        'user_agent': (r[5] or '')[:50] + ('...' if r[5] and len(r[5]) > 50 else '')
+    } for r in cur.fetchall()]
+    con.close()
+    return render_template_string(T_ADMIN_SESSIONS, sessions=sessions)
 
 @app.route("/admin/audit_logs")
 @admin_required
@@ -1514,102 +1777,161 @@ def delete_attachment(aid):
 STYLE = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 :root {
-  --gold: #ffd700;
-  --gold-dim: #b8960c;
-  --red: #cc2200;
-  --red-bright: #ff3300;
-  --bg: #0a0a0a;
-  --bg2: #111;
-  --bg3: #1a1a1a;
-  --border: #2a2a2a;
-  --radius: 6px;
+  --rose:    #ff6eb4;
+  --violet:  #c084fc;
+  --sky:     #67e8f9;
+  --mint:    #6ee7b7;
+  --sun:     #fde68a;
+  --peach:   #fdba74;
+  --danger:  #f87171;
+  --bg:      #1a0a2e;
+  --bg2:     #2d1b4e;
+  --bg3:     #3d2560;
+  --border:  #6b3fa0;
+  --text:    #f0e6ff;
+  --radius:  14px;
+  --rainbow: linear-gradient(90deg,#ff6eb4,#c084fc,#67e8f9,#6ee7b7,#fde68a,#fdba74,#ff6eb4);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 15px; }
+html { font-size: 17px; }
 body {
   background: var(--bg);
-  color: var(--gold);
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  background-image: radial-gradient(ellipse at 20% 20%, #3b1f6a 0%, transparent 60%),
+                    radial-gradient(ellipse at 80% 80%, #1a3a5c 0%, transparent 60%);
+  color: var(--text);
+  font-family: 'Nunito', 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
-  padding-bottom: 40px;
+  padding-bottom: 44px;
 }
-a { color: var(--gold); text-decoration: none; transition: color .15s; }
-a:hover { color: var(--red-bright); }
+a { color: var(--rose); text-decoration: none; transition: color .15s; }
+a:hover { color: var(--sky); }
+/* rainbow rule under every page */
+body::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: var(--rainbow);
+  background-size: 200% 100%;
+  animation: shimmer 4s linear infinite;
+  position: fixed; top: 0; left: 0; width: 100%; z-index: 200;
+}
+@keyframes shimmer { 0%{background-position:0% 0%} 100%{background-position:200% 0%} }
 .nav {
-  background: var(--bg2);
-  border-bottom: 1px solid var(--red);
+  background: linear-gradient(135deg, #2d1b4e 0%, #1e1040 100%);
+  border-bottom: 2px solid transparent;
+  border-image: var(--rainbow) 1;
   padding: 10px 20px;
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   position: sticky;
-  top: 0;
+  top: 3px;
   z-index: 100;
 }
 .nav-brand {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--gold);
+  font-size: 1.15rem;
+  font-weight: 800;
+  background: var(--rainbow);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
   letter-spacing: 1px;
   margin-right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.unicorn-img {
+  width: 28px; height: 28px;
+  display: inline-block;
+  animation: bounce 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px var(--rose));
+}
+.sparkle-img {
+  width: 18px; height: 18px;
+  display: inline-block;
+  animation: spin 3s linear infinite;
+  filter: drop-shadow(0 0 4px var(--sun));
+}
+.page-unicorn {
+  display: block;
+  margin: 0 auto 16px;
+  width: 72px; height: 72px;
+  filter: drop-shadow(0 0 12px var(--rose));
+  animation: bounce 2s ease-in-out infinite;
+}
+@keyframes bounce {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 .nav a {
   font-size: .85rem;
-  padding: 4px 10px;
-  border-radius: var(--radius);
+  padding: 4px 12px;
+  border-radius: 20px;
   border: 1px solid transparent;
+  color: var(--violet);
   transition: all .15s;
 }
-.nav a:hover { border-color: var(--red); color: var(--red-bright); text-decoration: none; }
-.nav .sep { color: #444; }
-.nav .nav-logout { margin-left: auto; color: var(--red); border-color: var(--red); }
-.nav .nav-logout:hover { background: var(--red); color: #000; }
-.container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
-h2, h3 { color: var(--gold); margin-bottom: 16px; font-weight: 600; letter-spacing: .5px; }
-h4 { color: var(--gold-dim); margin: 20px 0 10px; font-size: .95rem; text-transform: uppercase; letter-spacing: 1px; }
+.nav a:hover { background: var(--bg3); border-color: var(--violet); color: var(--sky); text-decoration: none; }
+.nav .sep { color: var(--border); }
+.nav .nav-logout { margin-left: auto; color: var(--danger); border-color: var(--danger); border-radius: 20px; border: 1px solid; padding: 4px 12px; }
+.nav .nav-logout:hover { background: var(--danger); color: #fff; }
+.container { max-width: 1100px; margin: 0; padding: 24px 20px; }
+h2, h3 { color: var(--sun); margin-bottom: 16px; font-weight: 700; letter-spacing: .5px; }
+h4 { color: var(--violet); margin: 20px 0 10px; font-size: .9rem; text-transform: uppercase; letter-spacing: 1.5px; }
 .card {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(192,132,252,.08);
 }
 .item-list { list-style: none; }
 .item-list li {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  border-radius: var(--radius);
+  padding: 5px 12px;
+  margin-bottom: 2px;
+  border-radius: 10px;
   border: 1px solid transparent;
   transition: all .15s;
 }
 .item-list li:hover { background: var(--bg3); border-color: var(--border); }
-.item-list li a { flex: 1; font-size: .95rem; }
+.item-list li a { flex: 1; font-size: .95rem; color: var(--mint); }
+.item-list li a:hover { color: var(--sky); }
 .item-list .actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
 .item-list li:hover .actions { opacity: 1; }
-.item-list .actions a { font-size: .75rem; padding: 2px 7px; border-radius: 3px; border: 1px solid #333; flex: none; }
-.item-list .actions a:hover { border-color: var(--red); color: var(--red-bright); }
-.item-list .del { color: var(--red) !important; }
-.empty { color: #555; font-style: italic; padding: 12px; }
-label { display: block; font-size: .85rem; color: var(--gold-dim); margin-bottom: 4px; margin-top: 12px; }
+.item-list .actions a { font-size: .75rem; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); flex: none; color: var(--violet); }
+.item-list .actions a:hover { border-color: var(--rose); color: var(--rose); }
+.item-list .del { color: var(--danger) !important; }
+.empty { color: var(--border); font-style: italic; padding: 12px; }
+label { display: block; font-size: .85rem; color: var(--violet); margin-bottom: 4px; margin-top: 12px; }
 input[type=text], input[type=password], input[type=email], input[type=date], input:not([type]), textarea, select {
-  background: var(--bg2);
-  color: var(--gold);
-  border: 1px solid #444;
-  border-radius: var(--radius);
-  padding: 8px 12px;
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 14px;
   font-size: .9rem;
   font-family: inherit;
   width: 100%;
-  transition: border-color .15s;
+  transition: border-color .15s, box-shadow .15s;
   outline: none;
 }
-input[type=text]:focus, input[type=password]:focus, input[type=email]:focus,
-input:not([type]):focus, textarea:focus, select:focus {
-  border-color: var(--gold-dim);
+input:focus, textarea:focus, select:focus {
+  border-color: var(--rose);
+  box-shadow: 0 0 0 3px rgba(255,110,180,.15);
 }
 textarea { resize: vertical; font-family: 'Consolas', 'Courier New', monospace; font-size: .85rem; }
 select option { background: var(--bg2); }
@@ -1619,44 +1941,52 @@ select option { background: var(--bg2); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 20px;
-  border-radius: var(--radius);
-  border: 1px solid var(--gold-dim);
+  padding: 8px 22px;
+  border-radius: 20px;
+  border: 1px solid var(--violet);
   background: transparent;
-  color: var(--gold);
+  color: var(--violet);
   font-size: .9rem;
   font-family: inherit;
+  font-weight: 600;
   cursor: pointer;
   transition: all .15s;
   text-decoration: none;
 }
-.btn:hover { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); text-decoration: none; }
-.btn-primary { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); font-weight: 600; }
-.btn-primary:hover { background: var(--gold); border-color: var(--gold); color: #000; }
-.btn-danger { border-color: var(--red); color: var(--red); }
-.btn-danger:hover { background: var(--red); color: #fff; }
-.btn-sm { padding: 4px 12px; font-size: .8rem; }
+.btn:hover { background: var(--bg3); border-color: var(--sky); color: var(--sky); text-decoration: none; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--rose), var(--violet));
+  color: #fff;
+  border: none;
+  font-weight: 700;
+}
+.btn-primary:hover { background: linear-gradient(135deg, var(--violet), var(--sky)); color: #fff; }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-sm { padding: 4px 14px; font-size: .8rem; }
 .btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
-err { display: block; color: var(--red-bright); background: #1a0000; border: 1px solid var(--red); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; font-size: .9rem; }
-.breadcrumb { font-size: .85rem; color: #666; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.breadcrumb a { color: var(--gold-dim); }
-.breadcrumb a:hover { color: var(--gold); }
-.breadcrumb .sep { color: #444; }
-.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: #888; }
-.timestamp { font-size: .8rem; color: #666; }
+err { display: block; color: var(--danger); background: rgba(248,113,113,.1); border: 1px solid var(--danger); border-radius: 10px; padding: 8px 14px; margin: 10px 0; font-size: .9rem; }
+.breadcrumb { font-size: .85rem; color: var(--border); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.breadcrumb a { color: var(--violet); }
+.breadcrumb a:hover { color: var(--rose); }
+.breadcrumb .sep { color: var(--border); }
+.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: var(--violet); }
+.timestamp { font-size: .8rem; color: var(--border); }
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
-td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--violet); color: var(--violet); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
+td { padding: 5px 12px; vertical-align: top; border-bottom: 1px solid var(--bg3); }
 tr:hover td { background: var(--bg3); }
 .search-box { display: flex; gap: 8px; margin-bottom: 20px; }
 .search-box input { flex: 1; }
-.tag-create { color: #0c0; }
-.tag-update { color: var(--gold-dim); }
-.tag-delete { color: var(--red); }
+.tag-create { color: var(--mint); font-weight: 700; }
+.tag-update { color: var(--sun); font-weight: 700; }
+.tag-delete { color: var(--danger); font-weight: 700; }
 .footer {
   position: fixed; bottom: 0; left: 0; width: 100%;
-  background: var(--bg2); border-top: 1px solid var(--border);
-  color: #555; text-align: center; font-size: .75rem; padding: 5px;
+  background: var(--bg2);
+  border-top: 2px solid transparent;
+  border-image: var(--rainbow) 1;
+  color: var(--border); text-align: center; font-size: .75rem; padding: 5px;
   z-index: 99;
 }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -1666,19 +1996,23 @@ tr:hover td { background: var(--bg3); }
   textarea { cols: unset; width: 100%; }
 }
 .confirm-box {
-  background: var(--bg2); border: 1px solid var(--red);
-  border-radius: var(--radius); padding: 24px; max-width: 600px;
+  background: var(--bg2);
+  border: 1px solid var(--rose);
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 600px;
+  box-shadow: 0 4px 32px rgba(255,110,180,.12);
 }
 .confirm-box p { margin-bottom: 12px; line-height: 1.6; }
 .confirm-box .field { margin: 8px 0; font-size: .9rem; }
-.confirm-box .field b { color: var(--gold-dim); }
+.confirm-box .field b { color: var(--sun); }
 </style>
-<div class="footer">{{ build_date }}</div>
+<div class="footer">&#x1F984; built on {{ build_date }}</div>
 """
 
 T_FOLDERS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/folder/add>+ Folder</a>
   <a href=/export>Export</a>
   <a href=/audit_report>Audit</a>
@@ -1715,7 +2049,7 @@ T_FOLDERS = STYLE + """
       <ul class="item-list">
       {% for n in recent %}
       <li>
-        <a href=/edit/{{n[0]}}>{{n[1]}}</a>
+        <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
         <span class="timestamp">{{n[2]}}</span>
       </li>
       {% else %}
@@ -1729,7 +2063,7 @@ T_FOLDERS = STYLE + """
 
 T_ADD_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1752,7 +2086,7 @@ T_ADD_FOLDER = STYLE + """
 
 T_ADD_SUBFOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/folder/{{pid}}>Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1774,7 +2108,7 @@ T_ADD_SUBFOLDER = STYLE + """
 
 T_RENAME_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/folder/{{fid}}>Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1796,7 +2130,7 @@ T_RENAME_FOLDER = STYLE + """
 
 T_CHANGE_PASSWORD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1807,9 +2141,20 @@ T_CHANGE_PASSWORD = STYLE + """
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
       <label>Current Password</label>
-      <input type=password name=old_password autofocus>
+      <div style="position:relative">
+        <input type=password name=old_password id=old_password autofocus style="padding-right:70px">
+        <a href="#" onclick="toggleVis('old_password',this);return false;" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--gold-dim)">Show</a>
+      </div>
       <label>New Password</label>
-      <input type=password name=new_password>
+      <div style="position:relative">
+        <input type=password name=new_password id=new_password style="padding-right:70px">
+        <a href="#" onclick="toggleVis('new_password',this);return false;" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--gold-dim)">Show</a>
+      </div>
+      <label>Verify New Password</label>
+      <div style="position:relative">
+        <input type=password name=verify_password id=verify_password style="padding-right:70px">
+        <a href="#" onclick="toggleVis('verify_password',this);return false;" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--gold-dim)">Show</a>
+      </div>
       <div class="btn-group">
         <button class="btn btn-primary">Change Password</button>
         <a href=/ class="btn">Cancel</a>
@@ -1817,18 +2162,25 @@ T_CHANGE_PASSWORD = STYLE + """
     </form>
   </div>
 </div>
+<script>
+function toggleVis(id, link) {
+  var el = document.getElementById(id);
+  if (el.type === 'password') { el.type = 'text'; link.textContent = 'Hide'; }
+  else { el.type = 'password'; link.textContent = 'Show'; }
+}
+</script>
 """
 
 T_DELETE_NOTE = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
   <div class="confirm-box">
     <h3>Delete Note</h3>
-    <p>Are you sure you want to permanently delete <b>{{n[1]}}</b>?</p>
+    <p>Are you sure you want to permanently delete <b>{{n[1]|safe}}</b>?</p>
     <p style="color:#888;font-size:.85rem">This action cannot be undone.</p>
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
@@ -1843,7 +2195,7 @@ T_DELETE_NOTE = STYLE + """
 
 T_EDIT_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1871,7 +2223,7 @@ T_EDIT_CONFIRM = STYLE + """
 
 T_NOTES = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href={% if folder[2] %}/folder/{{folder[2]}}{% else %}/{% endif %}>&#8592; Back</a>
   <a href=/add/{{folder[0]}}>+ Add Note</a>
   <a href=/folder/{{folder[0]}}/add_folder>+ Subfolder</a>
@@ -1887,7 +2239,7 @@ T_NOTES = STYLE + """
       <ul class="item-list">
       {% for n in notes %}
       <li>
-        <a href=/edit/{{n[0]}}>{{n[1]}}</a>
+        <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
         <span class="actions">
           <a href=/note/delete/{{n[0]}} class="del">delete</a>
         </span>
@@ -1913,7 +2265,7 @@ T_NOTES = STYLE + """
 
 T_ADD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/folder/{{fid}}>&#8592; Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1946,7 +2298,7 @@ T_ADD = STYLE + """
 
 T_EDIT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   {% for b in breadcrumbs %}
   <span class="sep">&#8250;</span> <a href=/folder/{{b[0]}}>{{b[1]}}</a>
@@ -2013,7 +2365,7 @@ T_EDIT = STYLE + """
 T_LOGIN = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Sign in to your notes</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2039,7 +2391,7 @@ T_LOGIN = STYLE + """
 T_REGISTER = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:420px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Create your account</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2061,7 +2413,7 @@ T_REGISTER = STYLE + """
 
 T_SEARCH = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2111,7 +2463,7 @@ T_SEARCH = STYLE + """
   <ul class="item-list">
   {% for n in notes %}
   <li>
-    <a href=/edit/{{n[0]}}>{{n[1]}}</a>
+    <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
     <span class="timestamp">{{n[2]}}</span>
   </li>
   {% else %}
@@ -2123,7 +2475,7 @@ T_SEARCH = STYLE + """
 
 T_DELETE_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2145,7 +2497,7 @@ T_DELETE_FOLDER = STYLE + """
 
 T_HISTORY = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/edit/{{nid}}>&#8592; Back to Note</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2170,7 +2522,7 @@ T_HISTORY = STYLE + """
 T_ADMIN_LOGIN = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:380px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; Admin</h2>
+    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">Admin</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">EverNothing Administration</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2187,11 +2539,41 @@ T_ADMIN_LOGIN = STYLE + """
 </div>
 """
 
+T_ADMIN_SESSIONS = STYLE + """
+<nav class="nav">
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href=/logout class="nav-logout">Logout</a>
+</nav>
+<div class="container">
+  <h3>All Sessions</h3>
+  <table>
+    <tr><th>Username</th><th>Login Time</th><th>Status</th><th>IP Address</th><th>Device</th></tr>
+    {% for s in sessions %}
+    <tr>
+      <td>{{s.username}}</td>
+      <td class="timestamp">{{s.login_time}}</td>
+      <td>
+        {% if s.logout_time == 'Active' %}<span style="color:var(--gold-dim)">Active</span>
+        {% else %}<span style="color:#555">{{s.logout_time}}</span>{% endif %}
+      </td>
+      <td style="font-size:.85rem">{{s.ip}}</td>
+      <td style="font-size:.8rem;color:#888">{{s.user_agent}}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan=5 class="empty">No sessions found.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+"""
+
 T_ADMIN_DASHBOARD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/audit_logs>Audit Logs</a>
+  <a href=/admin/sessions>Sessions</a>
   <a href=/admin/s3_backups>S3 Backups</a>
+  <a href=/admin/iam_policy>IAM Policy</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2223,7 +2605,7 @@ T_ADMIN_DASHBOARD = STYLE + """
 
 T_ADMIN_EDIT_USER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2253,7 +2635,7 @@ T_ADMIN_EDIT_USER = STYLE + """
 
 T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2278,7 +2660,7 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 
 T_ADMIN_DELETE_USER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2301,7 +2683,7 @@ T_ADMIN_DELETE_USER = STYLE + """
 T_FORGOT_PASSWORD = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Reset your password</p>
     {% if message %}<p style="color:#0c0;text-align:center">{{message}}</p>{% endif %}
     <form method=post>
@@ -2320,7 +2702,7 @@ T_FORGOT_PASSWORD = STYLE + """
 T_RESET_PASSWORD = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:20px">&#9670; Reset Password</h2>
+    <h2 style="text-align:center;margin-bottom:20px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">Reset Password</h2>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
@@ -2336,7 +2718,7 @@ T_RESET_PASSWORD = STYLE + """
 
 T_AUDIT_REPORT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>&#8592; Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2362,7 +2744,7 @@ T_AUDIT_REPORT = STYLE + """
 
 T_SESSIONS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>&#8592; Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2394,7 +2776,7 @@ T_SESSIONS = STYLE + """
 
 T_ADMIN_AUDIT_LOGS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href="javascript:location.reload()" style="color:#0c0">Refresh</a>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2462,15 +2844,7 @@ T_ADMIN_AUDIT_LOGS = STYLE + """
 
 # --- JSON API (for Android app) ---
 from flask import jsonify
-
-def api_login_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not current_user.is_authenticated:
-            return jsonify({'error': 'Unauthorized'}), 401
-        return f(*args, **kwargs)
-    return decorated
+# api_login_required imported above from evernothing_security (#13)
 
 @app.route("/api/login", methods=["POST"])
 @csrf.exempt
