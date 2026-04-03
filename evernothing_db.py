@@ -1,54 +1,11 @@
 """
-EverNothing - Database, Encryption, and Core Utilities
+evernothing_db.py — Database Operations
+Connection factory, schema init, backup, compression.
 """
-import sqlite3, datetime, json, os, base64, shutil, logging
-from datetime import timezone
-
-try:
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-except ImportError:
-    AESGCM = None
-
-logger = logging.getLogger(__name__)
-
-DB = os.environ.get('DB_FILE', 'evernothing.db')
-
-# --- ENCRYPTION ---
-ENCRYPTION_ENABLED = os.environ.get('ENCRYPTION_ENABLED', 'false').lower() == 'true'
-KEY_FILE = 'secret.key'
-
-if AESGCM:
-    if os.path.exists(KEY_FILE):
-        with open(KEY_FILE, 'rb') as f:
-            KEY = f.read()
-    else:
-        KEY = AESGCM.generate_key(bit_length=256)
-        with open(KEY_FILE, 'wb') as f:
-            f.write(KEY)
-    aesgcm = AESGCM(KEY)
-
-    def encrypt(txt):
-        if not ENCRYPTION_ENABLED or not txt: return txt if txt else ''
-        try:
-            nonce = os.urandom(12)
-            return base64.b64encode(nonce + aesgcm.encrypt(nonce, txt.encode('utf-8'), None)).decode('utf-8')
-        except Exception as e:
-            print(f'Enc Error: {e}')
-            return txt
-
-    def decrypt(txt):
-        if not txt: return ''
-        try:
-            data = base64.b64decode(txt)
-            return aesgcm.decrypt(data[:12], data[12:], None).decode('utf-8')
-        except Exception:
-            return txt
-else:
-    def encrypt(t): return t
-    def decrypt(t): return t
+import sqlite3, datetime, os, shutil
+from evernothing_config import DB, logger
 
 
-# --- DATABASE ---
 def db():
     con = sqlite3.connect(DB, check_same_thread=False, timeout=10)
     con.row_factory = sqlite3.Row
@@ -119,17 +76,30 @@ def init_db():
         timestamp TEXT,
         ip_address TEXT
     );
+    CREATE TABLE IF NOT EXISTS sync_queue(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT,
+        entity_id INTEGER,
+        operation TEXT,
+        payload TEXT,
+        changed_at TEXT,
+        synced_at TEXT
+    );
     """)
-    for _sql in [
+
+    # Migrations
+    for sql in [
         "ALTER TABLE notes ADD COLUMN description TEXT",
         "ALTER TABLE note_history ADD COLUMN description TEXT",
         "ALTER TABLE users ADD COLUMN last_login TEXT",
         "ALTER TABLE users ADD COLUMN email TEXT",
     ]:
         try:
-            cur.execute(_sql)
+            cur.execute(sql)
         except sqlite3.OperationalError:
             pass
+
+    # Verify attachments has file_data column
     try:
         cur.execute("SELECT file_data FROM attachments LIMIT 1")
     except sqlite3.OperationalError:
@@ -141,6 +111,8 @@ def init_db():
                 file_data BLOB, file_size INTEGER, uploaded_at TEXT
             )
         """)
+
+    # Indexes
     for idx in [
         "CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(user_id)",
@@ -150,85 +122,39 @@ def init_db():
     ]:
         try:
             cur.execute(idx)
-        except Exception:
-            pass
-    c.commit(); c.close()
+        except Exception as e:
+            logger.warning(f"Index creation warning: {e}")
+
+    c.commit()
+    c.close()
 
 
 def backup_database():
-    """Backup database with timestamp on application launch."""
-    if os.path.exists(DB):
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        os.makedirs('Backups', exist_ok=True)
-        backup_file = f'Backups/evernothing_backup_{timestamp}.db'
-        shutil.copy(DB, backup_file)
-        print(f'Database backed up to: {backup_file}')
+    """Timestamped local backup on startup."""
+    if not os.path.exists(DB):
+        return
+    os.makedirs("Backups", exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    shutil.copy(DB, f"Backups/evernothing_backup_{ts}.db")
+    logger.info(f"Database backed up: Backups/evernothing_backup_{ts}.db")
 
 
-# --- UTILITIES ---
-def format_date(iso_str):
-    try:
-        return datetime.datetime.fromisoformat(iso_str).strftime('%m/%d/%Y %H:%M')
-    except Exception:
-        return iso_str
-
-
-def get_breadcrumbs(cur, fid, uid):
-    crumbs = []
-    while fid:
-        f = cur.execute(
-            "SELECT id,name,parent_id FROM folders WHERE id=? AND user_id=?", (fid, uid)
-        ).fetchone()
-        if not f: break
-        crumbs.insert(0, (f[0], decrypt(f[1])))
-        fid = f[2]
-    return crumbs
-
-
-def log_change(cur, user_id, action, entity_type, entity_id, old_values, new_values, ip_addr):
-    cur.execute(
-        "INSERT INTO audit_log (user_id, action, entity_type, entity_id, old_values, new_values, timestamp, ip_address) VALUES(?,?,?,?,?,?,?,?)",
-        (user_id, action, entity_type, entity_id,
-         json.dumps(old_values), json.dumps(new_values),
-         datetime.datetime.now(timezone.utc).isoformat(), ip_addr)
-    )
-
-
-def delete_recursive(cur, fid, uid):
-    cur.execute("SELECT id FROM folders WHERE parent_id=? AND user_id=?", (fid, uid))
-    for sub in cur.fetchall():
-        delete_recursive(cur, sub[0], uid)
-    cur.execute("DELETE FROM notes WHERE folder_id=? AND user_id=?", (fid, uid))
-    cur.execute("DELETE FROM folders WHERE id=? AND user_id=?", (fid, uid))
-
-
-def validate_input(text, max_length=255, allow_empty=False):
-    if not text and not allow_empty:
-        return None, 'Input cannot be empty'
-    if text and len(text) > max_length:
-        return None, f'Input too long (max {max_length} characters)'
-    return text.strip() if text else text, None
-
-
-def validate_email(email):
-    import re
-    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
-        return None, 'Invalid email format'
-    return email, None
-
-
-def validate_password(password):
-    if len(password) < 8:
-        return None, 'Password must be at least 8 characters'
-    if not any(c.isupper() for c in password):
-        return None, 'Password must contain at least one uppercase letter'
-    if not any(c.islower() for c in password):
-        return None, 'Password must contain at least one lowercase letter'
-    if not any(c.isdigit() for c in password):
-        return None, 'Password must contain at least one number'
-    return password, None
-
-
-def allowed_file(filename):
-    ALLOWED = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'zip'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED
+def compress_old_backups(days=5, backup_dir="Backups"):
+    """Compress .db backup files older than `days` days."""
+    import gzip
+    if not os.path.isdir(backup_dir):
+        return
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+    for fname in os.listdir(backup_dir):
+        if not fname.endswith(".db"):
+            continue
+        fpath = os.path.join(backup_dir, fname)
+        if datetime.datetime.fromtimestamp(os.path.getmtime(fpath)) < cutoff:
+            gz_path = fpath + ".gz"
+            try:
+                with open(fpath, "rb") as f_in, gzip.open(gz_path, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+                os.remove(fpath)
+                logger.info(f"Compressed backup: {gz_path}")
+            except Exception as e:
+                logger.warning(f"Compress error ({fname}): {e}")
