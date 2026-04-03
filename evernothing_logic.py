@@ -181,6 +181,7 @@ def sync_s3():
 
 def _sync_s3_worker():
     """Actual S3 sync logic — runs off the request thread."""
+    from evernothing_security import encrypt_payload
     try:
         global _bucket_policy_applied
         s3 = _s3_client()
@@ -196,13 +197,13 @@ def _sync_s3_worker():
         elif os.path.exists(_BUCKET_POLICY_SENTINEL):
             _bucket_policy_applied = True
 
-        extra_json = {"ServerSideEncryption": "aws:kms", "ContentType": "application/json"}
-        extra_db   = {"ServerSideEncryption": "aws:kms"}
+        # S3 extra args — KMS additive on top of client-side AES-256-GCM
+        extra = {"ContentType": "application/octet-stream"}
         if KMS_KEY_ID:
-            extra_json["SSEKMSKeyId"] = KMS_KEY_ID
-            extra_db["SSEKMSKeyId"]   = KMS_KEY_ID
+            extra["ServerSideEncryption"] = "aws:kms"
+            extra["SSEKMSKeyId"] = KMS_KEY_ID
 
-        # Delta changes
+        # --- Delta changes: encrypt then upload ---
         con = db(); cur = con.cursor()
         cur.execute("SELECT id, entity_type, entity_id, operation, payload, changed_at FROM sync_queue WHERE synced_at IS NULL")
         rows = cur.fetchall()
@@ -210,22 +211,24 @@ def _sync_s3_worker():
         if rows:
             changes = [{"op": r[3], "entity": r[1], "id": r[2], "data": json.loads(r[4]), "at": r[5]} for r in rows]
             ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            encrypted_delta = encrypt_payload(json.dumps(changes).encode('utf-8'))
             _s3_upload_with_retry(
                 s3.upload_fileobj,
-                io.BytesIO(json.dumps(changes).encode()), S3_BUCKET_NAME,
-                f"changes/{DEVICE_ID}/{ts}.json", ExtraArgs=extra_json
+                io.BytesIO(encrypted_delta), S3_BUCKET_NAME,
+                f"changes/{DEVICE_ID}/{ts}.bin", ExtraArgs=extra
             )
             delta_ids = [r[0] for r in rows]
-            logger.info(f"S3 delta: {len(changes)} change(s)")
+            logger.info(f"S3 delta: {len(changes)} change(s) encrypted+uploaded")
         con.close()
 
-        # #18: full DB backup — mark delta synced only after backup succeeds
+        # --- Full DB backup: encrypt then upload (#18: mark delta synced only after backup succeeds) ---
         ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         with open(DB, 'rb') as f:
             db_bytes = f.read()
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB, ExtraArgs=extra_db)
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f"backups/{DB}.{ts}", ExtraArgs=extra_db)
-        logger.info(f"S3 DB backup: s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}")
+        encrypted_db = encrypt_payload(db_bytes)
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(encrypted_db), S3_BUCKET_NAME, DB + ".enc", ExtraArgs=extra)
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(encrypted_db), S3_BUCKET_NAME, f"backups/{DB}.{ts}.enc", ExtraArgs=extra)
+        logger.info(f"S3 DB backup (encrypted): s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}.enc")
 
         # #18: only mark synced after both delta upload AND DB backup succeed
         if delta_ids:
