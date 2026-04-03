@@ -1920,7 +1920,7 @@ tr:hover td { background: var(--bg3); }
 .confirm-box .field { margin: 8px 0; font-size: .9rem; }
 .confirm-box .field b { color: var(--gold-dim); }
 </style>
-<div class="footer">{{ build_date }}</div>
+<div class="footer">built on {{ build_date }}</div>
 """
 
 T_FOLDERS = STYLE + """
