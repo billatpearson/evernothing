@@ -48,9 +48,40 @@ if AESGCM:
             return aesgcm.decrypt(data[:12], data[12:], None).decode('utf-8')
         except Exception:
             return txt
+
+    def encrypt_payload(data: bytes) -> bytes:
+        """
+        Encrypt raw bytes for S3 storage.
+        Format: nonce(12) + AES-GCM ciphertext
+        Plaintext format: SHA-256(data)(32) + data
+        The prepended hash allows integrity verification on recovery
+        without a separate manifest file.
+        """
+        import hashlib
+        digest = hashlib.sha256(data).digest()  # 32 bytes
+        nonce = os.urandom(12)
+        ciphertext = aesgcm.encrypt(nonce, digest + data, None)
+        return nonce + ciphertext
+
+    def decrypt_payload(data: bytes) -> bytes:
+        """
+        Decrypt bytes produced by encrypt_payload.
+        Raises ValueError if SHA-256 integrity check fails.
+        """
+        import hashlib
+        nonce, ciphertext = data[:12], data[12:]
+        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+        stored_digest, original = plaintext[:32], plaintext[32:]
+        actual_digest = hashlib.sha256(original).digest()
+        if stored_digest != actual_digest:
+            raise ValueError("SHA-256 integrity check failed — payload may be corrupted or tampered")
+        return original
+
 else:
     def encrypt(t): return t
     def decrypt(t): return t
+    def encrypt_payload(data: bytes) -> bytes: return data
+    def decrypt_payload(data: bytes) -> bytes: return data
 
 
 # --- Flask-Login ---
