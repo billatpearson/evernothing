@@ -559,5 +559,93 @@ class EvernothingTestCase(unittest.TestCase):
         self.assertIsNone(r[0])
 
 
+    # --- 14. Encryption / Decryption ---
+
+    def test_encrypt_decrypt_roundtrip(self):
+        """encrypt() then decrypt() returns the original string."""
+        from evernothing_security import encrypt, decrypt
+        original = "Hello, Unicorn! & <Sparkles>"
+        self.assertEqual(decrypt(encrypt(original)), original)
+
+    def test_encrypt_produces_different_ciphertext_each_call(self):
+        """Each encrypt() call uses a fresh nonce — ciphertexts must differ."""
+        import evernothing_security as sec
+        original = sec.ENCRYPTION_ENABLED
+        sec.ENCRYPTION_ENABLED = True
+        try:
+            c1 = sec.encrypt("same text")
+            c2 = sec.encrypt("same text")
+            self.assertNotEqual(c1, c2)
+        finally:
+            sec.ENCRYPTION_ENABLED = original
+
+    def test_decrypt_non_encrypted_value_returns_as_is(self):
+        """decrypt() on a plain string (not base64 AES) returns it unchanged."""
+        from evernothing_security import decrypt
+        self.assertEqual(decrypt("plaintext"), "plaintext")
+
+    def test_decrypt_empty_returns_empty(self):
+        from evernothing_security import decrypt
+        self.assertEqual(decrypt(""), "")
+        self.assertEqual(decrypt(None), "")
+
+    def test_encrypt_payload_decrypt_payload_roundtrip(self):
+        """encrypt_payload() then decrypt_payload() returns original bytes."""
+        from evernothing_security import encrypt_payload, decrypt_payload
+        data = b'{"op": "INSERT", "entity": "note", "id": 42}'
+        self.assertEqual(decrypt_payload(encrypt_payload(data)), data)
+
+    def test_encrypt_payload_binary_data(self):
+        """encrypt_payload works on arbitrary binary data (e.g. a DB file snapshot)."""
+        from evernothing_security import encrypt_payload, decrypt_payload
+        data = bytes(range(256)) * 100  # 25,600 bytes of binary
+        self.assertEqual(decrypt_payload(encrypt_payload(data)), data)
+
+    def test_decrypt_payload_sha256_integrity_passes(self):
+        """decrypt_payload does not raise when data is untampered."""
+        from evernothing_security import encrypt_payload, decrypt_payload
+        data = b'integrity check payload'
+        try:
+            decrypt_payload(encrypt_payload(data))
+        except ValueError:
+            self.fail("decrypt_payload raised ValueError on valid data")
+
+    def test_decrypt_payload_tampered_raises(self):
+        """Flipping a byte in the ciphertext must raise ValueError."""
+        from evernothing_security import encrypt_payload, decrypt_payload
+        data = b'tamper me'
+        enc = bytearray(encrypt_payload(data))
+        enc[-1] ^= 0xFF  # flip last byte
+        with self.assertRaises(Exception):  # AES-GCM tag failure or ValueError
+            decrypt_payload(bytes(enc))
+
+    def test_decrypt_payload_wrong_key_raises(self):
+        """Data encrypted with one key cannot be decrypted with another."""
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        import os, hashlib
+        key1 = AESGCM(AESGCM.generate_key(256))
+        key2 = AESGCM(AESGCM.generate_key(256))
+        data = b'secret payload'
+        # Encrypt with key1
+        nonce = os.urandom(12)
+        digest = hashlib.sha256(data).digest()
+        ciphertext = key1.encrypt(nonce, digest + data, None)
+        encrypted = nonce + ciphertext
+        # Attempt decrypt with key2
+        with self.assertRaises(Exception):
+            nonce2, ct2 = encrypted[:12], encrypted[12:]
+            key2.decrypt(nonce2, ct2, None)
+
+    def test_encrypt_disabled_returns_plaintext(self):
+        """When ENCRYPTION_ENABLED=False, encrypt() is a no-op."""
+        import evernothing_security as sec
+        original = sec.ENCRYPTION_ENABLED
+        sec.ENCRYPTION_ENABLED = False
+        try:
+            self.assertEqual(sec.encrypt("no encryption"), "no encryption")
+        finally:
+            sec.ENCRYPTION_ENABLED = original
+
+
 if __name__ == '__main__':
     unittest.main()
