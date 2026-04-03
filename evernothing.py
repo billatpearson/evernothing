@@ -1232,7 +1232,7 @@ def restore_history(hid):
         return render_template_string(
             STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/history/{{nid}}>&#8592; Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1374,7 +1374,7 @@ def admin_iam_policy():
     policy = json.dumps(get_iam_policy(), indent=2)
     return render_template_string(STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1777,103 +1777,161 @@ def delete_attachment(aid):
 STYLE = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 :root {
-  --gold: #ffd700;
-  --gold-dim: #b8960c;
-  --red: #cc2200;
-  --red-bright: #ff3300;
-  --bg: #0a0a0a;
-  --bg2: #111;
-  --bg3: #1a1a1a;
-  --border: #2a2a2a;
-  --radius: 6px;
+  --rose:    #ff6eb4;
+  --violet:  #c084fc;
+  --sky:     #67e8f9;
+  --mint:    #6ee7b7;
+  --sun:     #fde68a;
+  --peach:   #fdba74;
+  --danger:  #f87171;
+  --bg:      #1a0a2e;
+  --bg2:     #2d1b4e;
+  --bg3:     #3d2560;
+  --border:  #6b3fa0;
+  --text:    #f0e6ff;
+  --radius:  14px;
+  --rainbow: linear-gradient(90deg,#ff6eb4,#c084fc,#67e8f9,#6ee7b7,#fde68a,#fdba74,#ff6eb4);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 17px; }
 body {
   background: var(--bg);
-  color: var(--gold);
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  background-image: radial-gradient(ellipse at 20% 20%, #3b1f6a 0%, transparent 60%),
+                    radial-gradient(ellipse at 80% 80%, #1a3a5c 0%, transparent 60%);
+  color: var(--text);
+  font-family: 'Nunito', 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
-  padding-bottom: 40px;
+  padding-bottom: 44px;
 }
-a { color: var(--gold); text-decoration: none; transition: color .15s; }
-a:hover { color: var(--red-bright); }
+a { color: var(--rose); text-decoration: none; transition: color .15s; }
+a:hover { color: var(--sky); }
+/* rainbow rule under every page */
+body::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: var(--rainbow);
+  background-size: 200% 100%;
+  animation: shimmer 4s linear infinite;
+  position: fixed; top: 0; left: 0; width: 100%; z-index: 200;
+}
+@keyframes shimmer { 0%{background-position:0% 0%} 100%{background-position:200% 0%} }
 .nav {
-  background: var(--bg2);
-  border-bottom: 1px solid var(--red);
+  background: linear-gradient(135deg, #2d1b4e 0%, #1e1040 100%);
+  border-bottom: 2px solid transparent;
+  border-image: var(--rainbow) 1;
   padding: 10px 20px;
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   position: sticky;
-  top: 0;
+  top: 3px;
   z-index: 100;
 }
 .nav-brand {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--gold);
+  font-size: 1.15rem;
+  font-weight: 800;
+  background: var(--rainbow);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
   letter-spacing: 1px;
   margin-right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.unicorn-img {
+  width: 28px; height: 28px;
+  display: inline-block;
+  animation: bounce 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px var(--rose));
+}
+.sparkle-img {
+  width: 18px; height: 18px;
+  display: inline-block;
+  animation: spin 3s linear infinite;
+  filter: drop-shadow(0 0 4px var(--sun));
+}
+.page-unicorn {
+  display: block;
+  margin: 0 auto 16px;
+  width: 72px; height: 72px;
+  filter: drop-shadow(0 0 12px var(--rose));
+  animation: bounce 2s ease-in-out infinite;
+}
+@keyframes bounce {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 .nav a {
   font-size: .85rem;
-  padding: 4px 10px;
-  border-radius: var(--radius);
+  padding: 4px 12px;
+  border-radius: 20px;
   border: 1px solid transparent;
+  color: var(--violet);
   transition: all .15s;
 }
-.nav a:hover { border-color: var(--red); color: var(--red-bright); text-decoration: none; }
-.nav .sep { color: #444; }
-.nav .nav-logout { margin-left: auto; color: var(--red); border-color: var(--red); }
-.nav .nav-logout:hover { background: var(--red); color: #000; }
+.nav a:hover { background: var(--bg3); border-color: var(--violet); color: var(--sky); text-decoration: none; }
+.nav .sep { color: var(--border); }
+.nav .nav-logout { margin-left: auto; color: var(--danger); border-color: var(--danger); border-radius: 20px; border: 1px solid; padding: 4px 12px; }
+.nav .nav-logout:hover { background: var(--danger); color: #fff; }
 .container { max-width: 1100px; margin: 0; padding: 24px 20px; }
-h2, h3 { color: var(--gold); margin-bottom: 16px; font-weight: 600; letter-spacing: .5px; }
-h4 { color: var(--gold-dim); margin: 20px 0 10px; font-size: .95rem; text-transform: uppercase; letter-spacing: 1px; }
+h2, h3 { color: var(--sun); margin-bottom: 16px; font-weight: 700; letter-spacing: .5px; }
+h4 { color: var(--violet); margin: 20px 0 10px; font-size: .9rem; text-transform: uppercase; letter-spacing: 1.5px; }
 .card {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(192,132,252,.08);
 }
 .item-list { list-style: none; }
 .item-list li {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 12px;
-  margin-bottom: 1px;
-  border-radius: var(--radius);
+  padding: 5px 12px;
+  margin-bottom: 2px;
+  border-radius: 10px;
   border: 1px solid transparent;
   transition: all .15s;
 }
 .item-list li:hover { background: var(--bg3); border-color: var(--border); }
-.item-list li a { flex: 1; font-size: .95rem; }
+.item-list li a { flex: 1; font-size: .95rem; color: var(--mint); }
+.item-list li a:hover { color: var(--sky); }
 .item-list .actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
 .item-list li:hover .actions { opacity: 1; }
-.item-list .actions a { font-size: .75rem; padding: 2px 7px; border-radius: 3px; border: 1px solid #333; flex: none; }
-.item-list .actions a:hover { border-color: var(--red); color: var(--red-bright); }
-.item-list .del { color: var(--red) !important; }
-.empty { color: #555; font-style: italic; padding: 12px; }
-label { display: block; font-size: .85rem; color: var(--gold-dim); margin-bottom: 4px; margin-top: 12px; }
+.item-list .actions a { font-size: .75rem; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); flex: none; color: var(--violet); }
+.item-list .actions a:hover { border-color: var(--rose); color: var(--rose); }
+.item-list .del { color: var(--danger) !important; }
+.empty { color: var(--border); font-style: italic; padding: 12px; }
+label { display: block; font-size: .85rem; color: var(--violet); margin-bottom: 4px; margin-top: 12px; }
 input[type=text], input[type=password], input[type=email], input[type=date], input:not([type]), textarea, select {
-  background: var(--bg2);
-  color: var(--gold);
-  border: 1px solid #444;
-  border-radius: var(--radius);
-  padding: 8px 12px;
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 14px;
   font-size: .9rem;
   font-family: inherit;
   width: 100%;
-  transition: border-color .15s;
+  transition: border-color .15s, box-shadow .15s;
   outline: none;
 }
-input[type=text]:focus, input[type=password]:focus, input[type=email]:focus,
-input:not([type]):focus, textarea:focus, select:focus {
-  border-color: var(--gold-dim);
+input:focus, textarea:focus, select:focus {
+  border-color: var(--rose);
+  box-shadow: 0 0 0 3px rgba(255,110,180,.15);
 }
 textarea { resize: vertical; font-family: 'Consolas', 'Courier New', monospace; font-size: .85rem; }
 select option { background: var(--bg2); }
@@ -1883,45 +1941,52 @@ select option { background: var(--bg2); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 20px;
-  border-radius: var(--radius);
-  border: 1px solid var(--gold-dim);
+  padding: 8px 22px;
+  border-radius: 20px;
+  border: 1px solid var(--violet);
   background: transparent;
-  color: var(--gold);
+  color: var(--violet);
   font-size: .9rem;
   font-family: inherit;
+  font-weight: 600;
   cursor: pointer;
   transition: all .15s;
   text-decoration: none;
 }
-.btn:hover { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); text-decoration: none; }
-.btn-primary { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); font-weight: 600; }
-.btn-primary:hover { background: var(--gold); border-color: var(--gold); color: #000; }
-.btn-danger { border-color: var(--red); color: var(--red); }
-.btn-danger:hover { background: var(--red); color: #fff; }
-.btn-sm { padding: 4px 12px; font-size: .8rem; }
+.btn:hover { background: var(--bg3); border-color: var(--sky); color: var(--sky); text-decoration: none; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--rose), var(--violet));
+  color: #fff;
+  border: none;
+  font-weight: 700;
+}
+.btn-primary:hover { background: linear-gradient(135deg, var(--violet), var(--sky)); color: #fff; }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-sm { padding: 4px 14px; font-size: .8rem; }
 .btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
-err { display: block; color: var(--red-bright); background: #1a0000; border: 1px solid var(--red); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; font-size: .9rem; }
-.breadcrumb { font-size: .85rem; color: #666; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.breadcrumb a { color: var(--gold-dim); }
-.breadcrumb a:hover { color: var(--gold); }
-.breadcrumb .sep { color: #444; }
-.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: #888; }
-.timestamp { font-size: .8rem; color: #666; }
+err { display: block; color: var(--danger); background: rgba(248,113,113,.1); border: 1px solid var(--danger); border-radius: 10px; padding: 8px 14px; margin: 10px 0; font-size: .9rem; }
+.breadcrumb { font-size: .85rem; color: var(--border); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.breadcrumb a { color: var(--violet); }
+.breadcrumb a:hover { color: var(--rose); }
+.breadcrumb .sep { color: var(--border); }
+.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: var(--violet); }
+.timestamp { font-size: .8rem; color: var(--border); }
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th { text-align: left; padding: 10px 12px; border: 1px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
-td { padding: 3px 12px; vertical-align: top; }
-tr { border: 1px solid #cc2200; }
+th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--violet); color: var(--violet); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
+td { padding: 5px 12px; vertical-align: top; border-bottom: 1px solid var(--bg3); }
 tr:hover td { background: var(--bg3); }
 .search-box { display: flex; gap: 8px; margin-bottom: 20px; }
 .search-box input { flex: 1; }
-.tag-create { color: #0c0; }
-.tag-update { color: var(--gold-dim); }
-.tag-delete { color: var(--red); }
+.tag-create { color: var(--mint); font-weight: 700; }
+.tag-update { color: var(--sun); font-weight: 700; }
+.tag-delete { color: var(--danger); font-weight: 700; }
 .footer {
   position: fixed; bottom: 0; left: 0; width: 100%;
-  background: var(--bg2); border-top: 1px solid var(--border);
-  color: #555; text-align: center; font-size: .75rem; padding: 5px;
+  background: var(--bg2);
+  border-top: 2px solid transparent;
+  border-image: var(--rainbow) 1;
+  color: var(--border); text-align: center; font-size: .75rem; padding: 5px;
   z-index: 99;
 }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -1931,19 +1996,23 @@ tr:hover td { background: var(--bg3); }
   textarea { cols: unset; width: 100%; }
 }
 .confirm-box {
-  background: var(--bg2); border: 1px solid var(--red);
-  border-radius: var(--radius); padding: 24px; max-width: 600px;
+  background: var(--bg2);
+  border: 1px solid var(--rose);
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 600px;
+  box-shadow: 0 4px 32px rgba(255,110,180,.12);
 }
 .confirm-box p { margin-bottom: 12px; line-height: 1.6; }
 .confirm-box .field { margin: 8px 0; font-size: .9rem; }
-.confirm-box .field b { color: var(--gold-dim); }
+.confirm-box .field b { color: var(--sun); }
 </style>
-<div class="footer">built on {{ build_date }}</div>
+<div class="footer">&#x1F984; built on {{ build_date }}</div>
 """
 
 T_FOLDERS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/folder/add>+ Folder</a>
   <a href=/export>Export</a>
   <a href=/audit_report>Audit</a>
@@ -1994,7 +2063,7 @@ T_FOLDERS = STYLE + """
 
 T_ADD_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2017,7 +2086,7 @@ T_ADD_FOLDER = STYLE + """
 
 T_ADD_SUBFOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/folder/{{pid}}>Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2039,7 +2108,7 @@ T_ADD_SUBFOLDER = STYLE + """
 
 T_RENAME_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/folder/{{fid}}>Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2061,7 +2130,7 @@ T_RENAME_FOLDER = STYLE + """
 
 T_CHANGE_PASSWORD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2104,7 +2173,7 @@ function toggleVis(id, link) {
 
 T_DELETE_NOTE = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2126,7 +2195,7 @@ T_DELETE_NOTE = STYLE + """
 
 T_EDIT_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2154,7 +2223,7 @@ T_EDIT_CONFIRM = STYLE + """
 
 T_NOTES = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href={% if folder[2] %}/folder/{{folder[2]}}{% else %}/{% endif %}>&#8592; Back</a>
   <a href=/add/{{folder[0]}}>+ Add Note</a>
   <a href=/folder/{{folder[0]}}/add_folder>+ Subfolder</a>
@@ -2196,7 +2265,7 @@ T_NOTES = STYLE + """
 
 T_ADD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/folder/{{fid}}>&#8592; Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2229,7 +2298,7 @@ T_ADD = STYLE + """
 
 T_EDIT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   {% for b in breadcrumbs %}
   <span class="sep">&#8250;</span> <a href=/folder/{{b[0]}}>{{b[1]}}</a>
@@ -2296,7 +2365,7 @@ T_EDIT = STYLE + """
 T_LOGIN = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Sign in to your notes</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2322,7 +2391,7 @@ T_LOGIN = STYLE + """
 T_REGISTER = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:420px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Create your account</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2344,7 +2413,7 @@ T_REGISTER = STYLE + """
 
 T_SEARCH = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2406,7 +2475,7 @@ T_SEARCH = STYLE + """
 
 T_DELETE_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2428,7 +2497,7 @@ T_DELETE_FOLDER = STYLE + """
 
 T_HISTORY = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/edit/{{nid}}>&#8592; Back to Note</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2453,7 +2522,7 @@ T_HISTORY = STYLE + """
 T_ADMIN_LOGIN = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:380px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; Admin</h2>
+    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">Admin</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">EverNothing Administration</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2472,7 +2541,7 @@ T_ADMIN_LOGIN = STYLE + """
 
 T_ADMIN_SESSIONS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2500,7 +2569,7 @@ T_ADMIN_SESSIONS = STYLE + """
 
 T_ADMIN_DASHBOARD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/audit_logs>Audit Logs</a>
   <a href=/admin/sessions>Sessions</a>
   <a href=/admin/s3_backups>S3 Backups</a>
@@ -2536,7 +2605,7 @@ T_ADMIN_DASHBOARD = STYLE + """
 
 T_ADMIN_EDIT_USER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2566,7 +2635,7 @@ T_ADMIN_EDIT_USER = STYLE + """
 
 T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2591,7 +2660,7 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 
 T_ADMIN_DELETE_USER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2614,7 +2683,7 @@ T_ADMIN_DELETE_USER = STYLE + """
 T_FORGOT_PASSWORD = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Reset your password</p>
     {% if message %}<p style="color:#0c0;text-align:center">{{message}}</p>{% endif %}
     <form method=post>
@@ -2633,7 +2702,7 @@ T_FORGOT_PASSWORD = STYLE + """
 T_RESET_PASSWORD = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:20px">&#9670; Reset Password</h2>
+    <h2 style="text-align:center;margin-bottom:20px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">Reset Password</h2>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
@@ -2649,7 +2718,7 @@ T_RESET_PASSWORD = STYLE + """
 
 T_AUDIT_REPORT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>&#8592; Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2675,7 +2744,7 @@ T_AUDIT_REPORT = STYLE + """
 
 T_SESSIONS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/>&#8592; Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2707,7 +2776,7 @@ T_SESSIONS = STYLE + """
 
 T_ADMIN_AUDIT_LOGS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; Admin</span>
+  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href="javascript:location.reload()" style="color:#0c0">Refresh</a>
   <a href=/logout class="nav-logout">Logout</a>
