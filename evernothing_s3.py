@@ -13,8 +13,7 @@ Configuration:
   - AWS_SECRET_ACCESS_KEY
 """
 
-import os
-import sys
+import gzip, io, os, sys
 import boto3
 from datetime import datetime
 
@@ -27,6 +26,7 @@ except ImportError:
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
     DB_FILE = os.environ.get('DB_FILE', 'evernothing.db')
+    NUM_BACKUPS = int(os.environ.get('NUM_BACKUPS', '10'))
 
 def sync_to_s3():
     """Upload evernothing.db to S3 bucket"""
@@ -65,16 +65,35 @@ def sync_to_s3():
                 )
             print(f"Bucket created successfully")
         
-        # Upload file
+        # Compress and upload timestamped backup
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        s3_key = f"backups/{DB_FILE}.{timestamp}"
-        
-        print(f"Uploading {DB_FILE} to s3://{S3_BUCKET_NAME}/{s3_key}")
-        s3.upload_file(DB_FILE, S3_BUCKET_NAME, s3_key)
-        
-        # Also upload as latest
+        s3_key = f"backups/{DB_FILE}.{timestamp}.gz"
+
+        with open(DB_FILE, 'rb') as f:
+            buf = io.BytesIO()
+            with gzip.GzipFile(fileobj=buf, mode='wb') as gz:
+                gz.write(f.read())
+            buf.seek(0)
+
+        print(f"Uploading compressed backup to s3://{S3_BUCKET_NAME}/{s3_key}")
+        s3.upload_fileobj(buf, S3_BUCKET_NAME, s3_key)
+
+        # Also upload uncompressed latest
         s3.upload_file(DB_FILE, S3_BUCKET_NAME, DB_FILE)
-        
+
+        # Prune old backups, keep only the last NUM_BACKUPS
+        paginator = s3.get_paginator('list_objects_v2')
+        all_backups = sorted(
+            [obj for page in paginator.paginate(Bucket=S3_BUCKET_NAME, Prefix=f"backups/{DB_FILE}.")
+             for obj in page.get('Contents', [])],
+            key=lambda o: o['LastModified']
+        )
+        to_delete = all_backups[:-NUM_BACKUPS] if len(all_backups) > NUM_BACKUPS else []
+        if to_delete:
+            s3.delete_objects(Bucket=S3_BUCKET_NAME,
+                              Delete={'Objects': [{'Key': o['Key']} for o in to_delete]})
+            print(f"  Pruned {len(to_delete)} old backup(s), keeping {NUM_BACKUPS}")
+
         print(f"Successfully uploaded to S3")
         print(f"  Bucket: {S3_BUCKET_NAME}")
         print(f"  Region: {AWS_REGION}")
