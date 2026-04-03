@@ -1,0 +1,88 @@
+{
+  "name": "evernothing",
+  "version": "1.0.0",
+  "description": "EverNothing — Secure Hierarchical Note-Taking",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --mac --linux"
+  },
+  "build": {
+    "appId": "com.evernothing.app",
+    "productName": "EverNothing",
+    "copyright": "EverNothing",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "assets/**/*",
+      "python/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../evernothing.py",
+        "to": "app/evernothing.py"
+      },
+      {
+        "from": "../evernothing_config.py",
+        "to": "app/evernothing_config.py"
+      },
+      {
+        "from": "../evernothing_db.py",
+        "to": "app/evernothing_db.py"
+      },
+      {
+        "from": "../evernothing_security.py",
+        "to": "app/evernothing_security.py"
+      },
+      {
+        "from": "../evernothing_logic.py",
+        "to": "app/evernothing_logic.py"
+      },
+      {
+        "from": "../evernothing_templates.py",
+        "to": "app/evernothing_templates.py"
+      },
+      {
+        "from": "../rate_limiter.py",
+        "to": "app/rate_limiter.py"
+      },
+      {
+        "from": "../email_utils.py",
+        "to": "app/email_utils.py"
+      }
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "icon": "assets/icon.png",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
