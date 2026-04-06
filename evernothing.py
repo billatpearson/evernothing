@@ -166,7 +166,11 @@ DECRYPTION (9.2.1):
  cur.execute('SELECT users.username,notes.note_key,notes.note_value FROM notes JOIN users ON users.id=notes.user_id')
  data = [{'user':r[0],'key':dec(r[1]),'value':dec(r[2])} for r in cur.fetchall()]
  print(json.dumps(data, indent=2))
- print("\nJWT Token:\n" + jwt.encode({"data": data}, key.hex(), algorithm="HS256"))
+ # NOTE: use a dedicated JWT_SECRET env var — never reuse the AES encryption key as a JWT secret
+ jwt_secret = os.environ.get('JWT_SECRET')
+ if not jwt_secret:
+  raise RuntimeError("Set JWT_SECRET env var before generating tokens")
+ print("\nJWT Token:\n" + jwt.encode({"data": data}, jwt_secret, algorithm="HS256"))
  c.close()
  EOF
 
