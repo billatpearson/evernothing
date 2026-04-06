@@ -4,31 +4,78 @@ STYLE constant and all T_* HTML template strings.
 STYLE = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Exo+2:wght@300;400;600&display=swap');
 :root {
-  --gold: #ffd700;
-  --gold-dim: #b8960c;
-  --red: #cc2200;
-  --red-bright: #ff3300;
-  --bg: #0a0a0a;
-  --bg2: #111;
-  --bg3: #1a1a1a;
-  --border: #2a2a2a;
-  --radius: 6px;
+  --star:      #e8f4fd;
+  --nebula:    #7eb8f7;
+  --pulsar:    #00d4ff;
+  --aurora:    #39ff8f;
+  --supernova: #ff6b35;
+  --danger:    #ff3d3d;
+  --bg:        #020510;
+  --bg2:       #060d1f;
+  --bg3:       #0d1a35;
+  --border:    #1a3060;
+  --radius:    8px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 17px; }
+html { font-size: 16px; }
+
+/* Starfield background */
 body {
   background: var(--bg);
-  color: var(--gold);
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, #0a1628 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, #0d1f3c 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, #080f20 0%, transparent 55%);
+  color: var(--star);
+  font-family: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
   padding-bottom: 40px;
+  position: relative;
 }
-a { color: var(--gold); text-decoration: none; transition: color .15s; }
-a:hover { color: var(--red-bright); }
+
+/* Animated stars */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 40%, #cce 0%, transparent 100%),
+    radial-gradient(1px 1px at 40% 8%,  #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 60%, #adf 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 25%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 75%, #cce 0%, transparent 100%),
+    radial-gradient(1px 1px at 15% 80%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 45%, #adf 0%, transparent 100%),
+    radial-gradient(1px 1px at 35% 90%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 65% 5%,  #cce 0%, transparent 100%),
+    radial-gradient(2px 2px at 48% 35%, #7eb8f7 0%, transparent 100%),
+    radial-gradient(2px 2px at 78% 88%, #7eb8f7 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 5%  55%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 92% 12%, #fff 0%, transparent 100%),
+    radial-gradient(1px 1px at 30% 70%, #adf 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+  animation: twinkle 8s ease-in-out infinite alternate;
+}
+@keyframes twinkle {
+  0%   { opacity: .6; }
+  50%  { opacity: 1;  }
+  100% { opacity: .7; }
+}
+
+body > * { position: relative; z-index: 1; }
+
+a { color: var(--nebula); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--pulsar); text-shadow: 0 0 8px var(--pulsar); }
+
+/* Navigation */
 .nav {
-  background: var(--bg2);
-  border-bottom: 1px solid var(--red);
+  background: linear-gradient(135deg, #060d1f 0%, #0a1628 100%);
+  border-bottom: 1px solid var(--pulsar);
+  box-shadow: 0 2px 20px rgba(0,212,255,.15);
   padding: 10px 20px;
   display: flex;
   align-items: center;
@@ -39,117 +86,181 @@ a:hover { color: var(--red-bright); }
   z-index: 100;
 }
 .nav-brand {
-  font-size: 1.1rem;
+  font-family: 'Orbitron', monospace;
+  font-size: 1rem;
   font-weight: 700;
-  color: var(--gold);
-  letter-spacing: 1px;
+  color: var(--pulsar);
+  letter-spacing: 2px;
   margin-right: 10px;
+  text-shadow: 0 0 12px var(--pulsar);
 }
 .nav a {
-  font-size: .85rem;
+  font-size: .82rem;
   padding: 4px 10px;
-  border-radius: var(--radius);
+  border-radius: 20px;
   border: 1px solid transparent;
-  transition: all .15s;
+  color: var(--nebula);
+  transition: all .2s;
 }
-.nav a:hover { border-color: var(--red); color: var(--red-bright); text-decoration: none; }
-.nav .sep { color: #444; }
-.nav .nav-logout { margin-left: auto; color: var(--red); border-color: var(--red); }
-.nav .nav-logout:hover { background: var(--red); color: #000; }
+.nav a:hover {
+  border-color: var(--pulsar);
+  color: var(--pulsar);
+  background: rgba(0,212,255,.08);
+  text-shadow: 0 0 6px var(--pulsar);
+  text-decoration: none;
+}
+.nav .sep { color: var(--border); }
+.nav .nav-logout { margin-left: auto; color: var(--supernova); border-color: var(--supernova); border-radius: 20px; border: 1px solid; padding: 4px 12px; }
+.nav .nav-logout:hover { background: var(--supernova); color: #000; text-shadow: none; }
+
 .container { max-width: 1100px; margin: 0; padding: 24px 20px; }
-h2, h3 { color: var(--gold); margin-bottom: 16px; font-weight: 600; letter-spacing: .5px; }
-h4 { color: var(--gold-dim); margin: 20px 0 10px; font-size: .95rem; text-transform: uppercase; letter-spacing: 1px; }
+h2, h3 {
+  font-family: 'Orbitron', monospace;
+  color: var(--pulsar);
+  margin-bottom: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-shadow: 0 0 10px rgba(0,212,255,.4);
+}
+h4 {
+  color: var(--nebula);
+  margin: 20px 0 10px;
+  font-size: .9rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Cards */
 .card {
-  background: var(--bg2);
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(0,212,255,.06);
 }
+
+/* Lists */
 .item-list { list-style: none; }
 .item-list li {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 12px;
-  margin-bottom: 1px;
+  padding: 5px 12px;
+  margin-bottom: 2px;
   border-radius: var(--radius);
   border: 1px solid transparent;
-  transition: all .15s;
+  transition: all .2s;
 }
-.item-list li:hover { background: var(--bg3); border-color: var(--border); }
-.item-list li a { flex: 1; font-size: .95rem; }
+.item-list li:hover {
+  background: rgba(0,212,255,.06);
+  border-color: var(--border);
+  box-shadow: inset 0 0 12px rgba(0,212,255,.04);
+}
+.item-list li a { flex: 1; font-size: .95rem; color: var(--aurora); }
+.item-list li a:hover { color: var(--pulsar); text-shadow: 0 0 6px var(--pulsar); }
 .item-list .actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
 .item-list li:hover .actions { opacity: 1; }
-.item-list .actions a { font-size: .75rem; padding: 2px 7px; border-radius: 3px; border: 1px solid #333; flex: none; }
-.item-list .actions a:hover { border-color: var(--red); color: var(--red-bright); }
-.item-list .del { color: var(--red) !important; }
-.empty { color: #555; font-style: italic; padding: 12px; }
-label { display: block; font-size: .85rem; color: var(--gold-dim); margin-bottom: 4px; margin-top: 12px; }
+.item-list .actions a { font-size: .75rem; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border); flex: none; color: var(--nebula); }
+.item-list .actions a:hover { border-color: var(--pulsar); color: var(--pulsar); }
+.item-list .del { color: var(--danger) !important; }
+.empty { color: #3a5080; font-style: italic; padding: 12px; }
+
+/* Form elements */
+label { display: block; font-size: .85rem; color: var(--nebula); margin-bottom: 4px; margin-top: 12px; }
 input[type=text], input[type=password], input[type=email], input[type=date], input:not([type]), textarea, select {
-  background: var(--bg2);
-  color: var(--gold);
-  border: 1px solid #444;
+  background: var(--bg3);
+  color: var(--star);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 8px 12px;
   font-size: .9rem;
   font-family: inherit;
   width: 100%;
-  transition: border-color .15s;
+  transition: border-color .2s, box-shadow .2s;
   outline: none;
 }
-input[type=text]:focus, input[type=password]:focus, input[type=email]:focus,
-input:not([type]):focus, textarea:focus, select:focus {
-  border-color: var(--gold-dim);
+input:focus, textarea:focus, select:focus {
+  border-color: var(--pulsar);
+  box-shadow: 0 0 0 3px rgba(0,212,255,.15);
 }
 textarea { resize: vertical; font-family: 'Consolas', 'Courier New', monospace; font-size: .85rem; }
 select option { background: var(--bg2); }
 .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
 .form-row > * { flex: 1; min-width: 200px; }
+
+/* Buttons — orbital style */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 20px;
-  border-radius: var(--radius);
-  border: 1px solid var(--gold-dim);
+  padding: 8px 22px;
+  border-radius: 20px;
+  border: 1px solid var(--nebula);
   background: transparent;
-  color: var(--gold);
+  color: var(--nebula);
   font-size: .9rem;
   font-family: inherit;
   cursor: pointer;
-  transition: all .15s;
+  transition: all .2s;
   text-decoration: none;
+  letter-spacing: .5px;
 }
-.btn:hover { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); text-decoration: none; }
-.btn-primary { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); font-weight: 600; }
-.btn-primary:hover { background: var(--gold); border-color: var(--gold); color: #000; }
-.btn-danger { border-color: var(--red); color: var(--red); }
-.btn-danger:hover { background: var(--red); color: #fff; }
-.btn-sm { padding: 4px 12px; font-size: .8rem; }
+.btn:hover {
+  background: rgba(126,184,247,.12);
+  border-color: var(--pulsar);
+  color: var(--pulsar);
+  box-shadow: 0 0 14px rgba(0,212,255,.25);
+  text-decoration: none;
+  text-shadow: 0 0 6px var(--pulsar);
+}
+.btn-primary {
+  background: linear-gradient(135deg, #003d6b 0%, #005a9e 100%);
+  color: var(--pulsar);
+  border-color: var(--pulsar);
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(0,212,255,.2);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #005a9e 0%, #0078d4 100%);
+  box-shadow: 0 0 20px rgba(0,212,255,.4);
+  color: #fff;
+}
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; box-shadow: 0 0 14px rgba(255,61,61,.35); text-shadow: none; }
+.btn-sm { padding: 4px 14px; font-size: .8rem; }
 .btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
-err { display: block; color: var(--red-bright); background: #1a0000; border: 1px solid var(--red); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; font-size: .9rem; }
-.breadcrumb { font-size: .85rem; color: #666; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.breadcrumb a { color: var(--gold-dim); }
-.breadcrumb a:hover { color: var(--gold); }
-.breadcrumb .sep { color: #444; }
-.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: #888; }
-.timestamp { font-size: .8rem; color: #666; }
+
+err { display: block; color: var(--danger); background: rgba(255,61,61,.08); border: 1px solid var(--danger); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; font-size: .9rem; }
+
+.breadcrumb { font-size: .85rem; color: #3a5080; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.breadcrumb a { color: var(--nebula); }
+.breadcrumb a:hover { color: var(--pulsar); }
+.breadcrumb .sep { color: var(--border); }
+
+.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: var(--nebula); }
+.timestamp { font-size: .8rem; color: #3a5080; }
+
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th { text-align: left; padding: 10px 12px; border: 1px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
-td { padding: 3px 12px; vertical-align: top; }
-tr { border: 1px solid #cc2200; }
-tr:hover td { background: var(--bg3); }
+th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--pulsar); color: var(--nebula); font-size: .8rem; text-transform: uppercase; letter-spacing: 1px; }
+td { padding: 6px 12px; vertical-align: top; border-bottom: 1px solid var(--bg3); }
+tr:hover td { background: rgba(0,212,255,.04); }
+
 .search-box { display: flex; gap: 8px; margin-bottom: 20px; }
 .search-box input { flex: 1; }
-.tag-create { color: #0c0; }
-.tag-update { color: var(--gold-dim); }
-.tag-delete { color: var(--red); }
+
+.tag-create { color: var(--aurora); font-weight: 600; }
+.tag-update { color: var(--nebula); font-weight: 600; }
+.tag-delete { color: var(--danger); font-weight: 600; }
+
 .footer {
   position: fixed; bottom: 0; left: 0; width: 100%;
-  background: var(--bg2); border-top: 1px solid var(--border);
-  color: #555; text-align: center; font-size: .75rem; padding: 5px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  color: #3a5080; text-align: center; font-size: .75rem; padding: 5px;
   z-index: 99;
+  font-family: 'Orbitron', monospace;
+  letter-spacing: 1px;
 }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 600px) {
@@ -158,19 +269,23 @@ tr:hover td { background: var(--bg3); }
   textarea { cols: unset; width: 100%; }
 }
 .confirm-box {
-  background: var(--bg2); border: 1px solid var(--red);
-  border-radius: var(--radius); padding: 24px; max-width: 600px;
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+  border: 1px solid var(--supernova);
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 600px;
+  box-shadow: 0 4px 24px rgba(255,107,53,.12);
 }
 .confirm-box p { margin-bottom: 12px; line-height: 1.6; }
 .confirm-box .field { margin: 8px 0; font-size: .9rem; }
-.confirm-box .field b { color: var(--gold-dim); }
+.confirm-box .field b { color: var(--aurora); }
 </style>
-<div class="footer">built on {{ build_date }}</div>
+<div class="footer">&#11088; {{ build_date }} &#11088;</div>
 """
 
 T_FOLDERS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/add>+ Folder</a>
   <a href=/export>Export</a>
   <a href=/audit_report>Audit</a>
@@ -221,7 +336,7 @@ T_FOLDERS = STYLE + """
 
 T_ADD_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -244,7 +359,7 @@ T_ADD_FOLDER = STYLE + """
 
 T_ADD_SUBFOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{pid}}>Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -266,7 +381,7 @@ T_ADD_SUBFOLDER = STYLE + """
 
 T_RENAME_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -288,7 +403,7 @@ T_RENAME_FOLDER = STYLE + """
 
 T_CHANGE_PASSWORD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -331,7 +446,7 @@ function toggleVis(id, link) {
 
 T_DELETE_NOTE = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -353,7 +468,7 @@ T_DELETE_NOTE = STYLE + """
 
 T_EDIT_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -381,7 +496,7 @@ T_EDIT_CONFIRM = STYLE + """
 
 T_NOTES = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href={% if folder[2] %}/folder/{{folder[2]}}{% else %}/{% endif %}>&#8592; Back</a>
   <a href=/add/{{folder[0]}}>+ Add Note</a>
   <a href=/folder/{{folder[0]}}/add_folder>+ Subfolder</a>
@@ -423,7 +538,7 @@ T_NOTES = STYLE + """
 
 T_ADD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>&#8592; Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -456,7 +571,7 @@ T_ADD = STYLE + """
 
 T_EDIT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   {% for b in breadcrumbs %}
   <span class="sep">&#8250;</span> <a href=/folder/{{b[0]}}>{{b[1]}}</a>
@@ -523,7 +638,7 @@ T_EDIT = STYLE + """
 T_LOGIN = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px">&#11088; EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Sign in to your notes</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -549,7 +664,7 @@ T_LOGIN = STYLE + """
 T_REGISTER = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:420px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px">&#11088; EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Create your account</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -571,7 +686,7 @@ T_REGISTER = STYLE + """
 
 T_SEARCH = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -633,7 +748,7 @@ T_SEARCH = STYLE + """
 
 T_DELETE_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -655,7 +770,7 @@ T_DELETE_FOLDER = STYLE + """
 
 T_HISTORY = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/edit/{{nid}}>&#8592; Back to Note</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -841,7 +956,7 @@ T_ADMIN_DELETE_USER = STYLE + """
 T_FORGOT_PASSWORD = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:4px">&#9670; EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px">&#11088; EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Reset your password</p>
     {% if message %}<p style="color:#0c0;text-align:center">{{message}}</p>{% endif %}
     <form method=post>
@@ -876,7 +991,7 @@ T_RESET_PASSWORD = STYLE + """
 
 T_AUDIT_REPORT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -902,7 +1017,7 @@ T_AUDIT_REPORT = STYLE + """
 
 T_SESSIONS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand">&#9670; EverNothing</span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1039,3 +1154,4 @@ T_ADMIN_S3_BACKUPS = STYLE + """
   {% endif %}
 </div>
 """
+
