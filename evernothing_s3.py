@@ -21,12 +21,13 @@ try:
     from aws_config import S3_BUCKET_NAME, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, DB_FILE
 except ImportError:
     # Fallback to environment variables if aws_config not available
-    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing-backup-2026')
+    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', '')
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
     DB_FILE = os.environ.get('DB_FILE', 'evernothing.db')
-    NUM_BACKUPS = int(os.environ.get('NUM_BACKUPS', '10'))
+
+NUM_BACKUPS = int(os.environ.get('NUM_BACKUPS', '10'))
 
 def sync_to_s3():
     """Upload evernothing.db to S3 bucket"""

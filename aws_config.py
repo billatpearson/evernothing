@@ -18,13 +18,13 @@ Environment Variables:
 import os
 
 # S3 Configuration
-S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing-backup-2026')
+S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', '')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 
-# AWS Credentials
-AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'TBD')
-AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'TBD')
-AWS_PROFILE = os.environ.get('AWS_PROFILE', 'billspeiser2')
+# AWS Credentials — prefer IAM roles; only use keys if no role is available
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
+AWS_PROFILE = os.environ.get('AWS_PROFILE', '')
 
 # Database Configuration
 DB_FILE = os.environ.get('DB_FILE', 'evernothing.db')
