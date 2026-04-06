@@ -253,7 +253,19 @@ BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 def inject_build_date():
     return dict(build_date=BUILD_DATE)
 
-# --- ENCRYPTION ---
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https://twemoji.maxcdn.com;"
+    )
+    return response
 ENCRYPTION_ENABLED = os.environ.get('ENCRYPTION_ENABLED', 'false').lower() == 'true'
 KEY_FILE = "secret.key"
 if AESGCM:
@@ -756,10 +768,32 @@ def validate_password(password):
         return None, "Password must contain at least one number"
     return password, None
 
-def allowed_file(filename):
-    """Check if file extension is allowed"""
+def allowed_file(filename, stream=None):
+    """Check file extension and optionally MIME type against allowlist."""
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'zip'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    ALLOWED_MIMES = {
+        'text/plain', 'application/pdf',
+        'image/png', 'image/jpeg', 'image/gif',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/zip',
+    }
+    if not ('.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS):
+        return False
+    if stream is not None:
+        import imghdr, mimetypes
+        header = stream.read(261)
+        stream.seek(0)
+        # Use python-magic if available, fall back to imghdr/mimetypes
+        try:
+            import magic
+            mime = magic.from_buffer(header, mime=True)
+        except ImportError:
+            ext = filename.rsplit('.', 1)[1].lower()
+            mime = mimetypes.types_map.get('.' + ext, '')
+        if mime and mime not in ALLOWED_MIMES:
+            return False
+    return True
 
 def format_date(iso_str):
     try:
@@ -2053,7 +2087,7 @@ T_FOLDERS = STYLE + """
       <ul class="item-list">
       {% for n in recent %}
       <li>
-        <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+        <a href=/edit/{{n[0]}}>{{n[1]}}</a>
         <span class="timestamp">{{n[2]}}</span>
       </li>
       {% else %}
@@ -2184,7 +2218,7 @@ T_DELETE_NOTE = STYLE + """
 <div class="container">
   <div class="confirm-box">
     <h3>Delete Note</h3>
-    <p>Are you sure you want to permanently delete <b>{{n[1]|safe}}</b>?</p>
+    <p>Are you sure you want to permanently delete <b>{{n[1]}}</b>?</p>
     <p style="color:#888;font-size:.85rem">This action cannot be undone.</p>
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
@@ -2243,7 +2277,7 @@ T_NOTES = STYLE + """
       <ul class="item-list">
       {% for n in notes %}
       <li>
-        <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+        <a href=/edit/{{n[0]}}>{{n[1]}}</a>
         <span class="actions">
           <a href=/note/delete/{{n[0]}} class="del">delete</a>
         </span>
@@ -2467,7 +2501,7 @@ T_SEARCH = STYLE + """
   <ul class="item-list">
   {% for n in notes %}
   <li>
-    <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+    <a href=/edit/{{n[0]}}>{{n[1]}}</a>
     <span class="timestamp">{{n[2]}}</span>
   </li>
   {% else %}
