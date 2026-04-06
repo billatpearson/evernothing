@@ -207,7 +207,7 @@ T_FOLDERS = STYLE + """
       <ul class="item-list">
       {% for n in recent %}
       <li>
-        <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+        <a href=/edit/{{n[0]}}>{{n[1]}}</a>
         <span class="timestamp">{{n[2]}}</span>
       </li>
       {% else %}
@@ -338,7 +338,7 @@ T_DELETE_NOTE = STYLE + """
 <div class="container">
   <div class="confirm-box">
     <h3>Delete Note</h3>
-    <p>Are you sure you want to permanently delete <b>{{n[1]|safe}}</b>?</p>
+    <p>Are you sure you want to permanently delete <b>{{n[1]}}</b>?</p>
     <p style="color:#888;font-size:.85rem">This action cannot be undone.</p>
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
@@ -397,7 +397,7 @@ T_NOTES = STYLE + """
       <ul class="item-list">
       {% for n in notes %}
       <li>
-        <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+        <a href=/edit/{{n[0]}}>{{n[1]}}</a>
         <span class="actions">
           <a href=/note/delete/{{n[0]}} class="del">delete</a>
         </span>
@@ -621,7 +621,7 @@ T_SEARCH = STYLE + """
   <ul class="item-list">
   {% for n in notes %}
   <li>
-    <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+    <a href=/edit/{{n[0]}}>{{n[1]}}</a>
     <span class="timestamp">{{n[2]}}</span>
   </li>
   {% else %}
