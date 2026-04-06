@@ -528,20 +528,22 @@ def _s3_client():
 DEVICE_ID = os.environ.get('DEVICE_ID', __import__('socket').gethostname())
 _bucket_policy_applied = False
 
-def queue_change(cur, entity_type, entity_id, operation):
-    """Record a change in sync_queue with the complete row as payload."""
-    payload = {}
-    try:
-        if entity_type == 'note':
-            r = cur.execute("SELECT id,user_id,folder_id,note_key,note_value,description,updated_at FROM notes WHERE id=?", (entity_id,)).fetchone()
-            if r:
-                payload = {'id': r[0], 'user_id': r[1], 'folder_id': r[2], 'note_key': r[3], 'note_value': r[4], 'description': r[5], 'updated_at': r[6]}
-        elif entity_type == 'folder':
-            r = cur.execute("SELECT id,user_id,name,parent_id FROM folders WHERE id=?", (entity_id,)).fetchone()
-            if r:
-                payload = {'id': r[0], 'user_id': r[1], 'name': r[2], 'parent_id': r[3]}
-    except Exception as e:
-        logger.warning(f"queue_change fetch failed: {e}")
+def queue_change(cur, entity_type, entity_id, operation, payload=None):
+    """Record a change in sync_queue. If payload is provided it is used directly;
+    otherwise the current row is fetched from the DB."""
+    if payload is None:
+        payload = {}
+        try:
+            if entity_type == 'note':
+                r = cur.execute("SELECT id,user_id,folder_id,note_key,note_value,description,updated_at FROM notes WHERE id=?", (entity_id,)).fetchone()
+                if r:
+                    payload = {'id': r[0], 'user_id': r[1], 'folder_id': r[2], 'note_key': r[3], 'note_value': r[4], 'description': r[5], 'updated_at': r[6]}
+            elif entity_type == 'folder':
+                r = cur.execute("SELECT id,user_id,name,parent_id FROM folders WHERE id=?", (entity_id,)).fetchone()
+                if r:
+                    payload = {'id': r[0], 'user_id': r[1], 'name': r[2], 'parent_id': r[3]}
+        except Exception as e:
+            logger.warning(f"queue_change fetch failed: {e}")
     cur.execute(
         "INSERT INTO sync_queue (entity_type, entity_id, operation, payload, changed_at) VALUES(?,?,?,?,?)",
         (entity_type, entity_id, operation, json.dumps(payload),
@@ -654,7 +656,14 @@ def _s3_upload_with_retry(fn, *args, **kwargs):
             time.sleep(wait)
 
 def sync_s3():
-    """#15: non-blocking — runs S3 sync in a background thread."""
+    """Run S3 sync synchronously (blocking). Used by tests and direct calls."""
+    if not boto3:
+        logger.warning("S3 sync skipped: boto3 not available")
+        return
+    _sync_s3_worker()
+
+def sync_s3_async():
+    """Non-blocking S3 sync — spawns a background thread. Used by HTTP routes."""
     if not boto3:
         logger.warning("S3 sync skipped: boto3 not available")
         return
@@ -666,7 +675,7 @@ def _sync_s3_worker():
         import io
         global _bucket_policy_applied
         s3 = _s3_client()
-        # #17: file sentinel prevents redundant policy calls across workers
+        # file sentinel prevents redundant policy calls across workers
         if not _bucket_policy_applied and not os.path.exists(_BUCKET_POLICY_SENTINEL):
             _apply_bucket_policy(s3, S3_BUCKET_NAME)
             try: open(_BUCKET_POLICY_SENTINEL, 'w').close()
@@ -675,10 +684,13 @@ def _sync_s3_worker():
         elif os.path.exists(_BUCKET_POLICY_SENTINEL):
             _bucket_policy_applied = True
 
-        extra_json = {"ServerSideEncryption": "aws:kms", "ContentType": "application/json"}
-        extra_db = {"ServerSideEncryption": "aws:kms"}
+        # Build ExtraArgs — only add KMS if a key is configured
+        extra_json = {"ContentType": "application/json"}
+        extra_db   = {}
         if KMS_KEY_ID:
+            extra_json["ServerSideEncryption"] = "aws:kms"
             extra_json["SSEKMSKeyId"] = KMS_KEY_ID
+            extra_db["ServerSideEncryption"] = "aws:kms"
             extra_db["SSEKMSKeyId"] = KMS_KEY_ID
 
         con = db(); cur = con.cursor()
@@ -688,18 +700,20 @@ def _sync_s3_worker():
         if rows:
             changes = [{"op": r[3], "entity": r[1], "id": r[2], "data": json.loads(r[4]), "at": r[5]} for r in rows]
             ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            upload_kwargs = {"ExtraArgs": extra_json} if extra_json else {}
             _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(json.dumps(changes).encode("utf-8")),
-                                  S3_BUCKET_NAME, f"changes/{DEVICE_ID}/{ts}.json", ExtraArgs=extra_json)
+                                  S3_BUCKET_NAME, f"changes/{DEVICE_ID}/{ts}.json", **upload_kwargs)
             delta_ids = [r[0] for r in rows]
             logger.info(f"S3 delta: {len(changes)} change(s)")
         con.close()
 
-        # #18: mark delta synced only after DB backup succeeds
+        # mark delta synced only after DB backup succeeds
         ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         with open(DB, 'rb') as f:
             db_bytes = f.read()
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB, ExtraArgs=extra_db)
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f"backups/{DB}.{ts}", ExtraArgs=extra_db)
+        upload_db_kwargs = {"ExtraArgs": extra_db} if extra_db else {}
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB, **upload_db_kwargs)
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f"backups/{DB}.{ts}", **upload_db_kwargs)
         logger.info(f"S3 DB backup: s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}")
 
         if delta_ids:
@@ -857,7 +871,7 @@ def add_folder():
             )
             queue_change(cur, 'folder', cur.lastrowid, 'INSERT')
             con.commit()
-            sync_s3()
+            sync_s3_async()
             logger.info(f"User {current_user.id} created folder: {name}")
         except Exception as e:
             logger.error(f"Error creating folder: {e}")
@@ -879,7 +893,7 @@ def add_subfolder(pid):
         )
         queue_change(cur, 'folder', cur.lastrowid, 'INSERT')
         con.commit()
-        sync_s3()
+        sync_s3_async()
         con.close()        
         return redirect(f"/folder/{pid}")
     return render_template_string(T_ADD_SUBFOLDER, pid=pid)
@@ -905,7 +919,7 @@ def delete_folder(fid):
         queue_change(cur, 'folder', fid, 'DELETE')
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect(f"/folder/{f[1]}" if f[1] else "/")
 
     result = render_template_string(T_DELETE_FOLDER, f=(decrypt(f[0]), f[1])) if f else redirect("/")
@@ -925,7 +939,7 @@ def rename_folder(fid):
         queue_change(cur, 'folder', fid, 'UPDATE')
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect(f"/folder/{fid}")
     con.close()
     return render_template_string(T_RENAME_FOLDER, f=(decrypt(f[0]), f[1]), fid=fid)
@@ -943,7 +957,7 @@ def delete_note(nid):
         queue_change(cur, 'note', nid, 'DELETE')
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect(f"/folder/{n[0]}" if n[0] else "/")
     con.close()
     return render_template_string(T_DELETE_NOTE, n=(n[0], decrypt(n[1])))
@@ -965,7 +979,7 @@ def change_password():
                 cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(new_password), current_user.id))
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect("/")
         else:
             con.close()
@@ -1148,7 +1162,7 @@ def add(fid):
                 queue_change(cur, 'note', nid, 'INSERT')
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect(f"/folder/{fid}")
     return render_template_string(T_ADD, fid=fid, error=error, note=note_val, content=content_val, description=desc_val)
 
@@ -1198,7 +1212,7 @@ def edit(id):
                 log_change(cur, current_user.id, 'CREATE', 'attachment', cur.lastrowid, {}, {'note_id': id, 'filename': filename, 'size': len(file_data)}, request.remote_addr)
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect(f"/edit/{id}")
             else:
                 con.close()
@@ -1236,7 +1250,7 @@ def edit(id):
                 queue_change(cur, 'note', id, 'UPDATE')
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect("/")
             else:
                 con.close()
@@ -1300,7 +1314,7 @@ def restore_history(hid):
     )
     con.commit()
     con.close()
-    sync_s3()
+    sync_s3_async()
     return redirect(f"/edit/{h[0]}")
 
 # --- ADMIN AUTH HELPER ---
@@ -1371,7 +1385,7 @@ def admin_edit_user(uid):
                 log_change(cur, current_user.id if hasattr(current_user, 'id') else 0, 'UPDATE', 'user', uid, old_vals, new_vals, request.remote_addr)
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect("/admin/dashboard")
             except sqlite3.IntegrityError:
                 con.close()
@@ -1400,7 +1414,7 @@ def admin_delete_user(uid):
         cur.execute("DELETE FROM users WHERE id=?", (uid,))
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect("/admin/dashboard")
 
     con.close()
@@ -1586,7 +1600,7 @@ def reset_password(token):
         cur.execute("UPDATE users SET password=? WHERE email=?", (generate_password_hash(request.form['password']), email))
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect("/login")
     return render_template_string(T_RESET_PASSWORD)
 
@@ -1690,7 +1704,7 @@ def register():
                 (username, generate_password_hash(password), email)
             )
             con.commit()
-            sync_s3()
+            sync_s3_async()
             logger.info(f"New user registered: {username!r}")
             return redirect("/login")
         except sqlite3.IntegrityError:
@@ -1806,7 +1820,7 @@ def delete_attachment(aid):
         cur.execute("DELETE FROM attachments WHERE id=? AND user_id=?", (aid, current_user.id))
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect(f"/edit/{a[0]}")
     con.close()
     return redirect("/")
@@ -2923,7 +2937,7 @@ def api_create_folder():
     con = db(); cur = con.cursor()
     cur.execute("INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,?)", (current_user.id, encrypt(name), parent_id))
     fid = cur.lastrowid
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True, 'id': fid})
 
 @app.route("/api/folders/<int:fid>", methods=["DELETE"])
@@ -2932,7 +2946,7 @@ def api_create_folder():
 def api_delete_folder(fid):
     con = db(); cur = con.cursor()
     delete_recursive(cur, fid, current_user.id)
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
 @app.route("/api/folders/<int:fid>/notes")
@@ -2977,7 +2991,7 @@ def api_create_note():
     cur.execute("INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
         (nid, current_user.id, encrypt(key), encrypt(value), encrypt(desc), fid, now))
     log_change(cur, current_user.id, 'CREATE', 'note', nid, {}, {'key': key, 'folder_id': fid}, request.remote_addr)
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True, 'id': nid})
 
 @app.route("/api/notes/<int:nid>", methods=["PUT"])
@@ -2998,7 +3012,7 @@ def api_update_note(nid):
     cur.execute("INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
         (nid, current_user.id, encrypt(key), encrypt(value), encrypt(desc), fid, now))
     log_change(cur, current_user.id, 'UPDATE', 'note', nid, {}, {'key': key, 'folder_id': fid}, request.remote_addr)
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
 @app.route("/api/notes/<int:nid>", methods=["DELETE"])
@@ -3007,7 +3021,7 @@ def api_update_note(nid):
 def api_delete_note(nid):
     con = db(); cur = con.cursor()
     cur.execute("DELETE FROM notes WHERE id=? AND user_id=?", (nid, current_user.id))
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
 @app.route("/api/search")
@@ -3070,5 +3084,7 @@ T_ADMIN_S3_BACKUPS = STYLE + """
 </table>
 {% endif %}
 """
+
+
 
 
