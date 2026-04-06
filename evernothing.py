@@ -263,7 +263,7 @@ def set_security_headers(response):
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data: https://twemoji.maxcdn.com;"
+        "img-src 'self' data:;"
     )
     return response
 ENCRYPTION_ENABLED = os.environ.get('ENCRYPTION_ENABLED', 'false').lower() == 'true'
@@ -1284,7 +1284,7 @@ def restore_history(hid):
         return render_template_string(
             STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/history/{{nid}}>&#8592; Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -1426,7 +1426,7 @@ def admin_iam_policy():
     policy = json.dumps(get_iam_policy(), indent=2)
     return render_template_string(STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2099,7 +2099,7 @@ T_FOLDERS = STYLE + """
 
 T_ADD_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2122,7 +2122,7 @@ T_ADD_FOLDER = STYLE + """
 
 T_ADD_SUBFOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{pid}}>Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2144,7 +2144,7 @@ T_ADD_SUBFOLDER = STYLE + """
 
 T_RENAME_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2166,7 +2166,7 @@ T_RENAME_FOLDER = STYLE + """
 
 T_CHANGE_PASSWORD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2209,7 +2209,7 @@ function toggleVis(id, link) {
 
 T_DELETE_NOTE = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2231,7 +2231,7 @@ T_DELETE_NOTE = STYLE + """
 
 T_EDIT_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2259,7 +2259,7 @@ T_EDIT_CONFIRM = STYLE + """
 
 T_NOTES = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href={% if folder[2] %}/folder/{{folder[2]}}{% else %}/{% endif %}>&#8592; Back</a>
   <a href=/add/{{folder[0]}}>+ Add Note</a>
   <a href=/folder/{{folder[0]}}/add_folder>+ Subfolder</a>
@@ -2301,7 +2301,7 @@ T_NOTES = STYLE + """
 
 T_ADD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>&#8592; Back</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2334,7 +2334,7 @@ T_ADD = STYLE + """
 
 T_EDIT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   {% for b in breadcrumbs %}
   <span class="sep">&#8250;</span> <a href=/folder/{{b[0]}}>{{b[1]}}</a>
@@ -2449,7 +2449,7 @@ T_REGISTER = STYLE + """
 
 T_SEARCH = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2511,7 +2511,7 @@ T_SEARCH = STYLE + """
 
 T_DELETE_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2533,7 +2533,7 @@ T_DELETE_FOLDER = STYLE + """
 
 T_HISTORY = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/edit/{{nid}}>&#8592; Back to Note</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2577,7 +2577,7 @@ T_ADMIN_LOGIN = STYLE + """
 
 T_ADMIN_SESSIONS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2605,7 +2605,7 @@ T_ADMIN_SESSIONS = STYLE + """
 
 T_ADMIN_DASHBOARD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/audit_logs>Audit Logs</a>
   <a href=/admin/sessions>Sessions</a>
   <a href=/admin/s3_backups>S3 Backups</a>
@@ -2641,7 +2641,7 @@ T_ADMIN_DASHBOARD = STYLE + """
 
 T_ADMIN_EDIT_USER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2671,7 +2671,7 @@ T_ADMIN_EDIT_USER = STYLE + """
 
 T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2696,7 +2696,7 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 
 T_ADMIN_DELETE_USER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2754,7 +2754,7 @@ T_RESET_PASSWORD = STYLE + """
 
 T_AUDIT_REPORT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2780,7 +2780,7 @@ T_AUDIT_REPORT = STYLE + """
 
 T_SESSIONS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
@@ -2812,7 +2812,7 @@ T_SESSIONS = STYLE + """
 
 T_ADMIN_AUDIT_LOGS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href="javascript:location.reload()" style="color:#0c0">Refresh</a>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3084,6 +3084,11 @@ T_ADMIN_S3_BACKUPS = STYLE + """
 </table>
 {% endif %}
 """
+
+
+
+
+
 
 
 

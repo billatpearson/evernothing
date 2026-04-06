@@ -21,13 +21,26 @@ STYLE = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; }
 
-/* Starfield background */
+/* Andromeda galaxy background */
 body {
-  background: var(--bg);
+  background: #010208;
   background-image:
-    radial-gradient(ellipse at 20% 50%, #0a1628 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 20%, #0d1f3c 0%, transparent 50%),
-    radial-gradient(ellipse at 60% 80%, #080f20 0%, transparent 55%);
+    /* Galaxy core — bright warm-white nucleus */
+    radial-gradient(ellipse 18% 10% at 62% 45%, rgba(255,248,230,.18) 0%, transparent 100%),
+    /* Inner bulge — soft golden halo */
+    radial-gradient(ellipse 35% 18% at 62% 45%, rgba(200,180,140,.10) 0%, transparent 100%),
+    /* Outer bulge — wide pale glow */
+    radial-gradient(ellipse 60% 28% at 62% 45%, rgba(160,170,210,.07) 0%, transparent 100%),
+    /* Spiral arm 1 — upper-left sweep */
+    radial-gradient(ellipse 80% 14% at 30% 30%, rgba(120,150,200,.05) 0%, transparent 100%),
+    /* Spiral arm 2 — lower-right sweep */
+    radial-gradient(ellipse 75% 12% at 88% 62%, rgba(130,155,205,.05) 0%, transparent 100%),
+    /* Dust lane — dark band across the disc */
+    radial-gradient(ellipse 55% 5%  at 62% 48%, rgba(0,0,0,.35) 0%, transparent 100%),
+    /* Outer halo — very faint blue-white */
+    radial-gradient(ellipse 95% 45% at 62% 45%, rgba(100,130,190,.04) 0%, transparent 100%),
+    /* Deep space fill */
+    radial-gradient(ellipse 140% 100% at 50% 50%, #030818 0%, #010208 100%);
   color: var(--star);
   font-family: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
@@ -35,35 +48,35 @@ body {
   position: relative;
 }
 
-/* Animated stars */
+/* Scattered foreground stars */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background-image:
-    radial-gradient(1px 1px at 10% 15%, #fff 0%, transparent 100%),
-    radial-gradient(1px 1px at 25% 40%, #cce 0%, transparent 100%),
-    radial-gradient(1px 1px at 40% 8%,  #fff 0%, transparent 100%),
-    radial-gradient(1px 1px at 55% 60%, #adf 0%, transparent 100%),
-    radial-gradient(1px 1px at 70% 25%, #fff 0%, transparent 100%),
-    radial-gradient(1px 1px at 85% 75%, #cce 0%, transparent 100%),
-    radial-gradient(1px 1px at 15% 80%, #fff 0%, transparent 100%),
-    radial-gradient(1px 1px at 90% 45%, #adf 0%, transparent 100%),
-    radial-gradient(1px 1px at 35% 90%, #fff 0%, transparent 100%),
-    radial-gradient(1px 1px at 65% 5%,  #cce 0%, transparent 100%),
-    radial-gradient(2px 2px at 48% 35%, #7eb8f7 0%, transparent 100%),
-    radial-gradient(2px 2px at 78% 88%, #7eb8f7 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 5%  55%, #fff 0%, transparent 100%),
-    radial-gradient(1px 1px at 92% 12%, #fff 0%, transparent 100%),
-    radial-gradient(1px 1px at 30% 70%, #adf 0%, transparent 100%);
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 40%, rgba(200,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 40%  8%, rgba(255,255,255,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 60%, rgba(180,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 25%, rgba(255,255,255,.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 75%, rgba(200,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 45%, rgba(180,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 35% 90%, rgba(255,255,255,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 65%  5%, rgba(200,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 48% 35%, rgba(126,184,247,.8) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 78% 88%, rgba(126,184,247,.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at  5% 55%, rgba(255,255,255,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 92% 12%, rgba(255,255,255,.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 30% 70%, rgba(180,210,255,.5) 0%, transparent 100%);
   pointer-events: none;
   z-index: 0;
   animation: twinkle 8s ease-in-out infinite alternate;
 }
 @keyframes twinkle {
-  0%   { opacity: .6; }
-  50%  { opacity: 1;  }
-  100% { opacity: .7; }
+  0%   { opacity: .5; }
+  50%  { opacity: .9; }
+  100% { opacity: .6; }
 }
 
 body > * { position: relative; z-index: 1; }
