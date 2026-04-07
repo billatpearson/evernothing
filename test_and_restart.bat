@@ -22,10 +22,14 @@ if exist "%PID_FILE%" (
     echo       No PID file found, skipping.
 )
 
-:: --- Kill any orphaned evernothing.py processes on port 5000 ---
+:: --- Kill any orphaned evernothing.py processes on port 5000 or 5443 ---
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
     taskkill /F /PID %%p >nul 2>&1
     echo       Killed orphaned process on port 5000 ^(PID %%p^).
+)
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5443 " ^| findstr "LISTENING"') do (
+    taskkill /F /PID %%p >nul 2>&1
+    echo       Killed orphaned process on port 5443 ^(PID %%p^).
 )
 timeout /t 1 /nobreak >nul
 
@@ -35,7 +39,7 @@ echo.
 cd /d "%APP_DIR%"
 
 echo --- Main app tests ---
-"%PYTHON%" -m pytest test_evernothing.py test_all.py test_note_operations.py test_dashboard.py tests/test_evernothing.py tests/test_s3_sync.py tests/test_s3_integration.py -v --tb=short 2>&1
+"%PYTHON%" -m pytest test_evernothing.py test_all.py test_note_operations.py test_dashboard.py test_themes.py test_security.py tests/test_evernothing.py tests/test_s3_sync.py tests/test_s3_integration.py -v --tb=short 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [FAILED] Main app tests failed. Server NOT restarted.
@@ -64,14 +68,19 @@ powershell -Command "Start-Process -FilePath '%PYTHON%' -ArgumentList '%APP_DIR%
 
 timeout /t 4 /nobreak >nul
 
-:: --- Save PID ---
+:: --- Save PID — check 5443 (SSL) first, fall back to 5000 (plain HTTP) ---
 echo [4/4] Verifying server...
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5443 " ^| findstr "LISTENING"') do (
+    echo %%p> "%PID_FILE%"
+    echo       Server running on https://127.0.0.1:5443 ^(PID %%p^)
+    goto :done
+)
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
     echo %%p> "%PID_FILE%"
     echo       Server running on http://127.0.0.1:5000 ^(PID %%p^)
     goto :done
 )
-echo [WARNING] Server did not start on port 5000. Check log\server_err.log
+echo [WARNING] Server did not start. Check log\server_err.log
 
 :done
 echo ============================================

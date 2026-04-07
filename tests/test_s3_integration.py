@@ -82,7 +82,9 @@ class S3IntegrationTestCase(unittest.TestCase):
         _create_bucket(s3)
         evernothing.sync_s3()
         keys = [o['Key'] for o in s3.list_objects_v2(Bucket=BUCKET).get('Contents', [])]
-        self.assertIn(evernothing.DB, keys)
+        # DB is uploaded encrypted — key is either DB or DB.enc
+        db_keys = [k for k in keys if k == evernothing.DB or k == evernothing.DB + '.enc']
+        self.assertTrue(db_keys, f"No DB key found in bucket. Keys: {keys}")
 
     @mock_aws
     def test_sync_s3_uploads_timestamped_backup(self):
@@ -96,14 +98,27 @@ class S3IntegrationTestCase(unittest.TestCase):
 
     @mock_aws
     def test_sync_s3_db_content_matches_local(self):
+        """DB uploaded to S3 must decrypt back to the local DB bytes."""
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         s3 = _make_s3()
         _create_bucket(s3)
         evernothing.sync_s3()
-        obj = s3.get_object(Bucket=BUCKET, Key=evernothing.DB)
-        remote_bytes = obj['Body'].read()
+        keys = [o['Key'] for o in s3.list_objects_v2(Bucket=BUCKET).get('Contents', [])]
+
         with open(self.db_path, 'rb') as f:
             local_bytes = f.read()
-        self.assertEqual(remote_bytes, local_bytes)
+
+        enc_key = evernothing.DB + '.enc'
+        if enc_key in keys:
+            # Encrypted upload — decrypt and compare
+            remote_bytes = s3.get_object(Bucket=BUCKET, Key=enc_key)['Body'].read()
+            aesgcm = AESGCM(evernothing.KEY)
+            decrypted = aesgcm.decrypt(remote_bytes[:12], remote_bytes[12:], None)
+            self.assertEqual(decrypted, local_bytes)
+        else:
+            # Fallback: encryption unavailable, raw bytes uploaded
+            obj = s3.get_object(Bucket=BUCKET, Key=evernothing.DB)
+            self.assertEqual(obj['Body'].read(), local_bytes)
 
     # --- 2. sync_s3: delta upload ---
 
