@@ -182,9 +182,31 @@ def validate_password(password):
     return password, None
 
 
-def allowed_file(filename):
-    ALLOWED = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'zip'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED
+def allowed_file(filename, stream=None):
+    """Check file extension and optionally MIME type against allowlist."""
+    ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'zip'}
+    ALLOWED_MIMES = {
+        'text/plain', 'application/pdf',
+        'image/png', 'image/jpeg', 'image/gif',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/zip',
+    }
+    if not ('.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS):
+        return False
+    if stream is not None:
+        import mimetypes
+        header = stream.read(261)
+        stream.seek(0)
+        try:
+            import magic
+            mime = magic.from_buffer(header, mime=True)
+        except ImportError:
+            ext = filename.rsplit('.', 1)[1].lower()
+            mime = mimetypes.types_map.get('.' + ext, '')
+        if mime and mime not in ALLOWED_MIMES:
+            return False
+    return True
 
 
 # --- Access control decorators ---
