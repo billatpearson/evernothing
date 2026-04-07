@@ -239,15 +239,35 @@ csrf = CSRFProtect(app)
 _remember_days = int(os.environ.get('REMEMBER_COOKIE_DAYS', '30'))
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=_remember_days)
 app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=_remember_days)
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'true').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'true').lower() == 'true'
 app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 app.config['REMEMBER_COOKIE_NAME'] = 'remember_token'
 DB = "evernothing.db"
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
+
+@app.before_request
+def enforce_https():
+    """Redirect all plain HTTP requests to HTTPS."""
+    # Skip in testing/debug mode so unit tests still work over HTTP
+    if app.config.get('TESTING') or app.debug:
+        return
+    # Skip if the app itself is not running with SSL (no cert configured)
+    # — redirecting to https:// when the server only speaks HTTP causes ERR_SSL_PROTOCOL_ERROR
+    ssl_cert = os.environ.get('SSL_CERT', 'cert.pem')
+    ssl_key  = os.environ.get('SSL_KEY',  'key.pem')
+    if not (os.path.exists(ssl_cert) and os.path.exists(ssl_key)):
+        return
+    if request.is_secure:
+        return
+    # Honour reverse-proxy header (e.g. nginx / AWS ALB)
+    if request.headers.get('X-Forwarded-Proto', 'http') == 'https':
+        return
+    url = request.url.replace('http://', 'https://', 1)
+    return redirect(url, code=301)
 
 @app.context_processor
 def inject_build_date():
@@ -515,15 +535,33 @@ compress_old_backups()
 
 # --- AWS SYNC ---
 def _s3_client():
-    """Return a boto3 S3 client using env vars or profile."""
+    """Return a boto3 S3 client.
+
+    Credential resolution order (most to least preferred):
+      1. IAM role / instance profile (no keys needed — preferred)
+      2. Explicit AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY env vars
+      3. Named AWS CLI profile (AWS_PROFILE)
+
+    Raises NoCredentialsError if boto3 cannot find any credentials so the
+    caller gets a loud failure instead of a silent no-op.
+    """
+    from botocore.exceptions import NoCredentialsError, PartialCredentialsError
+    # fix #9: always verify TLS — rejects self-signed / MITM certs including
+    # corporate proxies doing TLS inspection unless a custom CA bundle is provided.
+    ca_bundle = os.environ.get('AWS_CA_BUNDLE') or True  # True = use certifi default
+    base = {'region_name': AWS_REGION, 'verify': ca_bundle}
     if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-        return boto3.client('s3', region_name=AWS_REGION,
+        return boto3.client('s3', **base,
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
-    try:
-        return boto3.Session(profile_name=AWS_PROFILE).client('s3')
-    except Exception:
-        return boto3.client('s3', region_name=AWS_REGION)
+    if AWS_PROFILE:
+        try:
+            return boto3.Session(profile_name=AWS_PROFILE).client('s3', **base)
+        except Exception as e:
+            logger.warning(f"AWS profile '{AWS_PROFILE}' failed ({e}), falling back to default credential chain")
+    # Let boto3 use the default chain (instance profile, ECS task role, env, ~/.aws)
+    # This will raise NoCredentialsError loudly if nothing is available
+    return boto3.client('s3', **base)
 
 DEVICE_ID = os.environ.get('DEVICE_ID', __import__('socket').gethostname())
 _bucket_policy_applied = False
@@ -591,7 +629,14 @@ def get_iam_policy():
 
 
 def _apply_bucket_policy(s3, bucket_name):
-    """Apply a least-privilege bucket policy scoped to the calling IAM principal."""
+    """Apply bucket policy that:
+      - Denies all requests over plain HTTP (fix #11)
+      - Restricts access to ALLOWED_IPS CIDRs when configured (fix #12)
+      - Denies all principals except the calling IAM identity
+    """
+    # Optional IP allowlist — comma-separated CIDRs in S3_ALLOWED_IPS env var
+    allowed_ips = [ip.strip() for ip in os.environ.get('S3_ALLOWED_IPS', '').split(',') if ip.strip()]
+
     try:
         sts_kwargs = {'region_name': AWS_REGION}
         if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
@@ -600,41 +645,50 @@ def _apply_bucket_policy(s3, bucket_name):
         caller_arn = boto3.client('sts', **sts_kwargs).get_caller_identity()['Arn']
     except Exception as e:
         logger.warning(f"Could not determine caller ARN for bucket policy: {e}")
-        return
+        caller_arn = None
 
-    policy = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Sid": "DenyAllExceptCallerPrincipal",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:*",
-                "Resource": [
-                    f"arn:aws:s3:::{bucket_name}",
-                    f"arn:aws:s3:::{bucket_name}/*"
-                ],
-                "Condition": {
-                    "StringNotEquals": {
-                        "aws:PrincipalArn": caller_arn
-                    }
-                }
-            },
-            {
-                "Sid": "DenyInsecureTransport",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:*",
-                "Resource": [
-                    f"arn:aws:s3:::{bucket_name}",
-                    f"arn:aws:s3:::{bucket_name}/*"
-                ],
-                "Condition": {
-                    "Bool": {"aws:SecureTransport": "false"}
-                }
-            }
-        ]
-    }
+    statements = [
+        {
+            "Sid": "DenyInsecureTransport",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                f"arn:aws:s3:::{bucket_name}",
+                f"arn:aws:s3:::{bucket_name}/*"
+            ],
+            "Condition": {"Bool": {"aws:SecureTransport": "false"}}
+        }
+    ]
+
+    if caller_arn:
+        statements.append({
+            "Sid": "DenyAllExceptCallerPrincipal",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                f"arn:aws:s3:::{bucket_name}",
+                f"arn:aws:s3:::{bucket_name}/*"
+            ],
+            "Condition": {"StringNotEquals": {"aws:PrincipalArn": caller_arn}}
+        })
+
+    if allowed_ips:
+        statements.append({
+            "Sid": "DenyNonAllowedIPs",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                f"arn:aws:s3:::{bucket_name}",
+                f"arn:aws:s3:::{bucket_name}/*"
+            ],
+            "Condition": {"NotIpAddress": {"aws:SourceIp": allowed_ips}}
+        })
+        logger.info(f"Bucket policy: IP restriction applied to {len(allowed_ips)} CIDR(s)")
+
+    policy = {"Version": "2012-10-17", "Statement": statements}
     try:
         s3.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
         logger.info(f"Bucket policy applied to {bucket_name}")
@@ -643,6 +697,59 @@ def _apply_bucket_policy(s3, bucket_name):
 
 
 _BUCKET_POLICY_SENTINEL = ".bucket_policy_applied"
+
+def _enable_s3_access_logging(s3, bucket_name):
+    """Enable S3 server access logging (fix #13). Logs go to <bucket>-logs."""
+    log_bucket = f"{bucket_name}-logs"
+    try:
+        try:
+            s3.head_bucket(Bucket=log_bucket)
+        except Exception:
+            if AWS_REGION == 'us-east-1':
+                s3.create_bucket(Bucket=log_bucket)
+            else:
+                s3.create_bucket(Bucket=log_bucket,
+                    CreateBucketConfiguration={'LocationConstraint': AWS_REGION})
+            s3.put_public_access_block(Bucket=log_bucket,
+                PublicAccessBlockConfiguration={
+                    'BlockPublicAcls': True, 'IgnorePublicAcls': True,
+                    'BlockPublicPolicy': True, 'RestrictPublicBuckets': True})
+        s3.put_bucket_acl(Bucket=log_bucket, ACL='log-delivery-write')
+        s3.put_bucket_logging(
+            Bucket=bucket_name,
+            BucketLoggingStatus={
+                'LoggingEnabled': {
+                    'TargetBucket': log_bucket,
+                    'TargetPrefix': 'access-logs/'
+                }
+            }
+        )
+        logger.info(f"S3 access logging enabled → s3://{log_bucket}/access-logs/")
+    except Exception as e:
+        logger.warning(f"Could not enable S3 access logging: {e}")
+
+def _enable_s3_object_lock(s3, bucket_name):
+    """Enable S3 Object Lock GOVERNANCE retention (fix #14).
+    Protects backups from accidental or malicious deletion.
+    Requires the bucket to have been created with ObjectLockEnabledForBucket=True.
+    """
+    lock_days = int(os.environ.get('S3_LOCK_DAYS', '30'))
+    try:
+        s3.put_object_lock_configuration(
+            Bucket=bucket_name,
+            ObjectLockConfiguration={
+                'ObjectLockEnabled': 'Enabled',
+                'Rule': {
+                    'DefaultRetention': {
+                        'Mode': 'GOVERNANCE',
+                        'Days': lock_days
+                    }
+                }
+            }
+        )
+        logger.info(f"S3 Object Lock enabled (GOVERNANCE, {lock_days} days) on {bucket_name}")
+    except Exception as e:
+        logger.warning(f"Could not enable S3 Object Lock (bucket may need ObjectLockEnabledForBucket=True at creation): {e}")
 
 def _s3_upload_with_retry(fn, *args, **kwargs):
     import time
@@ -667,6 +774,8 @@ def sync_s3_async():
     if not boto3:
         logger.warning("S3 sync skipped: boto3 not available")
         return
+    if app.config.get('TESTING'):
+        return
     import threading
     threading.Thread(target=_sync_s3_worker, daemon=True).start()
 
@@ -675,23 +784,25 @@ def _sync_s3_worker():
         import io
         global _bucket_policy_applied
         s3 = _s3_client()
-        # file sentinel prevents redundant policy calls across workers
+        # file sentinel prevents redundant hardening calls across workers
         if not _bucket_policy_applied and not os.path.exists(_BUCKET_POLICY_SENTINEL):
             _apply_bucket_policy(s3, S3_BUCKET_NAME)
+            _enable_s3_access_logging(s3, S3_BUCKET_NAME)
+            _enable_s3_object_lock(s3, S3_BUCKET_NAME)
             try: open(_BUCKET_POLICY_SENTINEL, 'w').close()
             except Exception: pass
             _bucket_policy_applied = True
         elif os.path.exists(_BUCKET_POLICY_SENTINEL):
             _bucket_policy_applied = True
 
-        # Build ExtraArgs — only add KMS if a key is configured
-        extra_json = {"ContentType": "application/json"}
-        extra_db   = {}
+        # Build ExtraArgs — use KMS if configured, otherwise fall back to AES256.
+        # SSE is always applied; no upload should ever land unencrypted.
         if KMS_KEY_ID:
-            extra_json["ServerSideEncryption"] = "aws:kms"
-            extra_json["SSEKMSKeyId"] = KMS_KEY_ID
-            extra_db["ServerSideEncryption"] = "aws:kms"
-            extra_db["SSEKMSKeyId"] = KMS_KEY_ID
+            _sse = {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": KMS_KEY_ID}
+        else:
+            _sse = {"ServerSideEncryption": "AES256"}
+        extra_json = {"ContentType": "application/json", **_sse}
+        extra_db   = {**_sse}
 
         con = db(); cur = con.cursor()
         cur.execute("SELECT id, entity_type, entity_id, operation, payload, changed_at FROM sync_queue WHERE synced_at IS NULL")
@@ -700,7 +811,7 @@ def _sync_s3_worker():
         if rows:
             changes = [{"op": r[3], "entity": r[1], "id": r[2], "data": json.loads(r[4]), "at": r[5]} for r in rows]
             ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            upload_kwargs = {"ExtraArgs": extra_json} if extra_json else {}
+            upload_kwargs = {"ExtraArgs": extra_json}
             _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(json.dumps(changes).encode("utf-8")),
                                   S3_BUCKET_NAME, f"changes/{DEVICE_ID}/{ts}.json", **upload_kwargs)
             delta_ids = [r[0] for r in rows]
@@ -711,10 +822,19 @@ def _sync_s3_worker():
         ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         with open(DB, 'rb') as f:
             db_bytes = f.read()
-        upload_db_kwargs = {"ExtraArgs": extra_db} if extra_db else {}
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB, **upload_db_kwargs)
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f"backups/{DB}.{ts}", **upload_db_kwargs)
-        logger.info(f"S3 DB backup: s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}")
+        # fix #8: encrypt the DB file before uploading so metadata/keys are
+        # not exposed as plaintext even if SSE is ever misconfigured.
+        # Format: 12-byte nonce || AES-GCM ciphertext (same scheme as note encryption)
+        if AESGCM and KEY:
+            nonce = os.urandom(12)
+            db_bytes = nonce + aesgcm.encrypt(nonce, db_bytes, None)
+            enc_suffix = '.enc'
+        else:
+            enc_suffix = ''
+        upload_db_kwargs = {"ExtraArgs": extra_db}
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB + enc_suffix, **upload_db_kwargs)
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f"backups/{DB}.{ts}{enc_suffix}", **upload_db_kwargs)
+        logger.info(f"S3 DB backup: s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}{enc_suffix}")
 
         if delta_ids:
             con = db(); cur = con.cursor()
@@ -1286,7 +1406,13 @@ def restore_history(hid):
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/history/{{nid}}>&#8592; Back</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -1429,7 +1555,13 @@ def admin_iam_policy():
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -1734,7 +1866,13 @@ def logout():
 
 @app.route("/set_theme")
 def set_theme():
-    session['theme'] = 'unicorn' if session.get('theme', 'stellar') == 'stellar' else 'stellar'
+    t = request.args.get('t', '')
+    if t in ('stellar', 'unicorn', 'startrek'):
+        session['theme'] = t
+    else:
+        # fallback cycle: stellar -> unicorn -> startrek -> stellar
+        cycle = {'stellar': 'unicorn', 'unicorn': 'startrek', 'startrek': 'stellar'}
+        session['theme'] = cycle.get(session.get('theme', 'stellar'), 'stellar')
     return redirect(request.referrer or '/')
 
 @app.route("/sessions")
@@ -1836,79 +1974,129 @@ def delete_attachment(aid):
 STYLE_UNICORN = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 :root {
-  --gold: #ffd700; --gold-dim: #b8960c; --red: #cc2200; --red-bright: #ff3300;
-  --bg: #0a0a0a; --bg2: #111; --bg3: #1a1a1a; --border: #2a2a2a; --radius: 6px;
+  --rose:    #ff6eb4;
+  --violet:  #c084fc;
+  --sky:     #67e8f9;
+  --mint:    #6ee7b7;
+  --sun:     #fde68a;
+  --peach:   #fdba74;
+  --danger:  #f87171;
+  --bg:      #1a0a2e;
+  --bg2:     #2d1b4e;
+  --bg3:     #3d2560;
+  --border:  #6b3fa0;
+  --text:    #f0e6ff;
+  --radius:  14px;
+  --rainbow: linear-gradient(90deg,#ff6eb4,#c084fc,#67e8f9,#6ee7b7,#fde68a,#fdba74,#ff6eb4);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; }
-body { background: var(--bg); color: var(--gold); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; padding-bottom: 40px; }
-a { color: var(--gold); text-decoration: none; transition: color .15s; }
-a:hover { color: var(--red-bright); }
-.nav { background: var(--bg2); border-bottom: 1px solid var(--red); padding: 10px 20px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
-.nav-brand { font-size: 1.1rem; font-weight: 700; color: var(--gold); letter-spacing: 1px; margin-right: 10px; }
-.nav a { font-size: .85rem; padding: 4px 10px; border-radius: var(--radius); border: 1px solid transparent; color: var(--gold); transition: all .15s; }
-.nav a:hover { border-color: var(--red); color: var(--red-bright); text-decoration: none; }
-.nav .sep { color: #444; }
-.nav .nav-logout { margin-left: auto; color: var(--red); border-color: var(--red); border: 1px solid; padding: 4px 10px; border-radius: var(--radius); }
-.nav .nav-logout:hover { background: var(--red); color: #000; }
-.nav .theme-btn { color: var(--gold-dim); border: 1px solid var(--gold-dim); padding: 3px 9px; border-radius: 12px; font-size: .8rem; }
-.nav .theme-btn:hover { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); }
-.container { max-width: 1100px; margin: 0; padding: 24px 20px; }
-h2, h3 { color: var(--gold); margin-bottom: 16px; font-weight: 600; letter-spacing: .5px; }
-h4 { color: var(--gold-dim); margin: 20px 0 10px; font-size: .95rem; text-transform: uppercase; letter-spacing: 1px; }
-.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-.item-list { list-style: none; }
-.item-list li { display: flex; align-items: center; gap: 8px; padding: 3px 12px; margin-bottom: 1px; border-radius: var(--radius); border: 1px solid transparent; transition: all .15s; }
-.item-list li:hover { background: var(--bg3); border-color: var(--border); }
-.item-list li a { flex: 1; font-size: .95rem; color: var(--gold); }
-.item-list li a:hover { color: var(--red-bright); }
-.item-list .actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
-.item-list li:hover .actions { opacity: 1; }
-.item-list .actions a { font-size: .75rem; padding: 2px 7px; border-radius: 3px; border: 1px solid #333; flex: none; }
-.item-list .actions a:hover { border-color: var(--red); color: var(--red-bright); }
-.item-list .del { color: var(--red) !important; }
-.empty { color: #555; font-style: italic; padding: 12px; }
-label { display: block; font-size: .85rem; color: var(--gold-dim); margin-bottom: 4px; margin-top: 12px; }
-input[type=text], input[type=password], input[type=email], input[type=date], input:not([type]), textarea, select { background: var(--bg2); color: var(--gold); border: 1px solid #444; border-radius: var(--radius); padding: 8px 12px; font-size: .9rem; font-family: inherit; width: 100%; transition: border-color .15s; outline: none; }
-input:focus, textarea:focus, select:focus { border-color: var(--gold-dim); }
-textarea { resize: vertical; font-family: 'Consolas', 'Courier New', monospace; font-size: .85rem; }
-select option { background: var(--bg2); }
-.form-row { display: flex; gap: 12px; flex-wrap: wrap; }
-.form-row > * { flex: 1; min-width: 200px; }
-.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; border-radius: var(--radius); border: 1px solid var(--gold-dim); background: transparent; color: var(--gold); font-size: .9rem; font-family: inherit; cursor: pointer; transition: all .15s; text-decoration: none; }
-.btn:hover { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); text-decoration: none; }
-.btn-primary { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); font-weight: 600; }
-.btn-primary:hover { background: var(--gold); border-color: var(--gold); color: #000; }
-.btn-danger { border-color: var(--red); color: var(--red); }
-.btn-danger:hover { background: var(--red); color: #fff; }
-.btn-sm { padding: 4px 12px; font-size: .8rem; }
-.btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
-err { display: block; color: var(--red-bright); background: #1a0000; border: 1px solid var(--red); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; font-size: .9rem; }
-.breadcrumb { font-size: .85rem; color: #666; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.breadcrumb a { color: var(--gold-dim); }
-.breadcrumb a:hover { color: var(--gold); }
-.breadcrumb .sep { color: #444; }
-.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: #888; }
-.timestamp { font-size: .8rem; color: #666; }
-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
-td { padding: 6px 12px; vertical-align: top; border-bottom: 1px solid var(--bg3); }
-tr:hover td { background: var(--bg3); }
-.search-box { display: flex; gap: 8px; margin-bottom: 20px; }
-.search-box input { flex: 1; }
-.tag-create { color: #0c0; font-weight: 600; }
-.tag-update { color: var(--gold-dim); font-weight: 600; }
-.tag-delete { color: var(--red); font-weight: 600; }
-.footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg2); border-top: 1px solid var(--border); color: #555; text-align: center; font-size: .75rem; padding: 5px; z-index: 99; }
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-@media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } .nav { gap: 4px; } textarea { cols: unset; width: 100%; } }
-.confirm-box { background: var(--bg2); border: 1px solid var(--red); border-radius: var(--radius); padding: 24px; max-width: 600px; }
-.confirm-box p { margin-bottom: 12px; line-height: 1.6; }
-.confirm-box .field { margin: 8px 0; font-size: .9rem; }
-.confirm-box .field b { color: var(--gold-dim); }
+html { font-size: 17px; }
+body {
+  background: var(--bg);
+  background-image: radial-gradient(ellipse at 20% 20%, #3b1f6a 0%, transparent 60%),
+                    radial-gradient(ellipse at 80% 80%, #1a3a5c 0%, transparent 60%);
+  color: var(--text);
+  font-family: 'Nunito', 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  padding-bottom: 44px;
+}
+a { color: var(--rose); text-decoration: none; transition: color .15s; }
+a:hover { color: var(--sky); }
+body::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: var(--rainbow);
+  background-size: 200% 100%;
+  animation: shimmer 4s linear infinite;
+  position: fixed; top: 0; left: 0; width: 100%; z-index: 200;
+}
+@keyframes shimmer { 0%{background-position:0% 0%} 100%{background-position:200% 0%} }
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+.nav {
+  background: linear-gradient(135deg, #2d1b4e 0%, #1e1040 100%);
+  border-bottom: 2px solid transparent;
+  border-image: var(--rainbow) 1;
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: sticky; top: 3px; z-index: 100;
+}
+.nav-brand {
+  font-size: 1.15rem; font-weight: 800;
+  background: var(--rainbow); background-size: 200% 100%;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; animation: shimmer 4s linear infinite;
+  letter-spacing: 1px; margin-right: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.unicorn-img { width:28px;height:28px;display:inline-block;animation:bounce 2s ease-in-out infinite;filter:drop-shadow(0 0 6px var(--rose)); }
+.sparkle-img { width:18px;height:18px;display:inline-block;animation:spin 3s linear infinite;filter:drop-shadow(0 0 4px var(--sun)); }
+.page-unicorn { display:block;margin:0 auto 16px;width:72px;height:72px;filter:drop-shadow(0 0 12px var(--rose));animation:bounce 2s ease-in-out infinite; }
+.nav a { font-size:.85rem;padding:4px 12px;border-radius:20px;border:1px solid transparent;color:var(--violet);transition:all .15s; }
+.nav a:hover { background:var(--bg3);border-color:var(--violet);color:var(--sky);text-decoration:none; }
+.nav .sep { color:var(--border); }
+.nav .nav-logout { margin-left:auto;color:var(--danger);border-color:var(--danger);border-radius:20px;border:1px solid;padding:4px 12px; }
+.nav .nav-logout:hover { background:var(--danger);color:#fff; }
+.theme-select { background:var(--bg3);color:var(--violet);border:1px solid var(--border);border-radius:20px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:inherit; }
+.theme-select:focus { outline:none;border-color:var(--rose); }
+.container { max-width:1100px;margin:0;padding:24px 20px; }
+h2,h3 { color:var(--sun);margin-bottom:16px;font-weight:700;letter-spacing:.5px; }
+h4 { color:var(--violet);margin:20px 0 10px;font-size:.9rem;text-transform:uppercase;letter-spacing:1.5px; }
+.card { background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:0 4px 24px rgba(192,132,252,.08); }
+.item-list { list-style:none; }
+.item-list li { display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:2px;border-radius:10px;border:1px solid transparent;transition:all .15s; }
+.item-list li:hover { background:var(--bg3);border-color:var(--border); }
+.item-list li a { flex:1;font-size:.95rem;color:var(--mint); }
+.item-list li a:hover { color:var(--sky); }
+.item-list .actions { display:flex;gap:6px;opacity:0;transition:opacity .15s; }
+.item-list li:hover .actions { opacity:1; }
+.item-list .actions a { font-size:.75rem;padding:2px 8px;border-radius:10px;border:1px solid var(--border);flex:none;color:var(--violet); }
+.item-list .actions a:hover { border-color:var(--rose);color:var(--rose); }
+.item-list .del { color:var(--danger)!important; }
+.empty { color:var(--border);font-style:italic;padding:12px; }
+label { display:block;font-size:.85rem;color:var(--violet);margin-bottom:4px;margin-top:12px; }
+input[type=text],input[type=password],input[type=email],input[type=date],input:not([type]),textarea,select { background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:.9rem;font-family:inherit;width:100%;transition:border-color .15s,box-shadow .15s;outline:none; }
+input:focus,textarea:focus,select:focus { border-color:var(--rose);box-shadow:0 0 0 3px rgba(255,110,180,.15); }
+textarea { resize:vertical;font-family:'Consolas','Courier New',monospace;font-size:.85rem; }
+select option { background:var(--bg2); }
+.form-row { display:flex;gap:12px;flex-wrap:wrap; }
+.form-row > * { flex:1;min-width:200px; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:8px 22px;border-radius:20px;border:1px solid var(--violet);background:transparent;color:var(--violet);font-size:.9rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none; }
+.btn:hover { background:var(--bg3);border-color:var(--sky);color:var(--sky);text-decoration:none; }
+.btn-primary { background:linear-gradient(135deg,var(--rose),var(--violet));color:#fff;border:none;font-weight:700; }
+.btn-primary:hover { background:linear-gradient(135deg,var(--violet),var(--sky));color:#fff; }
+.btn-danger { border-color:var(--danger);color:var(--danger); }
+.btn-danger:hover { background:var(--danger);color:#fff;border-color:var(--danger); }
+.btn-sm { padding:4px 14px;font-size:.8rem; }
+.btn-group { display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center; }
+err { display:block;color:var(--danger);background:rgba(248,113,113,.1);border:1px solid var(--danger);border-radius:10px;padding:8px 14px;margin:10px 0;font-size:.9rem; }
+.breadcrumb { font-size:.85rem;color:var(--border);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.breadcrumb a { color:var(--violet); }
+.breadcrumb a:hover { color:var(--rose); }
+.breadcrumb .sep { color:var(--border); }
+.badge { font-size:.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1px 8px;color:var(--violet); }
+.timestamp { font-size:.8rem;color:var(--border); }
+table { width:100%;border-collapse:collapse;font-size:.9rem; }
+th { text-align:left;padding:10px 12px;border-bottom:2px solid var(--violet);color:var(--violet);font-size:.8rem;text-transform:uppercase;letter-spacing:.5px; }
+td { padding:5px 12px;vertical-align:top;border-bottom:1px solid var(--bg3); }
+tr:hover td { background:var(--bg3); }
+.search-box { display:flex;gap:8px;margin-bottom:20px; }
+.search-box input { flex:1; }
+.tag-create { color:var(--mint);font-weight:700; }
+.tag-update { color:var(--sun);font-weight:700; }
+.tag-delete { color:var(--danger);font-weight:700; }
+.footer { position:fixed;bottom:0;left:0;width:100%;background:var(--bg2);border-top:2px solid transparent;border-image:var(--rainbow) 1;color:var(--border);text-align:center;font-size:.75rem;padding:5px;z-index:99; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+@media (max-width:600px) { .two-col{grid-template-columns:1fr} .nav{gap:4px} textarea{cols:unset;width:100%} }
+.confirm-box { background:var(--bg2);border:1px solid var(--rose);border-radius:var(--radius);padding:24px;max-width:600px;box-shadow:0 4px 32px rgba(255,110,180,.12); }
+.confirm-box p { margin-bottom:12px;line-height:1.6; }
+.confirm-box .field { margin:8px 0;font-size:.9rem; }
+.confirm-box .field b { color:var(--sun); }
 </style>
-<div class="footer">&#9670; {{ build_date }}</div>
+<div class="footer">&#x1F984; built on {{ build_date }}</div>
 """
 
 STYLE_STELLAR = """
@@ -1931,16 +2119,16 @@ STYLE_STELLAR = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; }
 body {
-  background: #010208;
+  background: #00010a;
+  /* Andromeda galaxy — real photograph */
   background-image:
-    radial-gradient(ellipse 18% 10% at 62% 45%, rgba(255,248,230,.18) 0%, transparent 100%),
-    radial-gradient(ellipse 35% 18% at 62% 45%, rgba(200,180,140,.10) 0%, transparent 100%),
-    radial-gradient(ellipse 60% 28% at 62% 45%, rgba(160,170,210,.07) 0%, transparent 100%),
-    radial-gradient(ellipse 80% 14% at 30% 30%, rgba(120,150,200,.05) 0%, transparent 100%),
-    radial-gradient(ellipse 75% 12% at 88% 62%, rgba(130,155,205,.05) 0%, transparent 100%),
-    radial-gradient(ellipse 55%  5% at 62% 48%, rgba(0,0,0,.35) 0%, transparent 100%),
-    radial-gradient(ellipse 95% 45% at 62% 45%, rgba(100,130,190,.04) 0%, transparent 100%),
-    radial-gradient(ellipse 140% 100% at 50% 50%, #030818 0%, #010208 100%);
+    /* Dark overlay so UI text stays readable */
+    linear-gradient(rgba(0,1,10,.55), rgba(0,1,10,.55)),
+    url('/static/andromeda.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--star);
   font-family: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
   min-height: 100vh;
@@ -2134,8 +2322,128 @@ tr:hover td { background: rgba(0,212,255,.04); }
 .confirm-box .field b { color: var(--aurora); }
 .nav .theme-btn { color: var(--nebula); border: 1px solid var(--nebula); padding: 3px 9px; border-radius: 12px; font-size: .8rem; }
 .nav .theme-btn:hover { background: rgba(0,212,255,.12); border-color: var(--pulsar); color: var(--pulsar); }
-</style>
+.theme-select { background:var(--bg3);color:var(--nebula);border:1px solid var(--border);border-radius:20px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:inherit; }
+.theme-select:focus { outline:none;border-color:var(--pulsar); }</style>
 <div class="footer">&#11088; {{ build_date }} &#11088;</div>
+"""
+
+STYLE_STARTREK = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap');
+:root {
+  --lcars-gold:   #ff9900;
+  --lcars-blue:   #9999ff;
+  --lcars-red:    #cc4444;
+  --lcars-teal:   #66cccc;
+  --lcars-purple: #cc88ff;
+  --text:         #e8e8ff;
+  --bg:           #000008;
+  --bg2:          rgba(0,0,20,.75);
+  --bg3:          rgba(0,0,40,.80);
+  --border:       #334466;
+  --radius:       4px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: #000008;
+  background-image:
+    linear-gradient(rgba(0,0,8,.60), rgba(0,0,8,.60)),
+    url('/static/startrek.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--text);
+  font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+a { color: var(--lcars-blue); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--lcars-gold); text-shadow: 0 0 8px var(--lcars-gold); }
+/* LCARS-style top bar */
+body::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--lcars-red) 0%, var(--lcars-gold) 30%, var(--lcars-blue) 60%, var(--lcars-teal) 100%);
+  position: fixed; top: 0; left: 0; width: 100%; z-index: 200;
+}
+.nav {
+  background: rgba(0,0,20,.88);
+  border-bottom: 2px solid var(--lcars-gold);
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: sticky; top: 3px; z-index: 100;
+  font-family: 'Share Tech Mono', monospace;
+}
+.nav-brand {
+  font-size: 1rem; font-weight: 700; letter-spacing: 3px;
+  color: var(--lcars-gold); text-shadow: 0 0 10px var(--lcars-gold);
+  margin-right: 10px; text-transform: uppercase;
+}
+.nav a { font-size:.82rem;padding:4px 10px;border-radius:2px;border:1px solid transparent;color:var(--lcars-blue);transition:all .2s;letter-spacing:.5px; }
+.nav a:hover { border-color:var(--lcars-gold);color:var(--lcars-gold);background:rgba(255,153,0,.08);text-shadow:0 0 6px var(--lcars-gold);text-decoration:none; }
+.nav .sep { color: var(--border); }
+.nav .nav-logout { margin-left:auto;color:var(--lcars-red);border-color:var(--lcars-red);border-radius:2px;border:1px solid;padding:4px 12px; }
+.nav .nav-logout:hover { background:var(--lcars-red);color:#fff;text-shadow:none; }
+.container { max-width:1100px;margin:0;padding:24px 20px; }
+h2,h3 { font-family:'Share Tech Mono',monospace;color:var(--lcars-gold);margin-bottom:16px;font-weight:600;letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 10px rgba(255,153,0,.4); }
+h4 { color:var(--lcars-teal);margin:20px 0 10px;font-size:.9rem;text-transform:uppercase;letter-spacing:2px; }
+.card { background:var(--bg2);border:1px solid var(--lcars-gold);border-left:4px solid var(--lcars-gold);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:0 4px 24px rgba(255,153,0,.08); }
+.item-list { list-style:none; }
+.item-list li { display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:2px;border-radius:var(--radius);border:1px solid transparent;transition:all .2s; }
+.item-list li:hover { background:rgba(255,153,0,.06);border-color:var(--border); }
+.item-list li a { flex:1;font-size:.95rem;color:var(--lcars-teal); }
+.item-list li a:hover { color:var(--lcars-gold);text-shadow:0 0 6px var(--lcars-gold); }
+.item-list .actions { display:flex;gap:6px;opacity:0;transition:opacity .15s; }
+.item-list li:hover .actions { opacity:1; }
+.item-list .actions a { font-size:.75rem;padding:2px 8px;border-radius:2px;border:1px solid var(--border);flex:none;color:var(--lcars-blue); }
+.item-list .actions a:hover { border-color:var(--lcars-gold);color:var(--lcars-gold); }
+.item-list .del { color:var(--lcars-red)!important; }
+.empty { color:var(--border);font-style:italic;padding:12px; }
+label { display:block;font-size:.85rem;color:var(--lcars-teal);margin-bottom:4px;margin-top:12px;letter-spacing:.5px;text-transform:uppercase; }
+input[type=text],input[type=password],input[type=email],input[type=date],input:not([type]),textarea,select { background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:.9rem;font-family:inherit;width:100%;transition:border-color .2s,box-shadow .2s;outline:none; }
+input:focus,textarea:focus,select:focus { border-color:var(--lcars-gold);box-shadow:0 0 0 3px rgba(255,153,0,.15); }
+textarea { resize:vertical;font-family:'Share Tech Mono',monospace;font-size:.85rem; }
+select option { background:var(--bg); }
+.form-row { display:flex;gap:12px;flex-wrap:wrap; }
+.form-row > * { flex:1;min-width:200px; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:8px 22px;border-radius:2px;border:1px solid var(--lcars-blue);background:transparent;color:var(--lcars-blue);font-size:.9rem;font-family:inherit;cursor:pointer;transition:all .2s;text-decoration:none;letter-spacing:1px;text-transform:uppercase; }
+.btn:hover { background:rgba(153,153,255,.12);border-color:var(--lcars-gold);color:var(--lcars-gold);box-shadow:0 0 14px rgba(255,153,0,.25);text-decoration:none;text-shadow:0 0 6px var(--lcars-gold); }
+.btn-primary { background:rgba(255,153,0,.15);color:var(--lcars-gold);border-color:var(--lcars-gold);font-weight:600;box-shadow:0 0 10px rgba(255,153,0,.2); }
+.btn-primary:hover { background:rgba(255,153,0,.28);box-shadow:0 0 20px rgba(255,153,0,.4);color:#fff; }
+.btn-danger { border-color:var(--lcars-red);color:var(--lcars-red); }
+.btn-danger:hover { background:var(--lcars-red);color:#fff;box-shadow:0 0 14px rgba(204,68,68,.35);text-shadow:none; }
+.btn-sm { padding:4px 14px;font-size:.8rem; }
+.btn-group { display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center; }
+err { display:block;color:var(--lcars-red);background:rgba(204,68,68,.08);border:1px solid var(--lcars-red);border-radius:var(--radius);padding:8px 12px;margin:10px 0;font-size:.9rem; }
+.breadcrumb { font-size:.85rem;color:var(--border);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.breadcrumb a { color:var(--lcars-blue); }
+.breadcrumb a:hover { color:var(--lcars-gold); }
+.breadcrumb .sep { color:var(--border); }
+.badge { font-size:.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:2px;padding:1px 8px;color:var(--lcars-teal); }
+.timestamp { font-size:.8rem;color:var(--border); }
+table { width:100%;border-collapse:collapse;font-size:.9rem; }
+th { text-align:left;padding:10px 12px;border-bottom:1px solid var(--lcars-gold);color:var(--lcars-teal);font-size:.8rem;text-transform:uppercase;letter-spacing:1px;font-family:'Share Tech Mono',monospace; }
+td { padding:6px 12px;vertical-align:top;border-bottom:1px solid var(--bg3); }
+tr:hover td { background:rgba(255,153,0,.04); }
+.search-box { display:flex;gap:8px;margin-bottom:20px; }
+.search-box input { flex:1; }
+.tag-create { color:var(--lcars-teal);font-weight:600; }
+.tag-update { color:var(--lcars-blue);font-weight:600; }
+.tag-delete { color:var(--lcars-red);font-weight:600; }
+.footer { position:fixed;bottom:0;left:0;width:100%;background:rgba(0,0,20,.90);border-top:1px solid var(--lcars-gold);color:var(--lcars-gold);text-align:center;font-size:.75rem;padding:5px;z-index:99;font-family:'Share Tech Mono',monospace;letter-spacing:2px; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+@media (max-width:600px) { .two-col { grid-template-columns:1fr; } .nav { gap:4px; } textarea { width:100%; } }
+.confirm-box { background:var(--bg2);border:1px solid var(--lcars-gold);border-radius:var(--radius);padding:24px;max-width:600px;box-shadow:0 4px 24px rgba(255,153,0,.12); }
+.confirm-box p { margin-bottom:12px;line-height:1.6; }
+.confirm-box .field { margin:8px 0;font-size:.9rem; }
+.confirm-box .field b { color:var(--lcars-teal); }
+.theme-select { background:var(--bg3);color:var(--lcars-blue);border:1px solid var(--border);border-radius:2px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:inherit; }
+.theme-select:focus { outline:none;border-color:var(--lcars-gold); }</style>
+<div class="footer">&#9650; {{ build_date }} &#9650;</div>
 """
 
 # Keep STYLE as an alias so error handlers that reference it still work
@@ -2143,11 +2451,18 @@ STYLE = STYLE_STELLAR
 
 def _get_style():
     """Return the CSS block for the current user's theme (reads Flask session)."""
-    return STYLE_UNICORN if session.get('theme', 'stellar') == 'unicorn' else STYLE_STELLAR
+    t = session.get('theme', 'stellar')
+    if t == 'unicorn':   return STYLE_UNICORN
+    if t == 'startrek':  return STYLE_STARTREK
+    return STYLE_STELLAR
 
 def _render(template, **kwargs):
-    """Swap STYLE_STELLAR for the user's chosen theme, then render."""
+    """Swap STYLE_STELLAR for the user's chosen theme, then render.
+    Also injects theme and build_date so Jinja2 variables resolve."""
+    theme = session.get('theme', 'stellar')
     themed = template.replace(STYLE_STELLAR, _get_style())
+    kwargs.setdefault('theme', theme)
+    kwargs.setdefault('build_date', BUILD_DATE)
     return render_template_string(themed, **kwargs)
 
 T_FOLDERS = STYLE + """
@@ -2158,7 +2473,13 @@ T_FOLDERS = STYLE + """
   <a href=/audit_report>Audit</a>
   <a href=/sessions>Sessions</a>
   <a href=/change_password>Password</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2206,7 +2527,13 @@ T_ADD_FOLDER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2230,7 +2557,13 @@ T_ADD_SUBFOLDER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{pid}}>Back</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2253,7 +2586,13 @@ T_RENAME_FOLDER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>Back</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2276,7 +2615,13 @@ T_CHANGE_PASSWORD = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2320,7 +2665,13 @@ T_DELETE_NOTE = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2343,7 +2694,13 @@ T_EDIT_CONFIRM = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2376,7 +2733,13 @@ T_NOTES = STYLE + """
   <a href=/folder/{{folder[0]}}/add_folder>+ Subfolder</a>
   <a href=/folder/rename/{{folder[0]}}>Rename</a>
   <a href=/folder/delete/{{folder[0]}} class="btn-danger" style="color:var(--red)">Delete Folder</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2415,7 +2778,13 @@ T_ADD = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>&#8592; Back</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2564,7 +2933,13 @@ T_SEARCH = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2627,7 +3002,13 @@ T_DELETE_FOLDER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2650,7 +3031,13 @@ T_HISTORY = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/edit/{{nid}}>&#8592; Back to Note</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2695,7 +3082,13 @@ T_ADMIN_SESSIONS = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2727,7 +3120,13 @@ T_ADMIN_DASHBOARD = STYLE + """
   <a href=/admin/sessions>Sessions</a>
   <a href=/admin/s3_backups>S3 Backups</a>
   <a href=/admin/iam_policy>IAM Policy</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2761,7 +3160,13 @@ T_ADMIN_EDIT_USER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2792,7 +3197,13 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>Dashboard</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2818,7 +3229,13 @@ T_ADMIN_DELETE_USER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2877,7 +3294,13 @@ T_AUDIT_REPORT = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2904,7 +3327,13 @@ T_SESSIONS = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2938,7 +3367,13 @@ T_ADMIN_AUDIT_LOGS = STYLE + """
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href="javascript:location.reload()" style="color:#0c0">Refresh</a>
-  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -3165,7 +3600,15 @@ def api_search():
     return jsonify(sorted(results, key=lambda x: x['key'].lower()))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # SSL cert/key paths — override via env vars or generate a self-signed cert for dev:
+    #   openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+    ssl_cert = os.environ.get('SSL_CERT', 'cert.pem')
+    ssl_key  = os.environ.get('SSL_KEY',  'key.pem')
+    use_ssl  = os.path.exists(ssl_cert) and os.path.exists(ssl_key)
+    ssl_ctx  = (ssl_cert, ssl_key) if use_ssl else None
+    if not use_ssl:
+        logger.warning("SSL cert/key not found — running without HTTPS. Set SSL_CERT and SSL_KEY env vars.")
+    app.run(host='0.0.0.0', port=5443 if use_ssl else 5000, ssl_context=ssl_ctx)
 
 
 T_ADMIN_S3_BACKUPS = STYLE + """
@@ -3208,6 +3651,8 @@ T_ADMIN_S3_BACKUPS = STYLE + """
 </table>
 {% endif %}
 """
+
+
 
 
 

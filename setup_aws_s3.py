@@ -22,6 +22,47 @@ BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'evernothing-backup-2026')
 REGION = os.environ.get('AWS_REGION', 'us-east-1')
 IAM_USER = 'evernothing-app'
 POLICY_NAME = 'EverNothingS3Policy'
+# Optional: comma-separated CIDRs to restrict bucket access by IP (e.g. "203.0.113.0/24,10.0.0.0/8")
+# Leave empty to skip IP restriction (HTTPS-only policy still applies).
+ALLOWED_IPS = [ip.strip() for ip in os.environ.get('S3_ALLOWED_IPS', '').split(',') if ip.strip()]
+
+
+def _apply_bucket_policy(s3_client, bucket_name):
+    """Apply bucket policy that:
+      - Denies all requests over plain HTTP (fix #11)
+      - Optionally restricts access to ALLOWED_IPS CIDRs (fix #12)
+    """
+    statements = [
+        {
+            "Sid": "DenyInsecureTransport",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                f"arn:aws:s3:::{bucket_name}",
+                f"arn:aws:s3:::{bucket_name}/*"
+            ],
+            "Condition": {"Bool": {"aws:SecureTransport": "false"}}
+        }
+    ]
+    if ALLOWED_IPS:
+        statements.append({
+            "Sid": "DenyNonAllowedIPs",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                f"arn:aws:s3:::{bucket_name}",
+                f"arn:aws:s3:::{bucket_name}/*"
+            ],
+            "Condition": {"NotIpAddress": {"aws:SourceIp": ALLOWED_IPS}}
+        })
+    policy = {"Version": "2012-10-17", "Statement": statements}
+    try:
+        s3_client.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
+        print(f"✅ Bucket policy applied (HTTPS-only{', IP restriction' if ALLOWED_IPS else ''})")
+    except Exception as e:
+        print(f"⚠️  Could not apply bucket policy: {e}")
 
 def print_header(text):
     print("\n" + "=" * 60)
@@ -97,7 +138,63 @@ def create_s3_bucket(s3_client):
         # )
         # print(f"✅ Configured lifecycle (30-day retention)")
         print(f"✅ Lifecycle: Infinite retention (no auto-delete)")
-        
+
+        # fix #14: Object Lock — GOVERNANCE mode protects against accidental/malicious deletes.
+        # Note: Object Lock must be enabled at bucket creation time via CreateBucket; since we
+        # can't retroactively enable it here, we set the default retention rule which applies
+        # to all new objects. To enable Object Lock on a brand-new bucket, delete and recreate
+        # with ObjectLockEnabledForBucket=True, or use setup_aws_s3.py from scratch.
+        lock_days = int(os.environ.get('S3_LOCK_DAYS', '30'))
+        try:
+            s3_client.put_object_lock_configuration(
+                Bucket=BUCKET_NAME,
+                ObjectLockConfiguration={
+                    'ObjectLockEnabled': 'Enabled',
+                    'Rule': {
+                        'DefaultRetention': {
+                            'Mode': 'GOVERNANCE',
+                            'Days': lock_days
+                        }
+                    }
+                }
+            )
+            print(f"✅ Object Lock enabled (GOVERNANCE, {lock_days} days)")
+        except Exception as e:
+            print(f"⚠️  Object Lock not applied (bucket may need to be recreated with ObjectLockEnabledForBucket=True): {e}")
+
+        # fix #13: server access logging — logs go to <bucket>-logs
+        log_bucket = f"{BUCKET_NAME}-logs"
+        try:
+            try:
+                s3_client.head_bucket(Bucket=log_bucket)
+            except Exception:
+                if REGION == 'us-east-1':
+                    s3_client.create_bucket(Bucket=log_bucket)
+                else:
+                    s3_client.create_bucket(Bucket=log_bucket,
+                        CreateBucketConfiguration={'LocationConstraint': REGION})
+                s3_client.put_public_access_block(Bucket=log_bucket,
+                    PublicAccessBlockConfiguration={
+                        'BlockPublicAcls': True, 'IgnorePublicAcls': True,
+                        'BlockPublicPolicy': True, 'RestrictPublicBuckets': True})
+                print(f"✅ Log bucket created: {log_bucket}")
+            s3_client.put_bucket_acl(Bucket=log_bucket, ACL='log-delivery-write')
+            s3_client.put_bucket_logging(
+                Bucket=BUCKET_NAME,
+                BucketLoggingStatus={
+                    'LoggingEnabled': {
+                        'TargetBucket': log_bucket,
+                        'TargetPrefix': 'access-logs/'
+                    }
+                }
+            )
+            print(f"✅ Access logging enabled → s3://{log_bucket}/access-logs/")
+        except Exception as e:
+            print(f"⚠️  Could not enable access logging: {e}")
+
+        # Enforce HTTPS-only and optionally restrict to known IPs
+        _apply_bucket_policy(s3_client, BUCKET_NAME)
+
         return True
     except Exception as e:
         print(f"❌ Error creating bucket: {e}")
