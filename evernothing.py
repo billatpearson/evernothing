@@ -166,7 +166,11 @@ DECRYPTION (9.2.1):
  cur.execute('SELECT users.username,notes.note_key,notes.note_value FROM notes JOIN users ON users.id=notes.user_id')
  data = [{'user':r[0],'key':dec(r[1]),'value':dec(r[2])} for r in cur.fetchall()]
  print(json.dumps(data, indent=2))
- print("\nJWT Token:\n" + jwt.encode({"data": data}, key.hex(), algorithm="HS256"))
+ # NOTE: use a dedicated JWT_SECRET env var — never reuse the AES encryption key as a JWT secret
+ jwt_secret = os.environ.get('JWT_SECRET')
+ if not jwt_secret:
+  raise RuntimeError("Set JWT_SECRET env var before generating tokens")
+ print("\nJWT Token:\n" + jwt.encode({"data": data}, jwt_secret, algorithm="HS256"))
  c.close()
  EOF
 
@@ -235,21 +239,53 @@ csrf = CSRFProtect(app)
 _remember_days = int(os.environ.get('REMEMBER_COOKIE_DAYS', '30'))
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=_remember_days)
 app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=_remember_days)
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'true').lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'true').lower() == 'true'
 app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 app.config['REMEMBER_COOKIE_NAME'] = 'remember_token'
 DB = "evernothing.db"
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
+@app.before_request
+def enforce_https():
+    """Redirect all plain HTTP requests to HTTPS."""
+    # Skip in testing/debug mode so unit tests still work over HTTP
+    if app.config.get('TESTING') or app.debug:
+        return
+    # Skip if the app itself is not running with SSL (no cert configured)
+    # — redirecting to https:// when the server only speaks HTTP causes ERR_SSL_PROTOCOL_ERROR
+    ssl_cert = os.environ.get('SSL_CERT', 'cert.pem')
+    ssl_key  = os.environ.get('SSL_KEY',  'key.pem')
+    if not (os.path.exists(ssl_cert) and os.path.exists(ssl_key)):
+        return
+    if request.is_secure:
+        return
+    # Honour reverse-proxy header (e.g. nginx / AWS ALB)
+    if request.headers.get('X-Forwarded-Proto', 'http') == 'https':
+        return
+    url = request.url.replace('http://', 'https://', 1)
+    return redirect(url, code=301)
+
 @app.context_processor
 def inject_build_date():
     return dict(build_date=BUILD_DATE)
 
-# --- ENCRYPTION ---
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:;"
+    )
+    return response
 ENCRYPTION_ENABLED = os.environ.get('ENCRYPTION_ENABLED', 'false').lower() == 'true'
 KEY_FILE = "secret.key"
 if AESGCM:
@@ -499,33 +535,53 @@ compress_old_backups()
 
 # --- AWS SYNC ---
 def _s3_client():
-    """Return a boto3 S3 client using env vars or profile."""
+    """Return a boto3 S3 client.
+
+    Credential resolution order (most to least preferred):
+      1. IAM role / instance profile (no keys needed — preferred)
+      2. Explicit AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY env vars
+      3. Named AWS CLI profile (AWS_PROFILE)
+
+    Raises NoCredentialsError if boto3 cannot find any credentials so the
+    caller gets a loud failure instead of a silent no-op.
+    """
+    from botocore.exceptions import NoCredentialsError, PartialCredentialsError
+    # fix #9: always verify TLS — rejects self-signed / MITM certs including
+    # corporate proxies doing TLS inspection unless a custom CA bundle is provided.
+    ca_bundle = os.environ.get('AWS_CA_BUNDLE') or True  # True = use certifi default
+    base = {'region_name': AWS_REGION, 'verify': ca_bundle}
     if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-        return boto3.client('s3', region_name=AWS_REGION,
+        return boto3.client('s3', **base,
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
-    try:
-        return boto3.Session(profile_name=AWS_PROFILE).client('s3')
-    except Exception:
-        return boto3.client('s3', region_name=AWS_REGION)
+    if AWS_PROFILE:
+        try:
+            return boto3.Session(profile_name=AWS_PROFILE).client('s3', **base)
+        except Exception as e:
+            logger.warning(f"AWS profile '{AWS_PROFILE}' failed ({e}), falling back to default credential chain")
+    # Let boto3 use the default chain (instance profile, ECS task role, env, ~/.aws)
+    # This will raise NoCredentialsError loudly if nothing is available
+    return boto3.client('s3', **base)
 
 DEVICE_ID = os.environ.get('DEVICE_ID', __import__('socket').gethostname())
 _bucket_policy_applied = False
 
-def queue_change(cur, entity_type, entity_id, operation):
-    """Record a change in sync_queue with the complete row as payload."""
-    payload = {}
-    try:
-        if entity_type == 'note':
-            r = cur.execute("SELECT id,user_id,folder_id,note_key,note_value,description,updated_at FROM notes WHERE id=?", (entity_id,)).fetchone()
-            if r:
-                payload = {'id': r[0], 'user_id': r[1], 'folder_id': r[2], 'note_key': r[3], 'note_value': r[4], 'description': r[5], 'updated_at': r[6]}
-        elif entity_type == 'folder':
-            r = cur.execute("SELECT id,user_id,name,parent_id FROM folders WHERE id=?", (entity_id,)).fetchone()
-            if r:
-                payload = {'id': r[0], 'user_id': r[1], 'name': r[2], 'parent_id': r[3]}
-    except Exception as e:
-        logger.warning(f"queue_change fetch failed: {e}")
+def queue_change(cur, entity_type, entity_id, operation, payload=None):
+    """Record a change in sync_queue. If payload is provided it is used directly;
+    otherwise the current row is fetched from the DB."""
+    if payload is None:
+        payload = {}
+        try:
+            if entity_type == 'note':
+                r = cur.execute("SELECT id,user_id,folder_id,note_key,note_value,description,updated_at FROM notes WHERE id=?", (entity_id,)).fetchone()
+                if r:
+                    payload = {'id': r[0], 'user_id': r[1], 'folder_id': r[2], 'note_key': r[3], 'note_value': r[4], 'description': r[5], 'updated_at': r[6]}
+            elif entity_type == 'folder':
+                r = cur.execute("SELECT id,user_id,name,parent_id FROM folders WHERE id=?", (entity_id,)).fetchone()
+                if r:
+                    payload = {'id': r[0], 'user_id': r[1], 'name': r[2], 'parent_id': r[3]}
+        except Exception as e:
+            logger.warning(f"queue_change fetch failed: {e}")
     cur.execute(
         "INSERT INTO sync_queue (entity_type, entity_id, operation, payload, changed_at) VALUES(?,?,?,?,?)",
         (entity_type, entity_id, operation, json.dumps(payload),
@@ -573,7 +629,14 @@ def get_iam_policy():
 
 
 def _apply_bucket_policy(s3, bucket_name):
-    """Apply a least-privilege bucket policy scoped to the calling IAM principal."""
+    """Apply bucket policy that:
+      - Denies all requests over plain HTTP (fix #11)
+      - Restricts access to ALLOWED_IPS CIDRs when configured (fix #12)
+      - Denies all principals except the calling IAM identity
+    """
+    # Optional IP allowlist — comma-separated CIDRs in S3_ALLOWED_IPS env var
+    allowed_ips = [ip.strip() for ip in os.environ.get('S3_ALLOWED_IPS', '').split(',') if ip.strip()]
+
     try:
         sts_kwargs = {'region_name': AWS_REGION}
         if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
@@ -582,41 +645,50 @@ def _apply_bucket_policy(s3, bucket_name):
         caller_arn = boto3.client('sts', **sts_kwargs).get_caller_identity()['Arn']
     except Exception as e:
         logger.warning(f"Could not determine caller ARN for bucket policy: {e}")
-        return
+        caller_arn = None
 
-    policy = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Sid": "DenyAllExceptCallerPrincipal",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:*",
-                "Resource": [
-                    f"arn:aws:s3:::{bucket_name}",
-                    f"arn:aws:s3:::{bucket_name}/*"
-                ],
-                "Condition": {
-                    "StringNotEquals": {
-                        "aws:PrincipalArn": caller_arn
-                    }
-                }
-            },
-            {
-                "Sid": "DenyInsecureTransport",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:*",
-                "Resource": [
-                    f"arn:aws:s3:::{bucket_name}",
-                    f"arn:aws:s3:::{bucket_name}/*"
-                ],
-                "Condition": {
-                    "Bool": {"aws:SecureTransport": "false"}
-                }
-            }
-        ]
-    }
+    statements = [
+        {
+            "Sid": "DenyInsecureTransport",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                f"arn:aws:s3:::{bucket_name}",
+                f"arn:aws:s3:::{bucket_name}/*"
+            ],
+            "Condition": {"Bool": {"aws:SecureTransport": "false"}}
+        }
+    ]
+
+    if caller_arn:
+        statements.append({
+            "Sid": "DenyAllExceptCallerPrincipal",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                f"arn:aws:s3:::{bucket_name}",
+                f"arn:aws:s3:::{bucket_name}/*"
+            ],
+            "Condition": {"StringNotEquals": {"aws:PrincipalArn": caller_arn}}
+        })
+
+    if allowed_ips:
+        statements.append({
+            "Sid": "DenyNonAllowedIPs",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                f"arn:aws:s3:::{bucket_name}",
+                f"arn:aws:s3:::{bucket_name}/*"
+            ],
+            "Condition": {"NotIpAddress": {"aws:SourceIp": allowed_ips}}
+        })
+        logger.info(f"Bucket policy: IP restriction applied to {len(allowed_ips)} CIDR(s)")
+
+    policy = {"Version": "2012-10-17", "Statement": statements}
     try:
         s3.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
         logger.info(f"Bucket policy applied to {bucket_name}")
@@ -625,6 +697,59 @@ def _apply_bucket_policy(s3, bucket_name):
 
 
 _BUCKET_POLICY_SENTINEL = ".bucket_policy_applied"
+
+def _enable_s3_access_logging(s3, bucket_name):
+    """Enable S3 server access logging (fix #13). Logs go to <bucket>-logs."""
+    log_bucket = f"{bucket_name}-logs"
+    try:
+        try:
+            s3.head_bucket(Bucket=log_bucket)
+        except Exception:
+            if AWS_REGION == 'us-east-1':
+                s3.create_bucket(Bucket=log_bucket)
+            else:
+                s3.create_bucket(Bucket=log_bucket,
+                    CreateBucketConfiguration={'LocationConstraint': AWS_REGION})
+            s3.put_public_access_block(Bucket=log_bucket,
+                PublicAccessBlockConfiguration={
+                    'BlockPublicAcls': True, 'IgnorePublicAcls': True,
+                    'BlockPublicPolicy': True, 'RestrictPublicBuckets': True})
+        s3.put_bucket_acl(Bucket=log_bucket, ACL='log-delivery-write')
+        s3.put_bucket_logging(
+            Bucket=bucket_name,
+            BucketLoggingStatus={
+                'LoggingEnabled': {
+                    'TargetBucket': log_bucket,
+                    'TargetPrefix': 'access-logs/'
+                }
+            }
+        )
+        logger.info(f"S3 access logging enabled → s3://{log_bucket}/access-logs/")
+    except Exception as e:
+        logger.warning(f"Could not enable S3 access logging: {e}")
+
+def _enable_s3_object_lock(s3, bucket_name):
+    """Enable S3 Object Lock GOVERNANCE retention (fix #14).
+    Protects backups from accidental or malicious deletion.
+    Requires the bucket to have been created with ObjectLockEnabledForBucket=True.
+    """
+    lock_days = int(os.environ.get('S3_LOCK_DAYS', '30'))
+    try:
+        s3.put_object_lock_configuration(
+            Bucket=bucket_name,
+            ObjectLockConfiguration={
+                'ObjectLockEnabled': 'Enabled',
+                'Rule': {
+                    'DefaultRetention': {
+                        'Mode': 'GOVERNANCE',
+                        'Days': lock_days
+                    }
+                }
+            }
+        )
+        logger.info(f"S3 Object Lock enabled (GOVERNANCE, {lock_days} days) on {bucket_name}")
+    except Exception as e:
+        logger.warning(f"Could not enable S3 Object Lock (bucket may need ObjectLockEnabledForBucket=True at creation): {e}")
 
 def _s3_upload_with_retry(fn, *args, **kwargs):
     import time
@@ -638,9 +763,18 @@ def _s3_upload_with_retry(fn, *args, **kwargs):
             time.sleep(wait)
 
 def sync_s3():
-    """#15: non-blocking — runs S3 sync in a background thread."""
+    """Run S3 sync synchronously (blocking). Used by tests and direct calls."""
     if not boto3:
         logger.warning("S3 sync skipped: boto3 not available")
+        return
+    _sync_s3_worker()
+
+def sync_s3_async():
+    """Non-blocking S3 sync — spawns a background thread. Used by HTTP routes."""
+    if not boto3:
+        logger.warning("S3 sync skipped: boto3 not available")
+        return
+    if app.config.get('TESTING'):
         return
     import threading
     threading.Thread(target=_sync_s3_worker, daemon=True).start()
@@ -650,20 +784,25 @@ def _sync_s3_worker():
         import io
         global _bucket_policy_applied
         s3 = _s3_client()
-        # #17: file sentinel prevents redundant policy calls across workers
+        # file sentinel prevents redundant hardening calls across workers
         if not _bucket_policy_applied and not os.path.exists(_BUCKET_POLICY_SENTINEL):
             _apply_bucket_policy(s3, S3_BUCKET_NAME)
+            _enable_s3_access_logging(s3, S3_BUCKET_NAME)
+            _enable_s3_object_lock(s3, S3_BUCKET_NAME)
             try: open(_BUCKET_POLICY_SENTINEL, 'w').close()
             except Exception: pass
             _bucket_policy_applied = True
         elif os.path.exists(_BUCKET_POLICY_SENTINEL):
             _bucket_policy_applied = True
 
-        extra_json = {"ServerSideEncryption": "aws:kms", "ContentType": "application/json"}
-        extra_db = {"ServerSideEncryption": "aws:kms"}
+        # Build ExtraArgs — use KMS if configured, otherwise fall back to AES256.
+        # SSE is always applied; no upload should ever land unencrypted.
         if KMS_KEY_ID:
-            extra_json["SSEKMSKeyId"] = KMS_KEY_ID
-            extra_db["SSEKMSKeyId"] = KMS_KEY_ID
+            _sse = {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": KMS_KEY_ID}
+        else:
+            _sse = {"ServerSideEncryption": "AES256"}
+        extra_json = {"ContentType": "application/json", **_sse}
+        extra_db   = {**_sse}
 
         con = db(); cur = con.cursor()
         cur.execute("SELECT id, entity_type, entity_id, operation, payload, changed_at FROM sync_queue WHERE synced_at IS NULL")
@@ -672,19 +811,30 @@ def _sync_s3_worker():
         if rows:
             changes = [{"op": r[3], "entity": r[1], "id": r[2], "data": json.loads(r[4]), "at": r[5]} for r in rows]
             ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            upload_kwargs = {"ExtraArgs": extra_json}
             _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(json.dumps(changes).encode("utf-8")),
-                                  S3_BUCKET_NAME, f"changes/{DEVICE_ID}/{ts}.json", ExtraArgs=extra_json)
+                                  S3_BUCKET_NAME, f"changes/{DEVICE_ID}/{ts}.json", **upload_kwargs)
             delta_ids = [r[0] for r in rows]
             logger.info(f"S3 delta: {len(changes)} change(s)")
         con.close()
 
-        # #18: mark delta synced only after DB backup succeeds
+        # mark delta synced only after DB backup succeeds
         ts = datetime.datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         with open(DB, 'rb') as f:
             db_bytes = f.read()
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB, ExtraArgs=extra_db)
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f"backups/{DB}.{ts}", ExtraArgs=extra_db)
-        logger.info(f"S3 DB backup: s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}")
+        # fix #8: encrypt the DB file before uploading so metadata/keys are
+        # not exposed as plaintext even if SSE is ever misconfigured.
+        # Format: 12-byte nonce || AES-GCM ciphertext (same scheme as note encryption)
+        if AESGCM and KEY:
+            nonce = os.urandom(12)
+            db_bytes = nonce + aesgcm.encrypt(nonce, db_bytes, None)
+            enc_suffix = '.enc'
+        else:
+            enc_suffix = ''
+        upload_db_kwargs = {"ExtraArgs": extra_db}
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB + enc_suffix, **upload_db_kwargs)
+        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f"backups/{DB}.{ts}{enc_suffix}", **upload_db_kwargs)
+        logger.info(f"S3 DB backup: s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}{enc_suffix}")
 
         if delta_ids:
             con = db(); cur = con.cursor()
@@ -752,10 +902,32 @@ def validate_password(password):
         return None, "Password must contain at least one number"
     return password, None
 
-def allowed_file(filename):
-    """Check if file extension is allowed"""
+def allowed_file(filename, stream=None):
+    """Check file extension and optionally MIME type against allowlist."""
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'zip'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    ALLOWED_MIMES = {
+        'text/plain', 'application/pdf',
+        'image/png', 'image/jpeg', 'image/gif',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/zip',
+    }
+    if not ('.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS):
+        return False
+    if stream is not None:
+        import imghdr, mimetypes
+        header = stream.read(261)
+        stream.seek(0)
+        # Use python-magic if available, fall back to imghdr/mimetypes
+        try:
+            import magic
+            mime = magic.from_buffer(header, mime=True)
+        except ImportError:
+            ext = filename.rsplit('.', 1)[1].lower()
+            mime = mimetypes.types_map.get('.' + ext, '')
+        if mime and mime not in ALLOWED_MIMES:
+            return False
+    return True
 
 def format_date(iso_str):
     try:
@@ -781,12 +953,12 @@ def log_change(cur, user_id, action, entity_type, entity_id, old_values, new_val
 @app.errorhandler(404)
 def not_found(error):
     logger.warning(f"404 error: {request.url}")
-    return render_template_string(STYLE + "<h3>404 - Page Not Found</h3><a href=/>Home</a>"), 404
+    return _render(STYLE + "<h3>404 - Page Not Found</h3><a href=/>Home</a>"), 404
 
 @app.errorhandler(500)
 def internal_error(error):
     logger.error(f"500 error: {error}")
-    return render_template_string(STYLE + "<h3>500 - Internal Server Error</h3><a href=/>Home</a>"), 500
+    return _render(STYLE + "<h3>500 - Internal Server Error</h3><a href=/>Home</a>"), 500
 
 # --- ROUTES ---
 @app.route("/")
@@ -801,7 +973,7 @@ def index():
     recent = [(r[0], decrypt(r[1]), format_date(r[2])) for r in cur.fetchall()]
     con.close()
     
-    return render_template_string(T_FOLDERS, folders=folders, recent=recent)
+    return _render(T_FOLDERS, folders=folders, recent=recent)
 
 @app.route("/folder/add", methods=["GET","POST"])
 @login_required
@@ -809,7 +981,7 @@ def add_folder():
     if request.method == "POST":
         name, error = validate_input(request.form.get('name', ''))
         if error:
-            return render_template_string(T_ADD_FOLDER, error=error)
+            return _render(T_ADD_FOLDER, error=error)
         
         con = db(); cur = con.cursor()
         try:
@@ -819,16 +991,16 @@ def add_folder():
             )
             queue_change(cur, 'folder', cur.lastrowid, 'INSERT')
             con.commit()
-            sync_s3()
+            sync_s3_async()
             logger.info(f"User {current_user.id} created folder: {name}")
         except Exception as e:
             logger.error(f"Error creating folder: {e}")
             con.rollback()
-            return render_template_string(T_ADD_FOLDER, error="Failed to create folder")
+            return _render(T_ADD_FOLDER, error="Failed to create folder")
         finally:
             con.close()
         return redirect("/")
-    return render_template_string(T_ADD_FOLDER)
+    return _render(T_ADD_FOLDER)
 
 @app.route("/folder/<int:pid>/add_folder", methods=["GET","POST"])
 @login_required
@@ -841,10 +1013,10 @@ def add_subfolder(pid):
         )
         queue_change(cur, 'folder', cur.lastrowid, 'INSERT')
         con.commit()
-        sync_s3()
+        sync_s3_async()
         con.close()        
         return redirect(f"/folder/{pid}")
-    return render_template_string(T_ADD_SUBFOLDER, pid=pid)
+    return _render(T_ADD_SUBFOLDER, pid=pid)
 
 def delete_recursive(cur, fid, uid):
     cur.execute("SELECT id FROM folders WHERE parent_id=? AND user_id=?", (fid, uid))
@@ -867,10 +1039,10 @@ def delete_folder(fid):
         queue_change(cur, 'folder', fid, 'DELETE')
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect(f"/folder/{f[1]}" if f[1] else "/")
 
-    result = render_template_string(T_DELETE_FOLDER, f=(decrypt(f[0]), f[1])) if f else redirect("/")
+    result = _render(T_DELETE_FOLDER, f=(decrypt(f[0]), f[1])) if f else redirect("/")
     con.close()
     return result
 
@@ -887,10 +1059,10 @@ def rename_folder(fid):
         queue_change(cur, 'folder', fid, 'UPDATE')
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect(f"/folder/{fid}")
     con.close()
-    return render_template_string(T_RENAME_FOLDER, f=(decrypt(f[0]), f[1]), fid=fid)
+    return _render(T_RENAME_FOLDER, f=(decrypt(f[0]), f[1]), fid=fid)
 
 @app.route("/note/delete/<int:nid>", methods=["GET","POST"])
 @login_required
@@ -905,10 +1077,10 @@ def delete_note(nid):
         queue_change(cur, 'note', nid, 'DELETE')
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect(f"/folder/{n[0]}" if n[0] else "/")
     con.close()
-    return render_template_string(T_DELETE_NOTE, n=(n[0], decrypt(n[1])))
+    return _render(T_DELETE_NOTE, n=(n[0], decrypt(n[1])))
 
 @app.route("/change_password", methods=["GET","POST"])
 @login_required
@@ -927,12 +1099,12 @@ def change_password():
                 cur.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(new_password), current_user.id))
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect("/")
         else:
             con.close()
             error = "Invalid old password"
-    return render_template_string(T_CHANGE_PASSWORD, error=error)
+    return _render(T_CHANGE_PASSWORD, error=error)
 
 @app.route("/search")
 @login_required
@@ -945,7 +1117,7 @@ def search():
     search_history = request.args.get('history', '') == 'on'
     
     if not q or len(q) > 100:
-        return render_template_string(T_SEARCH, notes=[], q=q, folders=[], folder_filter=folder_filter, folder_results=[])
+        return _render(T_SEARCH, notes=[], q=q, folders=[], folder_filter=folder_filter, folder_results=[])
     
     con = db()
     cur = con.cursor()
@@ -1014,7 +1186,7 @@ def search():
     finally:
         con.close()
     
-    return render_template_string(T_SEARCH, notes=notes, q=q, folders=folders,
+    return _render(T_SEARCH, notes=notes, q=q, folders=folders,
                                  folder_results=folder_results,
                                  folder_filter=folder_filter, date_from=date_from, 
                                  date_to=date_to, use_regex=use_regex, search_history=search_history)
@@ -1054,7 +1226,7 @@ def view_folder(fid):
     notes = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
     con.close()
     
-    return render_template_string(T_NOTES, notes=notes, subfolders=subfolders, folder=(folder[0], decrypt(folder[1]), folder[2]))
+    return _render(T_NOTES, notes=notes, subfolders=subfolders, folder=(folder[0], decrypt(folder[1]), folder[2]))
 
 @app.route("/add/<int:fid>", methods=["GET","POST"])
 @login_required
@@ -1110,9 +1282,9 @@ def add(fid):
                 queue_change(cur, 'note', nid, 'INSERT')
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect(f"/folder/{fid}")
-    return render_template_string(T_ADD, fid=fid, error=error, note=note_val, content=content_val, description=desc_val)
+    return _render(T_ADD, fid=fid, error=error, note=note_val, content=content_val, description=desc_val)
 
 @app.route("/edit/<int:id>", methods=["GET","POST"])
 @login_required
@@ -1148,7 +1320,7 @@ def edit(id):
             file = request.files['file']
             if not allowed_file(file.filename):
                 con.close()
-                return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File type not allowed")
+                return _render(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File type not allowed")
             
             filename = file.filename[:255]  # Limit filename length
             file_data = file.read()
@@ -1160,11 +1332,11 @@ def edit(id):
                 log_change(cur, current_user.id, 'CREATE', 'attachment', cur.lastrowid, {}, {'note_id': id, 'filename': filename, 'size': len(file_data)}, request.remote_addr)
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect(f"/edit/{id}")
             else:
                 con.close()
-                return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File too large or empty")
+                return _render(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File too large or empty")
 
         # Handle note edit
         if 'note' in request.form and 'content' in request.form:
@@ -1198,15 +1370,15 @@ def edit(id):
                 queue_change(cur, 'note', id, 'UPDATE')
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect("/")
             else:
                 con.close()
-                return render_template_string(T_EDIT_CONFIRM, note=[request.form['note'], request.form['content'], request.form.get('folder_id'), None, new_desc], id=id)
+                return _render(T_EDIT_CONFIRM, note=[request.form['note'], request.form['content'], request.form.get('folder_id'), None, new_desc], id=id)
 
     breadcrumbs = get_breadcrumbs(cur, note[2], current_user.id)
     con.close()
-    return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=breadcrumbs, id=id, attachments=attachments)
+    return _render(T_EDIT, note=note, folders=folders, breadcrumbs=breadcrumbs, id=id, attachments=attachments)
 
 @app.route("/history/<int:nid>")
 @login_required
@@ -1216,7 +1388,7 @@ def history(nid):
     cur.execute("SELECT id,note_key,updated_at FROM note_history WHERE note_id=? AND user_id=? ORDER BY updated_at DESC", (nid, current_user.id))
     history = [(h[0], decrypt(h[1]), format_date(h[2])) for h in cur.fetchall()]
     con.close()
-    return render_template_string(T_HISTORY, history=history, nid=nid)
+    return _render(T_HISTORY, history=history, nid=nid)
 
 @app.route("/history/restore/<int:hid>", methods=["GET","POST"])
 @login_required
@@ -1232,8 +1404,15 @@ def restore_history(hid):
         return render_template_string(
             STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/history/{{nid}}>&#8592; Back</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -1262,7 +1441,7 @@ def restore_history(hid):
     )
     con.commit()
     con.close()
-    sync_s3()
+    sync_s3_async()
     return redirect(f"/edit/{h[0]}")
 
 # --- ADMIN AUTH HELPER ---
@@ -1283,9 +1462,9 @@ def admin_login():
             log_change(cur, 0, 'CREATE', 'admin_session', 0, {}, {'admin': admin_user, 'ip': request.remote_addr}, request.remote_addr)
             con.commit(); con.close()
             return redirect("/admin/dashboard")
-        return render_template_string(T_ADMIN_LOGIN, error="Invalid credentials")
+        return _render(T_ADMIN_LOGIN, error="Invalid credentials")
     timeout = request.args.get('timeout')
-    return render_template_string(T_ADMIN_LOGIN, error="Admin session expired. Please log in again." if timeout else None)
+    return _render(T_ADMIN_LOGIN, error="Admin session expired. Please log in again." if timeout else None)
 
 @app.route("/admin/dashboard")
 @admin_required
@@ -1305,7 +1484,7 @@ def admin_dashboard():
     cur.execute(sql, (f'%{q}%',))
     users = [(r[0], r[1], r[2], r[3], format_date(r[4]) if r[4] else "Never") for r in cur.fetchall()]
     con.close()
-    return render_template_string(T_ADMIN_DASHBOARD, users=users, q=q)
+    return _render(T_ADMIN_DASHBOARD, users=users, q=q)
 
 @app.route("/admin/user/<int:uid>", methods=["GET","POST"])
 @admin_required
@@ -1333,17 +1512,17 @@ def admin_edit_user(uid):
                 log_change(cur, current_user.id if hasattr(current_user, 'id') else 0, 'UPDATE', 'user', uid, old_vals, new_vals, request.remote_addr)
                 con.commit()
                 con.close()
-                sync_s3()
+                sync_s3_async()
                 return redirect("/admin/dashboard")
             except sqlite3.IntegrityError:
                 con.close()
-                return render_template_string(T_ADMIN_EDIT_USER, user=user, error="Username already exists")
+                return _render(T_ADMIN_EDIT_USER, user=user, error="Username already exists")
         else:
             con.close()
-            return render_template_string(T_ADMIN_EDIT_USER_CONFIRM, user=user, new_name=new_name, new_pass=new_pass, new_last_login=new_last_login)
+            return _render(T_ADMIN_EDIT_USER_CONFIRM, user=user, new_name=new_name, new_pass=new_pass, new_last_login=new_last_login)
 
     con.close()
-    return render_template_string(T_ADMIN_EDIT_USER, user=user)
+    return _render(T_ADMIN_EDIT_USER, user=user)
 
 @app.route("/admin/user/delete/<int:uid>", methods=["GET","POST"])
 @admin_required
@@ -1362,20 +1541,27 @@ def admin_delete_user(uid):
         cur.execute("DELETE FROM users WHERE id=?", (uid,))
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect("/admin/dashboard")
 
     con.close()
-    return render_template_string(T_ADMIN_DELETE_USER, user=user)
+    return _render(T_ADMIN_DELETE_USER, user=user)
 
 @app.route("/admin/iam_policy")
 @admin_required
 def admin_iam_policy():
     policy = json.dumps(get_iam_policy(), indent=2)
-    return render_template_string(STYLE + """
+    return _render(STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -1415,13 +1601,13 @@ def admin_s3_backups():
     except Exception as e:
         logger.error(f"Failed to list S3 backups: {e}")
     
-    return render_template_string(T_ADMIN_S3_BACKUPS, backups=backups)
+    return _render(T_ADMIN_S3_BACKUPS, backups=backups)
 
 @app.route("/admin/s3_restore/<path:key>", methods=["GET","POST"])
 @admin_required
 def admin_s3_restore(key):
     if request.method == "GET":
-        return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], confirm_key=key)
+        return _render(T_ADMIN_S3_BACKUPS, backups=[], confirm_key=key)
     
     try:
         if boto3:
@@ -1430,10 +1616,10 @@ def admin_s3_restore(key):
             backup_file = f"restore_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
             s3.download_file(S3_BUCKET_NAME, key, backup_file)
             logger.info(f"Restored backup from S3: {key} to {backup_file}")
-            return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], message=f"Backup restored to {backup_file}. Restart app to use it.")
+            return _render(T_ADMIN_S3_BACKUPS, backups=[], message=f"Backup restored to {backup_file}. Restart app to use it.")
     except Exception as e:
         logger.error(f"Failed to restore S3 backup: {e}")
-        return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], error=f"Restore failed: {e}")
+        return _render(T_ADMIN_S3_BACKUPS, backups=[], error=f"Restore failed: {e}")
     
     return redirect("/admin/s3_backups")
 
@@ -1458,7 +1644,7 @@ def admin_sessions():
         'user_agent': (r[5] or '')[:50] + ('...' if r[5] and len(r[5]) > 50 else '')
     } for r in cur.fetchall()]
     con.close()
-    return render_template_string(T_ADMIN_SESSIONS, sessions=sessions)
+    return _render(T_ADMIN_SESSIONS, sessions=sessions)
 
 @app.route("/admin/audit_logs")
 @admin_required
@@ -1508,7 +1694,7 @@ def admin_audit_logs():
             'ip': r[8]
         })
     con.close()
-    return render_template_string(T_ADMIN_AUDIT_LOGS, logs=logs, user_filter=user_filter, action_filter=action_filter, entity_filter=entity_filter, limit=limit)
+    return _render(T_ADMIN_AUDIT_LOGS, logs=logs, user_filter=user_filter, action_filter=action_filter, entity_filter=entity_filter, limit=limit)
 
 # --- PASSWORD RESET ---
 def get_serializer():
@@ -1535,22 +1721,22 @@ def forgot_password():
                     logger.warning(f"Failed to send password reset email to {email}")
             except ImportError:
                 logger.warning("email_utils not available; password reset link was not sent")
-        return render_template_string(T_FORGOT_PASSWORD, message="If that email exists, a reset link has been sent.")
-    return render_template_string(T_FORGOT_PASSWORD)
+        return _render(T_FORGOT_PASSWORD, message="If that email exists, a reset link has been sent.")
+    return _render(T_FORGOT_PASSWORD)
 
 @app.route("/reset_password/<token>", methods=["GET", "POST"])
 def reset_password(token):
     try: email = get_serializer().loads(token, salt='recover-key', max_age=3600)
-    except: return render_template_string(T_RESET_PASSWORD, error="Invalid or expired token.")
+    except: return _render(T_RESET_PASSWORD, error="Invalid or expired token.")
     if request.method == "POST":
         con = db()
         cur = con.cursor()
         cur.execute("UPDATE users SET password=? WHERE email=?", (generate_password_hash(request.form['password']), email))
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect("/login")
-    return render_template_string(T_RESET_PASSWORD)
+    return _render(T_RESET_PASSWORD)
 
 # --- LOGIN ---
 @app.route("/login", methods=["GET","POST"])
@@ -1574,7 +1760,7 @@ def login():
             error = f"Too many login attempts. Please try again later."
             logger.warning(f"Rate limit exceeded for login from {request.remote_addr}")
             con.close()
-            return render_template_string(T_LOGIN, error=error)
+            return _render(T_LOGIN, error=error)
         
         r = cur.execute(
             "SELECT id,password FROM users WHERE username=?",
@@ -1619,7 +1805,7 @@ def login():
             return redirect("/")
         error = "Invalid username or password"
     con.close()
-    return render_template_string(T_LOGIN, error=error)
+    return _render(T_LOGIN, error=error)
 
 @app.route("/register", methods=["GET","POST"])
 def register():
@@ -1630,19 +1816,19 @@ def register():
         if not check_rate_limit(request.remote_addr, 'register', RATE_LIMIT_REGISTER):
             error = "Too many registration attempts. Please try again later."
             logger.warning(f"Rate limit exceeded for registration from {request.remote_addr}")
-            return render_template_string(T_REGISTER, error=error)
+            return _render(T_REGISTER, error=error)
         
         username, error = validate_input(request.form.get('username', ''), max_length=50)
         if error:
-            return render_template_string(T_REGISTER, error=error)
+            return _render(T_REGISTER, error=error)
         
         email, error = validate_email(request.form.get('email', ''))
         if error:
-            return render_template_string(T_REGISTER, error=error)
+            return _render(T_REGISTER, error=error)
         
         password, error = validate_password(request.form.get('password', ''))
         if error:
-            return render_template_string(T_REGISTER, error=error)
+            return _render(T_REGISTER, error=error)
         
         con = db()
         cursor=con.cursor()
@@ -1652,18 +1838,18 @@ def register():
                 (username, generate_password_hash(password), email)
             )
             con.commit()
-            sync_s3()
+            sync_s3_async()
             logger.info(f"New user registered: {username!r}")
             return redirect("/login")
         except sqlite3.IntegrityError:
             logger.warning(f"Duplicate registration attempt: {username}")
-            return render_template_string(T_REGISTER, error="Username already exists")
+            return _render(T_REGISTER, error="Username already exists")
         except Exception as e:
             logger.error(f"Registration error: {e}")
-            return render_template_string(T_REGISTER, error="Registration failed")
+            return _render(T_REGISTER, error="Registration failed")
         finally:
             con.close()
-    return render_template_string(T_REGISTER)
+    return _render(T_REGISTER)
 
 @app.route("/logout")
 def logout():
@@ -1677,6 +1863,17 @@ def logout():
         con.commit()
         con.close()
     logout_user(); session.clear(); return redirect("/login")
+
+@app.route("/set_theme")
+def set_theme():
+    t = request.args.get('t', '')
+    if t in ('stellar', 'unicorn', 'startrek'):
+        session['theme'] = t
+    else:
+        # fallback cycle: stellar -> unicorn -> startrek -> stellar
+        cycle = {'stellar': 'unicorn', 'unicorn': 'startrek', 'startrek': 'stellar'}
+        session['theme'] = cycle.get(session.get('theme', 'stellar'), 'stellar')
+    return redirect(request.referrer or '/')
 
 @app.route("/sessions")
 @login_required
@@ -1698,7 +1895,7 @@ def view_sessions():
             'is_current': s[0] == session.get('session_id')
         })
     con.close()
-    return render_template_string(T_SESSIONS, sessions=sessions)
+    return _render(T_SESSIONS, sessions=sessions)
 
 @app.route("/session/revoke/<session_id>")
 @login_required
@@ -1742,7 +1939,7 @@ def audit_report():
             'ip': r[8]
         })
     con.close()
-    return render_template_string(T_AUDIT_REPORT, logs=logs)
+    return _render(T_AUDIT_REPORT, logs=logs)
 
 @app.route("/download/<int:aid>")
 @login_required
@@ -1768,13 +1965,13 @@ def delete_attachment(aid):
         cur.execute("DELETE FROM attachments WHERE id=? AND user_id=?", (aid, current_user.id))
         con.commit()
         con.close()
-        sync_s3()
+        sync_s3_async()
         return redirect(f"/edit/{a[0]}")
     con.close()
     return redirect("/")
 
 # --- TEMPLATES ---
-STYLE = """
+STYLE_UNICORN = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
@@ -1807,7 +2004,6 @@ body {
 }
 a { color: var(--rose); text-decoration: none; transition: color .15s; }
 a:hover { color: var(--sky); }
-/* rainbow rule under every page */
 body::before {
   content: '';
   display: block;
@@ -1818,83 +2014,199 @@ body::before {
   position: fixed; top: 0; left: 0; width: 100%; z-index: 200;
 }
 @keyframes shimmer { 0%{background-position:0% 0%} 100%{background-position:200% 0%} }
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 .nav {
   background: linear-gradient(135deg, #2d1b4e 0%, #1e1040 100%);
   border-bottom: 2px solid transparent;
   border-image: var(--rainbow) 1;
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: sticky; top: 3px; z-index: 100;
+}
+.nav-brand {
+  font-size: 1.15rem; font-weight: 800;
+  background: var(--rainbow); background-size: 200% 100%;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; animation: shimmer 4s linear infinite;
+  letter-spacing: 1px; margin-right: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.unicorn-img { width:28px;height:28px;display:inline-block;animation:bounce 2s ease-in-out infinite;filter:drop-shadow(0 0 6px var(--rose)); }
+.sparkle-img { width:18px;height:18px;display:inline-block;animation:spin 3s linear infinite;filter:drop-shadow(0 0 4px var(--sun)); }
+.page-unicorn { display:block;margin:0 auto 16px;width:72px;height:72px;filter:drop-shadow(0 0 12px var(--rose));animation:bounce 2s ease-in-out infinite; }
+.nav a { font-size:.85rem;padding:4px 12px;border-radius:20px;border:1px solid transparent;color:var(--violet);transition:all .15s; }
+.nav a:hover { background:var(--bg3);border-color:var(--violet);color:var(--sky);text-decoration:none; }
+.nav .sep { color:var(--border); }
+.nav .nav-logout { margin-left:auto;color:var(--danger);border-color:var(--danger);border-radius:20px;border:1px solid;padding:4px 12px; }
+.nav .nav-logout:hover { background:var(--danger);color:#fff; }
+.theme-select { background:var(--bg3);color:var(--violet);border:1px solid var(--border);border-radius:20px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:inherit; }
+.theme-select:focus { outline:none;border-color:var(--rose); }
+.container { max-width:1100px;margin:0;padding:24px 20px; }
+h2,h3 { color:var(--sun);margin-bottom:16px;font-weight:700;letter-spacing:.5px; }
+h4 { color:var(--violet);margin:20px 0 10px;font-size:.9rem;text-transform:uppercase;letter-spacing:1.5px; }
+.card { background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:0 4px 24px rgba(192,132,252,.08); }
+.item-list { list-style:none; }
+.item-list li { display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:2px;border-radius:10px;border:1px solid transparent;transition:all .15s; }
+.item-list li:hover { background:var(--bg3);border-color:var(--border); }
+.item-list li a { flex:1;font-size:.95rem;color:var(--mint); }
+.item-list li a:hover { color:var(--sky); }
+.item-list .actions { display:flex;gap:6px;opacity:0;transition:opacity .15s; }
+.item-list li:hover .actions { opacity:1; }
+.item-list .actions a { font-size:.75rem;padding:2px 8px;border-radius:10px;border:1px solid var(--border);flex:none;color:var(--violet); }
+.item-list .actions a:hover { border-color:var(--rose);color:var(--rose); }
+.item-list .del { color:var(--danger)!important; }
+.empty { color:var(--border);font-style:italic;padding:12px; }
+label { display:block;font-size:.85rem;color:var(--violet);margin-bottom:4px;margin-top:12px; }
+input[type=text],input[type=password],input[type=email],input[type=date],input:not([type]),textarea,select { background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:.9rem;font-family:inherit;width:100%;transition:border-color .15s,box-shadow .15s;outline:none; }
+input:focus,textarea:focus,select:focus { border-color:var(--rose);box-shadow:0 0 0 3px rgba(255,110,180,.15); }
+textarea { resize:vertical;font-family:'Consolas','Courier New',monospace;font-size:.85rem; }
+select option { background:var(--bg2); }
+.form-row { display:flex;gap:12px;flex-wrap:wrap; }
+.form-row > * { flex:1;min-width:200px; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:8px 22px;border-radius:20px;border:1px solid var(--violet);background:transparent;color:var(--violet);font-size:.9rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none; }
+.btn:hover { background:var(--bg3);border-color:var(--sky);color:var(--sky);text-decoration:none; }
+.btn-primary { background:linear-gradient(135deg,var(--rose),var(--violet));color:#fff;border:none;font-weight:700; }
+.btn-primary:hover { background:linear-gradient(135deg,var(--violet),var(--sky));color:#fff; }
+.btn-danger { border-color:var(--danger);color:var(--danger); }
+.btn-danger:hover { background:var(--danger);color:#fff;border-color:var(--danger); }
+.btn-sm { padding:4px 14px;font-size:.8rem; }
+.btn-group { display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center; }
+err { display:block;color:var(--danger);background:rgba(248,113,113,.1);border:1px solid var(--danger);border-radius:10px;padding:8px 14px;margin:10px 0;font-size:.9rem; }
+.breadcrumb { font-size:.85rem;color:var(--border);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.breadcrumb a { color:var(--violet); }
+.breadcrumb a:hover { color:var(--rose); }
+.breadcrumb .sep { color:var(--border); }
+.badge { font-size:.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1px 8px;color:var(--violet); }
+.timestamp { font-size:.8rem;color:var(--border); }
+table { width:100%;border-collapse:collapse;font-size:.9rem; }
+th { text-align:left;padding:10px 12px;border-bottom:2px solid var(--violet);color:var(--violet);font-size:.8rem;text-transform:uppercase;letter-spacing:.5px; }
+td { padding:5px 12px;vertical-align:top;border-bottom:1px solid var(--bg3); }
+tr:hover td { background:var(--bg3); }
+.search-box { display:flex;gap:8px;margin-bottom:20px; }
+.search-box input { flex:1; }
+.tag-create { color:var(--mint);font-weight:700; }
+.tag-update { color:var(--sun);font-weight:700; }
+.tag-delete { color:var(--danger);font-weight:700; }
+.footer { position:fixed;bottom:0;left:0;width:100%;background:var(--bg2);border-top:2px solid transparent;border-image:var(--rainbow) 1;color:var(--border);text-align:center;font-size:.75rem;padding:5px;z-index:99; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+@media (max-width:600px) { .two-col{grid-template-columns:1fr} .nav{gap:4px} textarea{cols:unset;width:100%} }
+.confirm-box { background:var(--bg2);border:1px solid var(--rose);border-radius:var(--radius);padding:24px;max-width:600px;box-shadow:0 4px 32px rgba(255,110,180,.12); }
+.confirm-box p { margin-bottom:12px;line-height:1.6; }
+.confirm-box .field { margin:8px 0;font-size:.9rem; }
+.confirm-box .field b { color:var(--sun); }
+</style>
+<div class="footer">&#x1F984; built on {{ build_date }}</div>
+"""
+
+STYLE_STELLAR = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Exo+2:wght@300;400;600&display=swap');
+:root {
+  --star:      #e8f4fd;
+  --nebula:    #7eb8f7;
+  --pulsar:    #00d4ff;
+  --aurora:    #39ff8f;
+  --supernova: #ff6b35;
+  --danger:    #ff3d3d;
+  --bg:        #020510;
+  --bg2:       #060d1f;
+  --bg3:       #0d1a35;
+  --border:    #1a3060;
+  --radius:    8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: #00010a;
+  /* Andromeda galaxy — real photograph */
+  background-image:
+    /* Dark overlay so UI text stays readable */
+    linear-gradient(rgba(0,1,10,.55), rgba(0,1,10,.55)),
+    url('/static/andromeda.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--star);
+  font-family: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  padding-bottom: 40px;
+  position: relative;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 40%, rgba(200,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 40%  8%, rgba(255,255,255,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 60%, rgba(180,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 25%, rgba(255,255,255,.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 75%, rgba(200,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 45%, rgba(180,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 35% 90%, rgba(255,255,255,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 65%  5%, rgba(200,210,255,.5) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 48% 35%, rgba(126,184,247,.8) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 78% 88%, rgba(126,184,247,.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at  5% 55%, rgba(255,255,255,.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 92% 12%, rgba(255,255,255,.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 30% 70%, rgba(180,210,255,.5) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+  animation: twinkle 8s ease-in-out infinite alternate;
+}
+@keyframes twinkle { 0% { opacity:.5; } 50% { opacity:.9; } 100% { opacity:.6; } }
+body > * { position: relative; z-index: 1; }
+a { color: var(--nebula); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--pulsar); text-shadow: 0 0 8px var(--pulsar); }
+.nav {
+  background: linear-gradient(135deg, #060d1f 0%, #0a1628 100%);
+  border-bottom: 1px solid var(--pulsar);
+  box-shadow: 0 2px 20px rgba(0,212,255,.15);
   padding: 10px 20px;
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   position: sticky;
-  top: 3px;
+  top: 0;
   z-index: 100;
 }
 .nav-brand {
-  font-size: 1.15rem;
-  font-weight: 800;
-  background: var(--rainbow);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer 4s linear infinite;
-  letter-spacing: 1px;
+  font-family: 'Orbitron', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--pulsar);
+  letter-spacing: 2px;
   margin-right: 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.unicorn-img {
-  width: 28px; height: 28px;
-  display: inline-block;
-  animation: bounce 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 6px var(--rose));
-}
-.sparkle-img {
-  width: 18px; height: 18px;
-  display: inline-block;
-  animation: spin 3s linear infinite;
-  filter: drop-shadow(0 0 4px var(--sun));
-}
-.page-unicorn {
-  display: block;
-  margin: 0 auto 16px;
-  width: 72px; height: 72px;
-  filter: drop-shadow(0 0 12px var(--rose));
-  animation: bounce 2s ease-in-out infinite;
-}
-@keyframes bounce {
-  0%,100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
-}
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  text-shadow: 0 0 12px var(--pulsar);
 }
 .nav a {
-  font-size: .85rem;
-  padding: 4px 12px;
+  font-size: .82rem;
+  padding: 4px 10px;
   border-radius: 20px;
   border: 1px solid transparent;
-  color: var(--violet);
-  transition: all .15s;
+  color: var(--nebula);
+  transition: all .2s;
 }
-.nav a:hover { background: var(--bg3); border-color: var(--violet); color: var(--sky); text-decoration: none; }
+.nav a:hover { border-color: var(--pulsar); color: var(--pulsar); background: rgba(0,212,255,.08); text-shadow: 0 0 6px var(--pulsar); text-decoration: none; }
 .nav .sep { color: var(--border); }
-.nav .nav-logout { margin-left: auto; color: var(--danger); border-color: var(--danger); border-radius: 20px; border: 1px solid; padding: 4px 12px; }
-.nav .nav-logout:hover { background: var(--danger); color: #fff; }
+.nav .nav-logout { margin-left: auto; color: var(--supernova); border-color: var(--supernova); border-radius: 20px; border: 1px solid; padding: 4px 12px; }
+.nav .nav-logout:hover { background: var(--supernova); color: #000; text-shadow: none; }
 .container { max-width: 1100px; margin: 0; padding: 24px 20px; }
-h2, h3 { color: var(--sun); margin-bottom: 16px; font-weight: 700; letter-spacing: .5px; }
-h4 { color: var(--violet); margin: 20px 0 10px; font-size: .9rem; text-transform: uppercase; letter-spacing: 1.5px; }
+h2, h3 { font-family: 'Orbitron', monospace; color: var(--pulsar); margin-bottom: 16px; font-weight: 600; letter-spacing: 1px; text-shadow: 0 0 10px rgba(0,212,255,.4); }
+h4 { color: var(--nebula); margin: 20px 0 10px; font-size: .9rem; text-transform: uppercase; letter-spacing: 2px; }
 .card {
-  background: var(--bg2);
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 16px;
-  box-shadow: 0 4px 24px rgba(192,132,252,.08);
+  box-shadow: 0 4px 24px rgba(0,212,255,.06);
 }
 .item-list { list-style: none; }
 .item-list li {
@@ -1903,35 +2215,35 @@ h4 { color: var(--violet); margin: 20px 0 10px; font-size: .9rem; text-transform
   gap: 8px;
   padding: 5px 12px;
   margin-bottom: 2px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   border: 1px solid transparent;
-  transition: all .15s;
+  transition: all .2s;
 }
-.item-list li:hover { background: var(--bg3); border-color: var(--border); }
-.item-list li a { flex: 1; font-size: .95rem; color: var(--mint); }
-.item-list li a:hover { color: var(--sky); }
+.item-list li:hover { background: rgba(0,212,255,.06); border-color: var(--border); box-shadow: inset 0 0 12px rgba(0,212,255,.04); }
+.item-list li a { flex: 1; font-size: .95rem; color: var(--aurora); }
+.item-list li a:hover { color: var(--pulsar); text-shadow: 0 0 6px var(--pulsar); }
 .item-list .actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
 .item-list li:hover .actions { opacity: 1; }
-.item-list .actions a { font-size: .75rem; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); flex: none; color: var(--violet); }
-.item-list .actions a:hover { border-color: var(--rose); color: var(--rose); }
+.item-list .actions a { font-size: .75rem; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border); flex: none; color: var(--nebula); }
+.item-list .actions a:hover { border-color: var(--pulsar); color: var(--pulsar); }
 .item-list .del { color: var(--danger) !important; }
-.empty { color: var(--border); font-style: italic; padding: 12px; }
-label { display: block; font-size: .85rem; color: var(--violet); margin-bottom: 4px; margin-top: 12px; }
+.empty { color: #3a5080; font-style: italic; padding: 12px; }
+label { display: block; font-size: .85rem; color: var(--nebula); margin-bottom: 4px; margin-top: 12px; }
 input[type=text], input[type=password], input[type=email], input[type=date], input:not([type]), textarea, select {
   background: var(--bg3);
-  color: var(--text);
+  color: var(--star);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 14px;
+  border-radius: var(--radius);
+  padding: 8px 12px;
   font-size: .9rem;
   font-family: inherit;
   width: 100%;
-  transition: border-color .15s, box-shadow .15s;
+  transition: border-color .2s, box-shadow .2s;
   outline: none;
 }
 input:focus, textarea:focus, select:focus {
-  border-color: var(--rose);
-  box-shadow: 0 0 0 3px rgba(255,110,180,.15);
+  border-color: var(--pulsar);
+  box-shadow: 0 0 0 3px rgba(0,212,255,.15);
 }
 textarea { resize: vertical; font-family: 'Consolas', 'Courier New', monospace; font-size: .85rem; }
 select option { background: var(--bg2); }
@@ -1943,51 +2255,53 @@ select option { background: var(--bg2); }
   gap: 6px;
   padding: 8px 22px;
   border-radius: 20px;
-  border: 1px solid var(--violet);
+  border: 1px solid var(--nebula);
   background: transparent;
-  color: var(--violet);
+  color: var(--nebula);
   font-size: .9rem;
   font-family: inherit;
-  font-weight: 600;
   cursor: pointer;
-  transition: all .15s;
+  transition: all .2s;
   text-decoration: none;
+  letter-spacing: .5px;
 }
-.btn:hover { background: var(--bg3); border-color: var(--sky); color: var(--sky); text-decoration: none; }
+.btn:hover { background: rgba(126,184,247,.12); border-color: var(--pulsar); color: var(--pulsar); box-shadow: 0 0 14px rgba(0,212,255,.25); text-decoration: none; text-shadow: 0 0 6px var(--pulsar); }
 .btn-primary {
-  background: linear-gradient(135deg, var(--rose), var(--violet));
-  color: #fff;
-  border: none;
-  font-weight: 700;
+  background: linear-gradient(135deg, #003d6b 0%, #005a9e 100%);
+  color: var(--pulsar);
+  border-color: var(--pulsar);
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(0,212,255,.2);
 }
-.btn-primary:hover { background: linear-gradient(135deg, var(--violet), var(--sky)); color: #fff; }
+.btn-primary:hover { background: linear-gradient(135deg, #005a9e 0%, #0078d4 100%); box-shadow: 0 0 20px rgba(0,212,255,.4); color: #fff; }
 .btn-danger { border-color: var(--danger); color: var(--danger); }
-.btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; box-shadow: 0 0 14px rgba(255,61,61,.35); text-shadow: none; }
 .btn-sm { padding: 4px 14px; font-size: .8rem; }
 .btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
-err { display: block; color: var(--danger); background: rgba(248,113,113,.1); border: 1px solid var(--danger); border-radius: 10px; padding: 8px 14px; margin: 10px 0; font-size: .9rem; }
-.breadcrumb { font-size: .85rem; color: var(--border); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.breadcrumb a { color: var(--violet); }
-.breadcrumb a:hover { color: var(--rose); }
+err { display: block; color: var(--danger); background: rgba(255,61,61,.08); border: 1px solid var(--danger); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; font-size: .9rem; }
+.breadcrumb { font-size: .85rem; color: #3a5080; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.breadcrumb a { color: var(--nebula); }
+.breadcrumb a:hover { color: var(--pulsar); }
 .breadcrumb .sep { color: var(--border); }
-.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: var(--violet); }
-.timestamp { font-size: .8rem; color: var(--border); }
+.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: var(--nebula); }
+.timestamp { font-size: .8rem; color: #3a5080; }
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--violet); color: var(--violet); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
-td { padding: 5px 12px; vertical-align: top; border-bottom: 1px solid var(--bg3); }
-tr:hover td { background: var(--bg3); }
+th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--pulsar); color: var(--nebula); font-size: .8rem; text-transform: uppercase; letter-spacing: 1px; }
+td { padding: 6px 12px; vertical-align: top; border-bottom: 1px solid var(--bg3); }
+tr:hover td { background: rgba(0,212,255,.04); }
 .search-box { display: flex; gap: 8px; margin-bottom: 20px; }
 .search-box input { flex: 1; }
-.tag-create { color: var(--mint); font-weight: 700; }
-.tag-update { color: var(--sun); font-weight: 700; }
-.tag-delete { color: var(--danger); font-weight: 700; }
+.tag-create { color: var(--aurora); font-weight: 600; }
+.tag-update { color: var(--nebula); font-weight: 600; }
+.tag-delete { color: var(--danger); font-weight: 600; }
 .footer {
   position: fixed; bottom: 0; left: 0; width: 100%;
   background: var(--bg2);
-  border-top: 2px solid transparent;
-  border-image: var(--rainbow) 1;
-  color: var(--border); text-align: center; font-size: .75rem; padding: 5px;
+  border-top: 1px solid var(--border);
+  color: #3a5080; text-align: center; font-size: .75rem; padding: 5px;
   z-index: 99;
+  font-family: 'Orbitron', monospace;
+  letter-spacing: 1px;
 }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 600px) {
@@ -1996,28 +2310,176 @@ tr:hover td { background: var(--bg3); }
   textarea { cols: unset; width: 100%; }
 }
 .confirm-box {
-  background: var(--bg2);
-  border: 1px solid var(--rose);
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+  border: 1px solid var(--supernova);
   border-radius: var(--radius);
   padding: 24px;
   max-width: 600px;
-  box-shadow: 0 4px 32px rgba(255,110,180,.12);
+  box-shadow: 0 4px 24px rgba(255,107,53,.12);
 }
 .confirm-box p { margin-bottom: 12px; line-height: 1.6; }
 .confirm-box .field { margin: 8px 0; font-size: .9rem; }
-.confirm-box .field b { color: var(--sun); }
-</style>
-<div class="footer">&#x1F984; built on {{ build_date }}</div>
+.confirm-box .field b { color: var(--aurora); }
+.nav .theme-btn { color: var(--nebula); border: 1px solid var(--nebula); padding: 3px 9px; border-radius: 12px; font-size: .8rem; }
+.nav .theme-btn:hover { background: rgba(0,212,255,.12); border-color: var(--pulsar); color: var(--pulsar); }
+.theme-select { background:var(--bg3);color:var(--nebula);border:1px solid var(--border);border-radius:20px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:inherit; }
+.theme-select:focus { outline:none;border-color:var(--pulsar); }</style>
+<div class="footer">&#11088; {{ build_date }} &#11088;</div>
 """
+
+STYLE_STARTREK = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap');
+:root {
+  --lcars-gold:   #ff9900;
+  --lcars-blue:   #9999ff;
+  --lcars-red:    #cc4444;
+  --lcars-teal:   #66cccc;
+  --lcars-purple: #cc88ff;
+  --text:         #e8e8ff;
+  --bg:           #000008;
+  --bg2:          rgba(0,0,20,.75);
+  --bg3:          rgba(0,0,40,.80);
+  --border:       #334466;
+  --radius:       4px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: #000008;
+  background-image:
+    linear-gradient(rgba(0,0,8,.60), rgba(0,0,8,.60)),
+    url('/static/startrek.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--text);
+  font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+a { color: var(--lcars-blue); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--lcars-gold); text-shadow: 0 0 8px var(--lcars-gold); }
+/* LCARS-style top bar */
+body::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--lcars-red) 0%, var(--lcars-gold) 30%, var(--lcars-blue) 60%, var(--lcars-teal) 100%);
+  position: fixed; top: 0; left: 0; width: 100%; z-index: 200;
+}
+.nav {
+  background: rgba(0,0,20,.88);
+  border-bottom: 2px solid var(--lcars-gold);
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: sticky; top: 3px; z-index: 100;
+  font-family: 'Share Tech Mono', monospace;
+}
+.nav-brand {
+  font-size: 1rem; font-weight: 700; letter-spacing: 3px;
+  color: var(--lcars-gold); text-shadow: 0 0 10px var(--lcars-gold);
+  margin-right: 10px; text-transform: uppercase;
+}
+.nav a { font-size:.82rem;padding:4px 10px;border-radius:2px;border:1px solid transparent;color:var(--lcars-blue);transition:all .2s;letter-spacing:.5px; }
+.nav a:hover { border-color:var(--lcars-gold);color:var(--lcars-gold);background:rgba(255,153,0,.08);text-shadow:0 0 6px var(--lcars-gold);text-decoration:none; }
+.nav .sep { color: var(--border); }
+.nav .nav-logout { margin-left:auto;color:var(--lcars-red);border-color:var(--lcars-red);border-radius:2px;border:1px solid;padding:4px 12px; }
+.nav .nav-logout:hover { background:var(--lcars-red);color:#fff;text-shadow:none; }
+.container { max-width:1100px;margin:0;padding:24px 20px; }
+h2,h3 { font-family:'Share Tech Mono',monospace;color:var(--lcars-gold);margin-bottom:16px;font-weight:600;letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 10px rgba(255,153,0,.4); }
+h4 { color:var(--lcars-teal);margin:20px 0 10px;font-size:.9rem;text-transform:uppercase;letter-spacing:2px; }
+.card { background:var(--bg2);border:1px solid var(--lcars-gold);border-left:4px solid var(--lcars-gold);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:0 4px 24px rgba(255,153,0,.08); }
+.item-list { list-style:none; }
+.item-list li { display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:2px;border-radius:var(--radius);border:1px solid transparent;transition:all .2s; }
+.item-list li:hover { background:rgba(255,153,0,.06);border-color:var(--border); }
+.item-list li a { flex:1;font-size:.95rem;color:var(--lcars-teal); }
+.item-list li a:hover { color:var(--lcars-gold);text-shadow:0 0 6px var(--lcars-gold); }
+.item-list .actions { display:flex;gap:6px;opacity:0;transition:opacity .15s; }
+.item-list li:hover .actions { opacity:1; }
+.item-list .actions a { font-size:.75rem;padding:2px 8px;border-radius:2px;border:1px solid var(--border);flex:none;color:var(--lcars-blue); }
+.item-list .actions a:hover { border-color:var(--lcars-gold);color:var(--lcars-gold); }
+.item-list .del { color:var(--lcars-red)!important; }
+.empty { color:var(--border);font-style:italic;padding:12px; }
+label { display:block;font-size:.85rem;color:var(--lcars-teal);margin-bottom:4px;margin-top:12px;letter-spacing:.5px;text-transform:uppercase; }
+input[type=text],input[type=password],input[type=email],input[type=date],input:not([type]),textarea,select { background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:.9rem;font-family:inherit;width:100%;transition:border-color .2s,box-shadow .2s;outline:none; }
+input:focus,textarea:focus,select:focus { border-color:var(--lcars-gold);box-shadow:0 0 0 3px rgba(255,153,0,.15); }
+textarea { resize:vertical;font-family:'Share Tech Mono',monospace;font-size:.85rem; }
+select option { background:var(--bg); }
+.form-row { display:flex;gap:12px;flex-wrap:wrap; }
+.form-row > * { flex:1;min-width:200px; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:8px 22px;border-radius:2px;border:1px solid var(--lcars-blue);background:transparent;color:var(--lcars-blue);font-size:.9rem;font-family:inherit;cursor:pointer;transition:all .2s;text-decoration:none;letter-spacing:1px;text-transform:uppercase; }
+.btn:hover { background:rgba(153,153,255,.12);border-color:var(--lcars-gold);color:var(--lcars-gold);box-shadow:0 0 14px rgba(255,153,0,.25);text-decoration:none;text-shadow:0 0 6px var(--lcars-gold); }
+.btn-primary { background:rgba(255,153,0,.15);color:var(--lcars-gold);border-color:var(--lcars-gold);font-weight:600;box-shadow:0 0 10px rgba(255,153,0,.2); }
+.btn-primary:hover { background:rgba(255,153,0,.28);box-shadow:0 0 20px rgba(255,153,0,.4);color:#fff; }
+.btn-danger { border-color:var(--lcars-red);color:var(--lcars-red); }
+.btn-danger:hover { background:var(--lcars-red);color:#fff;box-shadow:0 0 14px rgba(204,68,68,.35);text-shadow:none; }
+.btn-sm { padding:4px 14px;font-size:.8rem; }
+.btn-group { display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center; }
+err { display:block;color:var(--lcars-red);background:rgba(204,68,68,.08);border:1px solid var(--lcars-red);border-radius:var(--radius);padding:8px 12px;margin:10px 0;font-size:.9rem; }
+.breadcrumb { font-size:.85rem;color:var(--border);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.breadcrumb a { color:var(--lcars-blue); }
+.breadcrumb a:hover { color:var(--lcars-gold); }
+.breadcrumb .sep { color:var(--border); }
+.badge { font-size:.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:2px;padding:1px 8px;color:var(--lcars-teal); }
+.timestamp { font-size:.8rem;color:var(--border); }
+table { width:100%;border-collapse:collapse;font-size:.9rem; }
+th { text-align:left;padding:10px 12px;border-bottom:1px solid var(--lcars-gold);color:var(--lcars-teal);font-size:.8rem;text-transform:uppercase;letter-spacing:1px;font-family:'Share Tech Mono',monospace; }
+td { padding:6px 12px;vertical-align:top;border-bottom:1px solid var(--bg3); }
+tr:hover td { background:rgba(255,153,0,.04); }
+.search-box { display:flex;gap:8px;margin-bottom:20px; }
+.search-box input { flex:1; }
+.tag-create { color:var(--lcars-teal);font-weight:600; }
+.tag-update { color:var(--lcars-blue);font-weight:600; }
+.tag-delete { color:var(--lcars-red);font-weight:600; }
+.footer { position:fixed;bottom:0;left:0;width:100%;background:rgba(0,0,20,.90);border-top:1px solid var(--lcars-gold);color:var(--lcars-gold);text-align:center;font-size:.75rem;padding:5px;z-index:99;font-family:'Share Tech Mono',monospace;letter-spacing:2px; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+@media (max-width:600px) { .two-col { grid-template-columns:1fr; } .nav { gap:4px; } textarea { width:100%; } }
+.confirm-box { background:var(--bg2);border:1px solid var(--lcars-gold);border-radius:var(--radius);padding:24px;max-width:600px;box-shadow:0 4px 24px rgba(255,153,0,.12); }
+.confirm-box p { margin-bottom:12px;line-height:1.6; }
+.confirm-box .field { margin:8px 0;font-size:.9rem; }
+.confirm-box .field b { color:var(--lcars-teal); }
+.theme-select { background:var(--bg3);color:var(--lcars-blue);border:1px solid var(--border);border-radius:2px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:inherit; }
+.theme-select:focus { outline:none;border-color:var(--lcars-gold); }</style>
+<div class="footer">&#9650; {{ build_date }} &#9650;</div>
+"""
+
+# Keep STYLE as an alias so error handlers that reference it still work
+STYLE = STYLE_STELLAR
+
+def _get_style():
+    """Return the CSS block for the current user's theme (reads Flask session)."""
+    t = session.get('theme', 'stellar')
+    if t == 'unicorn':   return STYLE_UNICORN
+    if t == 'startrek':  return STYLE_STARTREK
+    return STYLE_STELLAR
+
+def _render(template, **kwargs):
+    """Swap STYLE_STELLAR for the user's chosen theme, then render.
+    Also injects theme and build_date so Jinja2 variables resolve."""
+    theme = session.get('theme', 'stellar')
+    themed = template.replace(STYLE_STELLAR, _get_style())
+    kwargs.setdefault('theme', theme)
+    kwargs.setdefault('build_date', BUILD_DATE)
+    return render_template_string(themed, **kwargs)
 
 T_FOLDERS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/add>+ Folder</a>
   <a href=/export>Export</a>
   <a href=/audit_report>Audit</a>
   <a href=/sessions>Sessions</a>
   <a href=/change_password>Password</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2049,7 +2511,7 @@ T_FOLDERS = STYLE + """
       <ul class="item-list">
       {% for n in recent %}
       <li>
-        <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+        <a href=/edit/{{n[0]}}>{{n[1]}}</a>
         <span class="timestamp">{{n[2]}}</span>
       </li>
       {% else %}
@@ -2063,8 +2525,15 @@ T_FOLDERS = STYLE + """
 
 T_ADD_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2086,8 +2555,15 @@ T_ADD_FOLDER = STYLE + """
 
 T_ADD_SUBFOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{pid}}>Back</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2108,8 +2584,15 @@ T_ADD_SUBFOLDER = STYLE + """
 
 T_RENAME_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>Back</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2130,8 +2613,15 @@ T_RENAME_FOLDER = STYLE + """
 
 T_CHANGE_PASSWORD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2173,14 +2663,21 @@ function toggleVis(id, link) {
 
 T_DELETE_NOTE = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
   <div class="confirm-box">
     <h3>Delete Note</h3>
-    <p>Are you sure you want to permanently delete <b>{{n[1]|safe}}</b>?</p>
+    <p>Are you sure you want to permanently delete <b>{{n[1]}}</b>?</p>
     <p style="color:#888;font-size:.85rem">This action cannot be undone.</p>
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
@@ -2195,8 +2692,15 @@ T_DELETE_NOTE = STYLE + """
 
 T_EDIT_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2223,12 +2727,19 @@ T_EDIT_CONFIRM = STYLE + """
 
 T_NOTES = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href={% if folder[2] %}/folder/{{folder[2]}}{% else %}/{% endif %}>&#8592; Back</a>
   <a href=/add/{{folder[0]}}>+ Add Note</a>
   <a href=/folder/{{folder[0]}}/add_folder>+ Subfolder</a>
   <a href=/folder/rename/{{folder[0]}}>Rename</a>
   <a href=/folder/delete/{{folder[0]}} class="btn-danger" style="color:var(--red)">Delete Folder</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2239,7 +2750,7 @@ T_NOTES = STYLE + """
       <ul class="item-list">
       {% for n in notes %}
       <li>
-        <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+        <a href=/edit/{{n[0]}}>{{n[1]}}</a>
         <span class="actions">
           <a href=/note/delete/{{n[0]}} class="del">delete</a>
         </span>
@@ -2265,8 +2776,15 @@ T_NOTES = STYLE + """
 
 T_ADD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>&#8592; Back</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2298,7 +2816,7 @@ T_ADD = STYLE + """
 
 T_EDIT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
   {% for b in breadcrumbs %}
   <span class="sep">&#8250;</span> <a href=/folder/{{b[0]}}>{{b[1]}}</a>
@@ -2365,7 +2883,7 @@ T_EDIT = STYLE + """
 T_LOGIN = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px">&#127775;EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Sign in to your notes</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2391,7 +2909,7 @@ T_LOGIN = STYLE + """
 T_REGISTER = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:420px">
-    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px">&#127775;EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Create your account</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2413,8 +2931,15 @@ T_REGISTER = STYLE + """
 
 T_SEARCH = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2463,7 +2988,7 @@ T_SEARCH = STYLE + """
   <ul class="item-list">
   {% for n in notes %}
   <li>
-    <a href=/edit/{{n[0]}}>{{n[1]|safe}}</a>
+    <a href=/edit/{{n[0]}}>{{n[1]}}</a>
     <span class="timestamp">{{n[2]}}</span>
   </li>
   {% else %}
@@ -2475,8 +3000,15 @@ T_SEARCH = STYLE + """
 
 T_DELETE_FOLDER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2497,8 +3029,15 @@ T_DELETE_FOLDER = STYLE + """
 
 T_HISTORY = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/edit/{{nid}}>&#8592; Back to Note</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2522,7 +3061,7 @@ T_HISTORY = STYLE + """
 T_ADMIN_LOGIN = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:380px">
-    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">Admin</h2>
+    <h2 style="text-align:center;margin-bottom:4px">&#127775;Admin</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">EverNothing Administration</p>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
@@ -2541,8 +3080,15 @@ T_ADMIN_LOGIN = STYLE + """
 
 T_ADMIN_SESSIONS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2569,11 +3115,18 @@ T_ADMIN_SESSIONS = STYLE + """
 
 T_ADMIN_DASHBOARD = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/audit_logs>Audit Logs</a>
   <a href=/admin/sessions>Sessions</a>
   <a href=/admin/s3_backups>S3 Backups</a>
   <a href=/admin/iam_policy>IAM Policy</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2605,8 +3158,15 @@ T_ADMIN_DASHBOARD = STYLE + """
 
 T_ADMIN_EDIT_USER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2635,8 +3195,15 @@ T_ADMIN_EDIT_USER = STYLE + """
 
 T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>Dashboard</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2660,8 +3227,15 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 
 T_ADMIN_DELETE_USER = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2683,7 +3257,7 @@ T_ADMIN_DELETE_USER = STYLE + """
 T_FORGOT_PASSWORD = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:4px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">EverNothing</h2>
+    <h2 style="text-align:center;margin-bottom:4px">&#127775;EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Reset your password</p>
     {% if message %}<p style="color:#0c0;text-align:center">{{message}}</p>{% endif %}
     <form method=post>
@@ -2702,7 +3276,7 @@ T_FORGOT_PASSWORD = STYLE + """
 T_RESET_PASSWORD = STYLE + """
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
   <div class="card" style="width:100%;max-width:400px">
-    <h2 style="text-align:center;margin-bottom:20px"><img class="page-unicorn" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄">Reset Password</h2>
+    <h2 style="text-align:center;margin-bottom:20px">&#127775;Reset Password</h2>
     {% if error %}<err>{{error}}</err>{% endif %}
     <form method=post>
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
@@ -2718,8 +3292,15 @@ T_RESET_PASSWORD = STYLE + """
 
 T_AUDIT_REPORT = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2744,8 +3325,15 @@ T_AUDIT_REPORT = STYLE + """
 
 T_SESSIONS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> EverNothing <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2776,9 +3364,16 @@ T_SESSIONS = STYLE + """
 
 T_ADMIN_AUDIT_LOGS = STYLE + """
 <nav class="nav">
-  <span class="nav-brand"><img class="unicorn-img" src="https://twemoji.maxcdn.com/v/latest/svg/1f984.svg" alt="🦄"> Admin <img class="sparkle-img" src="https://twemoji.maxcdn.com/v/latest/svg/2728.svg" alt="✨"></span>
+  <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href="javascript:location.reload()" style="color:#0c0">Refresh</a>
+  <form action="/set_theme" method="get" style="display:inline">
+    <select name="t" class="theme-select" onchange="this.form.submit()" title="Switch theme">
+      <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
+      <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
+      <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+    </select>
+  </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2901,7 +3496,7 @@ def api_create_folder():
     con = db(); cur = con.cursor()
     cur.execute("INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,?)", (current_user.id, encrypt(name), parent_id))
     fid = cur.lastrowid
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True, 'id': fid})
 
 @app.route("/api/folders/<int:fid>", methods=["DELETE"])
@@ -2910,7 +3505,7 @@ def api_create_folder():
 def api_delete_folder(fid):
     con = db(); cur = con.cursor()
     delete_recursive(cur, fid, current_user.id)
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
 @app.route("/api/folders/<int:fid>/notes")
@@ -2955,7 +3550,7 @@ def api_create_note():
     cur.execute("INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
         (nid, current_user.id, encrypt(key), encrypt(value), encrypt(desc), fid, now))
     log_change(cur, current_user.id, 'CREATE', 'note', nid, {}, {'key': key, 'folder_id': fid}, request.remote_addr)
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True, 'id': nid})
 
 @app.route("/api/notes/<int:nid>", methods=["PUT"])
@@ -2976,7 +3571,7 @@ def api_update_note(nid):
     cur.execute("INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
         (nid, current_user.id, encrypt(key), encrypt(value), encrypt(desc), fid, now))
     log_change(cur, current_user.id, 'UPDATE', 'note', nid, {}, {'key': key, 'folder_id': fid}, request.remote_addr)
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
 @app.route("/api/notes/<int:nid>", methods=["DELETE"])
@@ -2985,7 +3580,7 @@ def api_update_note(nid):
 def api_delete_note(nid):
     con = db(); cur = con.cursor()
     cur.execute("DELETE FROM notes WHERE id=? AND user_id=?", (nid, current_user.id))
-    con.commit(); con.close(); sync_s3()
+    con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
 @app.route("/api/search")
@@ -3005,7 +3600,15 @@ def api_search():
     return jsonify(sorted(results, key=lambda x: x['key'].lower()))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # SSL cert/key paths — override via env vars or generate a self-signed cert for dev:
+    #   openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+    ssl_cert = os.environ.get('SSL_CERT', 'cert.pem')
+    ssl_key  = os.environ.get('SSL_KEY',  'key.pem')
+    use_ssl  = os.path.exists(ssl_cert) and os.path.exists(ssl_key)
+    ssl_ctx  = (ssl_cert, ssl_key) if use_ssl else None
+    if not use_ssl:
+        logger.warning("SSL cert/key not found — running without HTTPS. Set SSL_CERT and SSL_KEY env vars.")
+    app.run(host='0.0.0.0', port=5443 if use_ssl else 5000, ssl_context=ssl_ctx)
 
 
 T_ADMIN_S3_BACKUPS = STYLE + """
@@ -3048,3 +3651,20 @@ T_ADMIN_S3_BACKUPS = STYLE + """
 </table>
 {% endif %}
 """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

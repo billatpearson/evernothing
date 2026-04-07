@@ -114,9 +114,10 @@ class S3SyncTestCase(unittest.TestCase):
         with patch('evernothing.boto3', True):
             sync_s3()
 
-        mock_s3.upload_fileobj.assert_called_once()
-        args, kwargs = mock_s3.upload_fileobj.call_args
-        uploaded = json.loads(args[0].read().decode())
+        # First call is the delta upload; DB backup calls follow
+        self.assertGreaterEqual(mock_s3.upload_fileobj.call_count, 1)
+        delta_args, _ = mock_s3.upload_fileobj.call_args_list[0]
+        uploaded = json.loads(delta_args[0].read().decode())
         self.assertEqual(len(uploaded), 2)
         ops = {r['op'] for r in uploaded}
         self.assertIn('INSERT', ops)
@@ -147,8 +148,9 @@ class S3SyncTestCase(unittest.TestCase):
         with patch('evernothing.boto3', True):
             sync_s3()
 
-        args, _ = mock_s3.upload_fileobj.call_args
-        uploaded = json.loads(args[0].read().decode())
+        # Delta is the first upload_fileobj call
+        delta_args, _ = mock_s3.upload_fileobj.call_args_list[0]
+        uploaded = json.loads(delta_args[0].read().decode())
         self.assertEqual(len(uploaded), 1)
         self.assertEqual(uploaded[0]['op'], 'UPDATE')
 
@@ -160,7 +162,12 @@ class S3SyncTestCase(unittest.TestCase):
         with patch('evernothing.boto3', True):
             sync_s3()
 
-        mock_s3.upload_fileobj.assert_not_called()
+        # No delta upload when queue is empty — only DB backup calls
+        delta_calls = [
+            c for c in mock_s3.upload_fileobj.call_args_list
+            if len(c[0]) > 2 and str(c[0][2]).startswith('changes/')
+        ]
+        self.assertEqual(len(delta_calls), 0)
 
     # --- 3. S3 key format ---
 
@@ -174,8 +181,9 @@ class S3SyncTestCase(unittest.TestCase):
         with patch('evernothing.boto3', True):
             sync_s3()
 
-        _, kwargs = mock_s3.upload_fileobj.call_args
-        s3_key = mock_s3.upload_fileobj.call_args[0][2]
+        # Delta is the first call
+        delta_args = mock_s3.upload_fileobj.call_args_list[0][0]
+        s3_key = delta_args[2]
         self.assertTrue(s3_key.startswith('changes/'))
         self.assertTrue(s3_key.endswith('.json'))
 
@@ -191,8 +199,9 @@ class S3SyncTestCase(unittest.TestCase):
         with patch('evernothing.boto3', True):
             sync_s3()
 
-        args, _ = mock_s3.upload_fileobj.call_args
-        uploaded = json.loads(args[0].read().decode())
+        # Delta is the first call
+        delta_args, _ = mock_s3.upload_fileobj.call_args_list[0]
+        uploaded = json.loads(delta_args[0].read().decode())
         record = uploaded[0]
         self.assertIn('op', record)
         self.assertIn('entity', record)
@@ -216,10 +225,11 @@ class S3SyncTestCase(unittest.TestCase):
             with patch('evernothing.KMS_KEY_ID', 'arn:aws:kms:us-east-1:123:key/abc'):
                 sync_s3()
 
-        _, kwargs = mock_s3.upload_fileobj.call_args
-        extra = kwargs.get('ExtraArgs', {})
-        self.assertEqual(extra.get('ServerSideEncryption'), 'aws:kms')
-        self.assertEqual(extra.get('SSEKMSKeyId'), 'arn:aws:kms:us-east-1:123:key/abc')
+        # All calls should have KMS ExtraArgs when KMS_KEY_ID is set
+        for c in mock_s3.upload_fileobj.call_args_list:
+            extra = c[1].get('ExtraArgs', {})
+            self.assertEqual(extra.get('ServerSideEncryption'), 'aws:kms')
+            self.assertEqual(extra.get('SSEKMSKeyId'), 'arn:aws:kms:us-east-1:123:key/abc')
 
     # --- 6. boto3 unavailable ---
 

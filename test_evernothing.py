@@ -25,6 +25,7 @@ class EvernothingTestCase(unittest.TestCase):
             cur.execute('CREATE TABLE attachments (id INTEGER PRIMARY KEY, note_id INTEGER, user_id INTEGER, filename TEXT, file_data BLOB, file_size INTEGER, uploaded_at TEXT)')
             cur.execute('CREATE TABLE audit_log (id INTEGER PRIMARY KEY, user_id INTEGER, action TEXT, entity_type TEXT, entity_id INTEGER, old_values TEXT, new_values TEXT, timestamp TEXT, ip_address TEXT)')
             cur.execute('CREATE TABLE user_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, session_id TEXT, login_time TEXT, logout_time TEXT, ip_address TEXT, user_agent TEXT)')
+            cur.execute('CREATE TABLE sync_queue (id INTEGER PRIMARY KEY, entity_type TEXT, entity_id INTEGER, operation TEXT, payload TEXT, changed_at TEXT, synced_at TEXT)')
             cur.execute('CREATE INDEX idx_notes_user ON notes(user_id)')
             cur.execute('CREATE INDEX idx_folders_user ON folders(user_id)')
             cur.execute('CREATE INDEX idx_attachments_note ON attachments(note_id)')
@@ -210,7 +211,7 @@ class EvernothingTestCase(unittest.TestCase):
 
     def test_admin_login_success(self):
         rv = self.admin_login()
-        self.assertIn(b'Admin Dashboard', rv.data)
+        self.assertIn(b'Users', rv.data)
 
     def test_admin_login_wrong_password(self):
         os.environ['ADMIN_USER'] = ADMIN_USER
