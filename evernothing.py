@@ -833,12 +833,12 @@ def log_change(cur, user_id, action, entity_type, entity_id, old_values, new_val
 @app.errorhandler(404)
 def not_found(error):
     logger.warning(f"404 error: {request.url}")
-    return render_template_string(STYLE + "<h3>404 - Page Not Found</h3><a href=/>Home</a>"), 404
+    return _render(STYLE + "<h3>404 - Page Not Found</h3><a href=/>Home</a>"), 404
 
 @app.errorhandler(500)
 def internal_error(error):
     logger.error(f"500 error: {error}")
-    return render_template_string(STYLE + "<h3>500 - Internal Server Error</h3><a href=/>Home</a>"), 500
+    return _render(STYLE + "<h3>500 - Internal Server Error</h3><a href=/>Home</a>"), 500
 
 # --- ROUTES ---
 @app.route("/")
@@ -853,7 +853,7 @@ def index():
     recent = [(r[0], decrypt(r[1]), format_date(r[2])) for r in cur.fetchall()]
     con.close()
     
-    return render_template_string(T_FOLDERS, folders=folders, recent=recent)
+    return _render(T_FOLDERS, folders=folders, recent=recent)
 
 @app.route("/folder/add", methods=["GET","POST"])
 @login_required
@@ -861,7 +861,7 @@ def add_folder():
     if request.method == "POST":
         name, error = validate_input(request.form.get('name', ''))
         if error:
-            return render_template_string(T_ADD_FOLDER, error=error)
+            return _render(T_ADD_FOLDER, error=error)
         
         con = db(); cur = con.cursor()
         try:
@@ -876,11 +876,11 @@ def add_folder():
         except Exception as e:
             logger.error(f"Error creating folder: {e}")
             con.rollback()
-            return render_template_string(T_ADD_FOLDER, error="Failed to create folder")
+            return _render(T_ADD_FOLDER, error="Failed to create folder")
         finally:
             con.close()
         return redirect("/")
-    return render_template_string(T_ADD_FOLDER)
+    return _render(T_ADD_FOLDER)
 
 @app.route("/folder/<int:pid>/add_folder", methods=["GET","POST"])
 @login_required
@@ -896,7 +896,7 @@ def add_subfolder(pid):
         sync_s3_async()
         con.close()        
         return redirect(f"/folder/{pid}")
-    return render_template_string(T_ADD_SUBFOLDER, pid=pid)
+    return _render(T_ADD_SUBFOLDER, pid=pid)
 
 def delete_recursive(cur, fid, uid):
     cur.execute("SELECT id FROM folders WHERE parent_id=? AND user_id=?", (fid, uid))
@@ -922,7 +922,7 @@ def delete_folder(fid):
         sync_s3_async()
         return redirect(f"/folder/{f[1]}" if f[1] else "/")
 
-    result = render_template_string(T_DELETE_FOLDER, f=(decrypt(f[0]), f[1])) if f else redirect("/")
+    result = _render(T_DELETE_FOLDER, f=(decrypt(f[0]), f[1])) if f else redirect("/")
     con.close()
     return result
 
@@ -942,7 +942,7 @@ def rename_folder(fid):
         sync_s3_async()
         return redirect(f"/folder/{fid}")
     con.close()
-    return render_template_string(T_RENAME_FOLDER, f=(decrypt(f[0]), f[1]), fid=fid)
+    return _render(T_RENAME_FOLDER, f=(decrypt(f[0]), f[1]), fid=fid)
 
 @app.route("/note/delete/<int:nid>", methods=["GET","POST"])
 @login_required
@@ -960,7 +960,7 @@ def delete_note(nid):
         sync_s3_async()
         return redirect(f"/folder/{n[0]}" if n[0] else "/")
     con.close()
-    return render_template_string(T_DELETE_NOTE, n=(n[0], decrypt(n[1])))
+    return _render(T_DELETE_NOTE, n=(n[0], decrypt(n[1])))
 
 @app.route("/change_password", methods=["GET","POST"])
 @login_required
@@ -984,7 +984,7 @@ def change_password():
         else:
             con.close()
             error = "Invalid old password"
-    return render_template_string(T_CHANGE_PASSWORD, error=error)
+    return _render(T_CHANGE_PASSWORD, error=error)
 
 @app.route("/search")
 @login_required
@@ -997,7 +997,7 @@ def search():
     search_history = request.args.get('history', '') == 'on'
     
     if not q or len(q) > 100:
-        return render_template_string(T_SEARCH, notes=[], q=q, folders=[], folder_filter=folder_filter, folder_results=[])
+        return _render(T_SEARCH, notes=[], q=q, folders=[], folder_filter=folder_filter, folder_results=[])
     
     con = db()
     cur = con.cursor()
@@ -1066,7 +1066,7 @@ def search():
     finally:
         con.close()
     
-    return render_template_string(T_SEARCH, notes=notes, q=q, folders=folders,
+    return _render(T_SEARCH, notes=notes, q=q, folders=folders,
                                  folder_results=folder_results,
                                  folder_filter=folder_filter, date_from=date_from, 
                                  date_to=date_to, use_regex=use_regex, search_history=search_history)
@@ -1106,7 +1106,7 @@ def view_folder(fid):
     notes = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
     con.close()
     
-    return render_template_string(T_NOTES, notes=notes, subfolders=subfolders, folder=(folder[0], decrypt(folder[1]), folder[2]))
+    return _render(T_NOTES, notes=notes, subfolders=subfolders, folder=(folder[0], decrypt(folder[1]), folder[2]))
 
 @app.route("/add/<int:fid>", methods=["GET","POST"])
 @login_required
@@ -1164,7 +1164,7 @@ def add(fid):
                 con.close()
                 sync_s3_async()
                 return redirect(f"/folder/{fid}")
-    return render_template_string(T_ADD, fid=fid, error=error, note=note_val, content=content_val, description=desc_val)
+    return _render(T_ADD, fid=fid, error=error, note=note_val, content=content_val, description=desc_val)
 
 @app.route("/edit/<int:id>", methods=["GET","POST"])
 @login_required
@@ -1200,7 +1200,7 @@ def edit(id):
             file = request.files['file']
             if not allowed_file(file.filename):
                 con.close()
-                return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File type not allowed")
+                return _render(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File type not allowed")
             
             filename = file.filename[:255]  # Limit filename length
             file_data = file.read()
@@ -1216,7 +1216,7 @@ def edit(id):
                 return redirect(f"/edit/{id}")
             else:
                 con.close()
-                return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File too large or empty")
+                return _render(T_EDIT, note=note, folders=folders, breadcrumbs=[], id=id, attachments=[], error="File too large or empty")
 
         # Handle note edit
         if 'note' in request.form and 'content' in request.form:
@@ -1254,11 +1254,11 @@ def edit(id):
                 return redirect("/")
             else:
                 con.close()
-                return render_template_string(T_EDIT_CONFIRM, note=[request.form['note'], request.form['content'], request.form.get('folder_id'), None, new_desc], id=id)
+                return _render(T_EDIT_CONFIRM, note=[request.form['note'], request.form['content'], request.form.get('folder_id'), None, new_desc], id=id)
 
     breadcrumbs = get_breadcrumbs(cur, note[2], current_user.id)
     con.close()
-    return render_template_string(T_EDIT, note=note, folders=folders, breadcrumbs=breadcrumbs, id=id, attachments=attachments)
+    return _render(T_EDIT, note=note, folders=folders, breadcrumbs=breadcrumbs, id=id, attachments=attachments)
 
 @app.route("/history/<int:nid>")
 @login_required
@@ -1268,7 +1268,7 @@ def history(nid):
     cur.execute("SELECT id,note_key,updated_at FROM note_history WHERE note_id=? AND user_id=? ORDER BY updated_at DESC", (nid, current_user.id))
     history = [(h[0], decrypt(h[1]), format_date(h[2])) for h in cur.fetchall()]
     con.close()
-    return render_template_string(T_HISTORY, history=history, nid=nid)
+    return _render(T_HISTORY, history=history, nid=nid)
 
 @app.route("/history/restore/<int:hid>", methods=["GET","POST"])
 @login_required
@@ -1286,6 +1286,7 @@ def restore_history(hid):
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/history/{{nid}}>&#8592; Back</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -1335,9 +1336,9 @@ def admin_login():
             log_change(cur, 0, 'CREATE', 'admin_session', 0, {}, {'admin': admin_user, 'ip': request.remote_addr}, request.remote_addr)
             con.commit(); con.close()
             return redirect("/admin/dashboard")
-        return render_template_string(T_ADMIN_LOGIN, error="Invalid credentials")
+        return _render(T_ADMIN_LOGIN, error="Invalid credentials")
     timeout = request.args.get('timeout')
-    return render_template_string(T_ADMIN_LOGIN, error="Admin session expired. Please log in again." if timeout else None)
+    return _render(T_ADMIN_LOGIN, error="Admin session expired. Please log in again." if timeout else None)
 
 @app.route("/admin/dashboard")
 @admin_required
@@ -1357,7 +1358,7 @@ def admin_dashboard():
     cur.execute(sql, (f'%{q}%',))
     users = [(r[0], r[1], r[2], r[3], format_date(r[4]) if r[4] else "Never") for r in cur.fetchall()]
     con.close()
-    return render_template_string(T_ADMIN_DASHBOARD, users=users, q=q)
+    return _render(T_ADMIN_DASHBOARD, users=users, q=q)
 
 @app.route("/admin/user/<int:uid>", methods=["GET","POST"])
 @admin_required
@@ -1389,13 +1390,13 @@ def admin_edit_user(uid):
                 return redirect("/admin/dashboard")
             except sqlite3.IntegrityError:
                 con.close()
-                return render_template_string(T_ADMIN_EDIT_USER, user=user, error="Username already exists")
+                return _render(T_ADMIN_EDIT_USER, user=user, error="Username already exists")
         else:
             con.close()
-            return render_template_string(T_ADMIN_EDIT_USER_CONFIRM, user=user, new_name=new_name, new_pass=new_pass, new_last_login=new_last_login)
+            return _render(T_ADMIN_EDIT_USER_CONFIRM, user=user, new_name=new_name, new_pass=new_pass, new_last_login=new_last_login)
 
     con.close()
-    return render_template_string(T_ADMIN_EDIT_USER, user=user)
+    return _render(T_ADMIN_EDIT_USER, user=user)
 
 @app.route("/admin/user/delete/<int:uid>", methods=["GET","POST"])
 @admin_required
@@ -1418,16 +1419,17 @@ def admin_delete_user(uid):
         return redirect("/admin/dashboard")
 
     con.close()
-    return render_template_string(T_ADMIN_DELETE_USER, user=user)
+    return _render(T_ADMIN_DELETE_USER, user=user)
 
 @app.route("/admin/iam_policy")
 @admin_required
 def admin_iam_policy():
     policy = json.dumps(get_iam_policy(), indent=2)
-    return render_template_string(STYLE + """
+    return _render(STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -1467,13 +1469,13 @@ def admin_s3_backups():
     except Exception as e:
         logger.error(f"Failed to list S3 backups: {e}")
     
-    return render_template_string(T_ADMIN_S3_BACKUPS, backups=backups)
+    return _render(T_ADMIN_S3_BACKUPS, backups=backups)
 
 @app.route("/admin/s3_restore/<path:key>", methods=["GET","POST"])
 @admin_required
 def admin_s3_restore(key):
     if request.method == "GET":
-        return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], confirm_key=key)
+        return _render(T_ADMIN_S3_BACKUPS, backups=[], confirm_key=key)
     
     try:
         if boto3:
@@ -1482,10 +1484,10 @@ def admin_s3_restore(key):
             backup_file = f"restore_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
             s3.download_file(S3_BUCKET_NAME, key, backup_file)
             logger.info(f"Restored backup from S3: {key} to {backup_file}")
-            return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], message=f"Backup restored to {backup_file}. Restart app to use it.")
+            return _render(T_ADMIN_S3_BACKUPS, backups=[], message=f"Backup restored to {backup_file}. Restart app to use it.")
     except Exception as e:
         logger.error(f"Failed to restore S3 backup: {e}")
-        return render_template_string(T_ADMIN_S3_BACKUPS, backups=[], error=f"Restore failed: {e}")
+        return _render(T_ADMIN_S3_BACKUPS, backups=[], error=f"Restore failed: {e}")
     
     return redirect("/admin/s3_backups")
 
@@ -1510,7 +1512,7 @@ def admin_sessions():
         'user_agent': (r[5] or '')[:50] + ('...' if r[5] and len(r[5]) > 50 else '')
     } for r in cur.fetchall()]
     con.close()
-    return render_template_string(T_ADMIN_SESSIONS, sessions=sessions)
+    return _render(T_ADMIN_SESSIONS, sessions=sessions)
 
 @app.route("/admin/audit_logs")
 @admin_required
@@ -1560,7 +1562,7 @@ def admin_audit_logs():
             'ip': r[8]
         })
     con.close()
-    return render_template_string(T_ADMIN_AUDIT_LOGS, logs=logs, user_filter=user_filter, action_filter=action_filter, entity_filter=entity_filter, limit=limit)
+    return _render(T_ADMIN_AUDIT_LOGS, logs=logs, user_filter=user_filter, action_filter=action_filter, entity_filter=entity_filter, limit=limit)
 
 # --- PASSWORD RESET ---
 def get_serializer():
@@ -1587,13 +1589,13 @@ def forgot_password():
                     logger.warning(f"Failed to send password reset email to {email}")
             except ImportError:
                 logger.warning("email_utils not available; password reset link was not sent")
-        return render_template_string(T_FORGOT_PASSWORD, message="If that email exists, a reset link has been sent.")
-    return render_template_string(T_FORGOT_PASSWORD)
+        return _render(T_FORGOT_PASSWORD, message="If that email exists, a reset link has been sent.")
+    return _render(T_FORGOT_PASSWORD)
 
 @app.route("/reset_password/<token>", methods=["GET", "POST"])
 def reset_password(token):
     try: email = get_serializer().loads(token, salt='recover-key', max_age=3600)
-    except: return render_template_string(T_RESET_PASSWORD, error="Invalid or expired token.")
+    except: return _render(T_RESET_PASSWORD, error="Invalid or expired token.")
     if request.method == "POST":
         con = db()
         cur = con.cursor()
@@ -1602,7 +1604,7 @@ def reset_password(token):
         con.close()
         sync_s3_async()
         return redirect("/login")
-    return render_template_string(T_RESET_PASSWORD)
+    return _render(T_RESET_PASSWORD)
 
 # --- LOGIN ---
 @app.route("/login", methods=["GET","POST"])
@@ -1626,7 +1628,7 @@ def login():
             error = f"Too many login attempts. Please try again later."
             logger.warning(f"Rate limit exceeded for login from {request.remote_addr}")
             con.close()
-            return render_template_string(T_LOGIN, error=error)
+            return _render(T_LOGIN, error=error)
         
         r = cur.execute(
             "SELECT id,password FROM users WHERE username=?",
@@ -1671,7 +1673,7 @@ def login():
             return redirect("/")
         error = "Invalid username or password"
     con.close()
-    return render_template_string(T_LOGIN, error=error)
+    return _render(T_LOGIN, error=error)
 
 @app.route("/register", methods=["GET","POST"])
 def register():
@@ -1682,19 +1684,19 @@ def register():
         if not check_rate_limit(request.remote_addr, 'register', RATE_LIMIT_REGISTER):
             error = "Too many registration attempts. Please try again later."
             logger.warning(f"Rate limit exceeded for registration from {request.remote_addr}")
-            return render_template_string(T_REGISTER, error=error)
+            return _render(T_REGISTER, error=error)
         
         username, error = validate_input(request.form.get('username', ''), max_length=50)
         if error:
-            return render_template_string(T_REGISTER, error=error)
+            return _render(T_REGISTER, error=error)
         
         email, error = validate_email(request.form.get('email', ''))
         if error:
-            return render_template_string(T_REGISTER, error=error)
+            return _render(T_REGISTER, error=error)
         
         password, error = validate_password(request.form.get('password', ''))
         if error:
-            return render_template_string(T_REGISTER, error=error)
+            return _render(T_REGISTER, error=error)
         
         con = db()
         cursor=con.cursor()
@@ -1709,13 +1711,13 @@ def register():
             return redirect("/login")
         except sqlite3.IntegrityError:
             logger.warning(f"Duplicate registration attempt: {username}")
-            return render_template_string(T_REGISTER, error="Username already exists")
+            return _render(T_REGISTER, error="Username already exists")
         except Exception as e:
             logger.error(f"Registration error: {e}")
-            return render_template_string(T_REGISTER, error="Registration failed")
+            return _render(T_REGISTER, error="Registration failed")
         finally:
             con.close()
-    return render_template_string(T_REGISTER)
+    return _render(T_REGISTER)
 
 @app.route("/logout")
 def logout():
@@ -1729,6 +1731,11 @@ def logout():
         con.commit()
         con.close()
     logout_user(); session.clear(); return redirect("/login")
+
+@app.route("/set_theme")
+def set_theme():
+    session['theme'] = 'unicorn' if session.get('theme', 'stellar') == 'stellar' else 'stellar'
+    return redirect(request.referrer or '/')
 
 @app.route("/sessions")
 @login_required
@@ -1750,7 +1757,7 @@ def view_sessions():
             'is_current': s[0] == session.get('session_id')
         })
     con.close()
-    return render_template_string(T_SESSIONS, sessions=sessions)
+    return _render(T_SESSIONS, sessions=sessions)
 
 @app.route("/session/revoke/<session_id>")
 @login_required
@@ -1794,7 +1801,7 @@ def audit_report():
             'ip': r[8]
         })
     con.close()
-    return render_template_string(T_AUDIT_REPORT, logs=logs)
+    return _render(T_AUDIT_REPORT, logs=logs)
 
 @app.route("/download/<int:aid>")
 @login_required
@@ -1826,7 +1833,85 @@ def delete_attachment(aid):
     return redirect("/")
 
 # --- TEMPLATES ---
-STYLE = """
+STYLE_UNICORN = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+:root {
+  --gold: #ffd700; --gold-dim: #b8960c; --red: #cc2200; --red-bright: #ff3300;
+  --bg: #0a0a0a; --bg2: #111; --bg3: #1a1a1a; --border: #2a2a2a; --radius: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body { background: var(--bg); color: var(--gold); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; padding-bottom: 40px; }
+a { color: var(--gold); text-decoration: none; transition: color .15s; }
+a:hover { color: var(--red-bright); }
+.nav { background: var(--bg2); border-bottom: 1px solid var(--red); padding: 10px 20px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
+.nav-brand { font-size: 1.1rem; font-weight: 700; color: var(--gold); letter-spacing: 1px; margin-right: 10px; }
+.nav a { font-size: .85rem; padding: 4px 10px; border-radius: var(--radius); border: 1px solid transparent; color: var(--gold); transition: all .15s; }
+.nav a:hover { border-color: var(--red); color: var(--red-bright); text-decoration: none; }
+.nav .sep { color: #444; }
+.nav .nav-logout { margin-left: auto; color: var(--red); border-color: var(--red); border: 1px solid; padding: 4px 10px; border-radius: var(--radius); }
+.nav .nav-logout:hover { background: var(--red); color: #000; }
+.nav .theme-btn { color: var(--gold-dim); border: 1px solid var(--gold-dim); padding: 3px 9px; border-radius: 12px; font-size: .8rem; }
+.nav .theme-btn:hover { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); }
+.container { max-width: 1100px; margin: 0; padding: 24px 20px; }
+h2, h3 { color: var(--gold); margin-bottom: 16px; font-weight: 600; letter-spacing: .5px; }
+h4 { color: var(--gold-dim); margin: 20px 0 10px; font-size: .95rem; text-transform: uppercase; letter-spacing: 1px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.item-list { list-style: none; }
+.item-list li { display: flex; align-items: center; gap: 8px; padding: 3px 12px; margin-bottom: 1px; border-radius: var(--radius); border: 1px solid transparent; transition: all .15s; }
+.item-list li:hover { background: var(--bg3); border-color: var(--border); }
+.item-list li a { flex: 1; font-size: .95rem; color: var(--gold); }
+.item-list li a:hover { color: var(--red-bright); }
+.item-list .actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
+.item-list li:hover .actions { opacity: 1; }
+.item-list .actions a { font-size: .75rem; padding: 2px 7px; border-radius: 3px; border: 1px solid #333; flex: none; }
+.item-list .actions a:hover { border-color: var(--red); color: var(--red-bright); }
+.item-list .del { color: var(--red) !important; }
+.empty { color: #555; font-style: italic; padding: 12px; }
+label { display: block; font-size: .85rem; color: var(--gold-dim); margin-bottom: 4px; margin-top: 12px; }
+input[type=text], input[type=password], input[type=email], input[type=date], input:not([type]), textarea, select { background: var(--bg2); color: var(--gold); border: 1px solid #444; border-radius: var(--radius); padding: 8px 12px; font-size: .9rem; font-family: inherit; width: 100%; transition: border-color .15s; outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--gold-dim); }
+textarea { resize: vertical; font-family: 'Consolas', 'Courier New', monospace; font-size: .85rem; }
+select option { background: var(--bg2); }
+.form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.form-row > * { flex: 1; min-width: 200px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; border-radius: var(--radius); border: 1px solid var(--gold-dim); background: transparent; color: var(--gold); font-size: .9rem; font-family: inherit; cursor: pointer; transition: all .15s; text-decoration: none; }
+.btn:hover { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); text-decoration: none; }
+.btn-primary { background: var(--gold-dim); color: #000; border-color: var(--gold-dim); font-weight: 600; }
+.btn-primary:hover { background: var(--gold); border-color: var(--gold); color: #000; }
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: var(--red); color: #fff; }
+.btn-sm { padding: 4px 12px; font-size: .8rem; }
+.btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+err { display: block; color: var(--red-bright); background: #1a0000; border: 1px solid var(--red); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; font-size: .9rem; }
+.breadcrumb { font-size: .85rem; color: #666; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.breadcrumb a { color: var(--gold-dim); }
+.breadcrumb a:hover { color: var(--gold); }
+.breadcrumb .sep { color: #444; }
+.badge { font-size: .75rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; color: #888; }
+.timestamp { font-size: .8rem; color: #666; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--red); color: var(--gold-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
+td { padding: 6px 12px; vertical-align: top; border-bottom: 1px solid var(--bg3); }
+tr:hover td { background: var(--bg3); }
+.search-box { display: flex; gap: 8px; margin-bottom: 20px; }
+.search-box input { flex: 1; }
+.tag-create { color: #0c0; font-weight: 600; }
+.tag-update { color: var(--gold-dim); font-weight: 600; }
+.tag-delete { color: var(--red); font-weight: 600; }
+.footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--bg2); border-top: 1px solid var(--border); color: #555; text-align: center; font-size: .75rem; padding: 5px; z-index: 99; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } .nav { gap: 4px; } textarea { cols: unset; width: 100%; } }
+.confirm-box { background: var(--bg2); border: 1px solid var(--red); border-radius: var(--radius); padding: 24px; max-width: 600px; }
+.confirm-box p { margin-bottom: 12px; line-height: 1.6; }
+.confirm-box .field { margin: 8px 0; font-size: .9rem; }
+.confirm-box .field b { color: var(--gold-dim); }
+</style>
+<div class="footer">&#9670; {{ build_date }}</div>
+"""
+
+STYLE_STELLAR = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Exo+2:wght@300;400;600&display=swap');
@@ -2047,9 +2132,23 @@ tr:hover td { background: rgba(0,212,255,.04); }
 .confirm-box p { margin-bottom: 12px; line-height: 1.6; }
 .confirm-box .field { margin: 8px 0; font-size: .9rem; }
 .confirm-box .field b { color: var(--aurora); }
+.nav .theme-btn { color: var(--nebula); border: 1px solid var(--nebula); padding: 3px 9px; border-radius: 12px; font-size: .8rem; }
+.nav .theme-btn:hover { background: rgba(0,212,255,.12); border-color: var(--pulsar); color: var(--pulsar); }
 </style>
 <div class="footer">&#11088; {{ build_date }} &#11088;</div>
 """
+
+# Keep STYLE as an alias so error handlers that reference it still work
+STYLE = STYLE_STELLAR
+
+def _get_style():
+    """Return the CSS block for the current user's theme (reads Flask session)."""
+    return STYLE_UNICORN if session.get('theme', 'stellar') == 'unicorn' else STYLE_STELLAR
+
+def _render(template, **kwargs):
+    """Swap STYLE_STELLAR for the user's chosen theme, then render."""
+    themed = template.replace(STYLE_STELLAR, _get_style())
+    return render_template_string(themed, **kwargs)
 
 T_FOLDERS = STYLE + """
 <nav class="nav">
@@ -2059,6 +2158,7 @@ T_FOLDERS = STYLE + """
   <a href=/audit_report>Audit</a>
   <a href=/sessions>Sessions</a>
   <a href=/change_password>Password</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2106,6 +2206,7 @@ T_ADD_FOLDER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2129,6 +2230,7 @@ T_ADD_SUBFOLDER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{pid}}>Back</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2151,6 +2253,7 @@ T_RENAME_FOLDER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>Back</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2173,6 +2276,7 @@ T_CHANGE_PASSWORD = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2216,6 +2320,7 @@ T_DELETE_NOTE = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2238,6 +2343,7 @@ T_EDIT_CONFIRM = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2270,6 +2376,7 @@ T_NOTES = STYLE + """
   <a href=/folder/{{folder[0]}}/add_folder>+ Subfolder</a>
   <a href=/folder/rename/{{folder[0]}}>Rename</a>
   <a href=/folder/delete/{{folder[0]}} class="btn-danger" style="color:var(--red)">Delete Folder</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2308,6 +2415,7 @@ T_ADD = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/folder/{{fid}}>&#8592; Back</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2456,6 +2564,7 @@ T_SEARCH = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2518,6 +2627,7 @@ T_DELETE_FOLDER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>Home</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2540,6 +2650,7 @@ T_HISTORY = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/edit/{{nid}}>&#8592; Back to Note</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2584,6 +2695,7 @@ T_ADMIN_SESSIONS = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2615,6 +2727,7 @@ T_ADMIN_DASHBOARD = STYLE + """
   <a href=/admin/sessions>Sessions</a>
   <a href=/admin/s3_backups>S3 Backups</a>
   <a href=/admin/iam_policy>IAM Policy</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2648,6 +2761,7 @@ T_ADMIN_EDIT_USER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2678,6 +2792,7 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>Dashboard</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2703,6 +2818,7 @@ T_ADMIN_DELETE_USER = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2761,6 +2877,7 @@ T_AUDIT_REPORT = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2787,6 +2904,7 @@ T_SESSIONS = STYLE + """
 <nav class="nav">
   <span class="nav-brand">&#11088; EverNothing</span>
   <a href=/>&#8592; Home</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -2820,6 +2938,7 @@ T_ADMIN_AUDIT_LOGS = STYLE + """
   <span class="nav-brand">&#11088; Admin</span>
   <a href=/admin/dashboard>&#8592; Dashboard</a>
   <a href="javascript:location.reload()" style="color:#0c0">Refresh</a>
+  <a href="/set_theme" class="theme-btn">&#127775; Theme</a>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
@@ -3089,6 +3208,12 @@ T_ADMIN_S3_BACKUPS = STYLE + """
 </table>
 {% endif %}
 """
+
+
+
+
+
+
 
 
 
