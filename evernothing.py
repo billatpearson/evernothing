@@ -246,9 +246,10 @@ app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '
 app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 app.config['REMEMBER_COOKIE_NAME'] = 'remember_token'
-# DB path: prefer DB/evernothing.db (new layout), fall back to root for compatibility
-_db_subdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'DB', 'evernothing.db')
-DB = os.environ.get('DB_FILE', _db_subdir if os.path.exists(os.path.dirname(_db_subdir)) else 'evernothing.db')
+# DB path: always use DB/evernothing.db relative to this file's directory.
+# DB_FILE env var overrides for tests and custom deployments.
+_db_default = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'DB', 'evernothing.db')
+DB = os.environ.get('DB_FILE', _db_default)
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
 @app.before_request
