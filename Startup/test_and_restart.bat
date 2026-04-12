@@ -22,7 +22,7 @@ if exist "%PID_FILE%" (
     echo       No PID file found, skipping.
 )
 
-:: --- Kill any orphaned evernothing.py processes on port 5000 or 5443 ---
+:: --- Kill any orphaned processes on port 5000 or 5443 ---
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
     taskkill /F /PID %%p >nul 2>&1
     echo       Killed orphaned process on port 5000 ^(PID %%p^).
@@ -39,7 +39,7 @@ echo.
 cd /d "%APP_DIR%"
 
 echo --- Main app tests ---
-"%PYTHON%" -m pytest test_evernothing.py test_all.py test_note_operations.py test_dashboard.py test_themes.py test_security.py tests/test_evernothing.py tests/test_s3_sync.py tests/test_s3_integration.py -v --tb=short 2>&1
+"%PYTHON%" -m pytest Test/test_evernothing.py Test/test_all.py Test/test_note_operations.py Test/test_dashboard.py Test/test_themes.py Test/test_security.py Test/test_feature_matrix.py tests/test_evernothing.py tests/test_s3_sync.py tests/test_s3_integration.py -v --tb=short 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [FAILED] Main app tests failed. Server NOT restarted.

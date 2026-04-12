@@ -790,7 +790,9 @@ class TestAndroidApp(unittest.TestCase):
 
     def setUp(self):
         import sys, importlib, importlib.util
-        _android_path = os.path.join(os.path.dirname(__file__), 'android_app')
+        # android_app/ lives in the project root, not in Test/
+        _android_path = os.path.join(os.path.dirname(__file__), '..', 'android_app')
+        _android_path = os.path.abspath(_android_path)
         # Force load from android_app/ regardless of what's already in sys.modules
         spec = importlib.util.spec_from_file_location(
             'evernothing_android',

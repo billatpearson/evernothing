@@ -246,7 +246,9 @@ app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '
 app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 app.config['REMEMBER_COOKIE_NAME'] = 'remember_token'
-DB = "evernothing.db"
+# DB path: prefer DB/evernothing.db (new layout), fall back to root for compatibility
+_db_subdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'DB', 'evernothing.db')
+DB = os.environ.get('DB_FILE', _db_subdir if os.path.exists(os.path.dirname(_db_subdir)) else 'evernothing.db')
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
 @app.before_request
@@ -257,8 +259,8 @@ def enforce_https():
         return
     # Skip if the app itself is not running with SSL (no cert configured)
     # — redirecting to https:// when the server only speaks HTTP causes ERR_SSL_PROTOCOL_ERROR
-    ssl_cert = os.environ.get('SSL_CERT', 'cert.pem')
-    ssl_key  = os.environ.get('SSL_KEY',  'key.pem')
+    ssl_cert = os.environ.get('SSL_CERT', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'cert.pem'))
+    ssl_key  = os.environ.get('SSL_KEY',  os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'key.pem'))
     if not (os.path.exists(ssl_cert) and os.path.exists(ssl_key)):
         return
     if request.is_secure:
@@ -536,6 +538,44 @@ def compress_old_backups(days=5, backup_dir="Backups"):
 
 compress_old_backups()
 
+# --- Encryption migration check ---
+# Detects mixed plaintext/encrypted state and warns the operator.
+# Run Scripts/migrate_encrypt.py to resolve.
+_MIXED_ENCRYPTION_WARNING = False
+
+def _check_encryption_state():
+    """Sample notes table to detect plaintext rows when encryption is enabled."""
+    global _MIXED_ENCRYPTION_WARNING
+    if not ENCRYPTION_ENABLED:
+        return
+    try:
+        con = db(); cur = con.cursor()
+        rows = cur.execute(
+            "SELECT note_key FROM notes ORDER BY RANDOM() LIMIT 20"
+        ).fetchall()
+        con.close()
+        plaintext_count = 0
+        for (val,) in rows:
+            if val:
+                try:
+                    base64.b64decode(val)
+                    decoded_len = len(base64.b64decode(val))
+                    if decoded_len < 28:   # too short to be AES-GCM
+                        plaintext_count += 1
+                except Exception:
+                    plaintext_count += 1   # not base64 → plaintext
+        if plaintext_count > 0:
+            _MIXED_ENCRYPTION_WARNING = True
+            logger.warning(
+                f"MIXED ENCRYPTION STATE: {plaintext_count} of {len(rows)} sampled notes "
+                "appear to be stored as plaintext. Run Scripts/migrate_encrypt.py to "
+                "encrypt all existing data."
+            )
+    except Exception:
+        pass  # table may not exist yet on first run
+
+_check_encryption_state()
+
 # --- AWS SYNC ---
 def _s3_client():
     """Return a boto3 S3 client.
@@ -782,6 +822,13 @@ def sync_s3_async():
     import threading
     threading.Thread(target=_sync_s3_worker, daemon=True).start()
 
+# S3 availability status — updated by _sync_s3_worker on each attempt
+_s3_status = {'ok': None, 'error': None}   # None = not yet attempted
+
+def get_s3_status():
+    """Return (ok: bool|None, error: str|None) for display in the UI."""
+    return _s3_status.copy()
+
 def _sync_s3_worker():
     try:
         import io
@@ -844,10 +891,13 @@ def _sync_s3_worker():
             now = datetime.datetime.now(timezone.utc).isoformat()
             cur.execute(f"UPDATE sync_queue SET synced_at=? WHERE id IN ({','.join('?'*len(delta_ids))})", [now]+delta_ids)
             con.commit(); con.close()
-        print("S3 ASynch")
+        _s3_status['ok'] = True
+        _s3_status['error'] = None
+        logger.info("S3 sync OK")
     except Exception as e:
+        _s3_status['ok'] = False
+        _s3_status['error'] = str(e)
         logger.error(f"S3 Sync Error: {e}")
-        print(f"S3 Sync Error: {e}")
 
 def restore_from_s3():
     """Download DB from S3 if local file is missing (recovery on startup)."""
@@ -2464,11 +2514,39 @@ def _get_style():
 
 def _render(template, **kwargs):
     """Swap STYLE_STELLAR for the user's chosen theme, then render.
-    Also injects theme and build_date so Jinja2 variables resolve."""
+    Also injects theme, build_date, and S3 status so Jinja2 variables resolve."""
     theme = session.get('theme', 'stellar')
     themed = template.replace(STYLE_STELLAR, _get_style())
     kwargs.setdefault('theme', theme)
     kwargs.setdefault('build_date', BUILD_DATE)
+    # Inject S3 status so every page can show the alert banner
+    s3 = get_s3_status()
+    kwargs.setdefault('s3_ok', s3['ok'])
+    kwargs.setdefault('s3_error', s3['error'])
+    # Prepend S3 warning banner when sync has failed
+    if s3['ok'] is False:
+        banner = (
+            '<div style="background:#7f1d1d;color:#fca5a5;padding:8px 20px;'
+            'font-size:.85rem;text-align:center;position:sticky;top:0;z-index:999;">'
+            '&#9888; S3 Sync unavailable — running on local database only. '
+            f'Error: {s3["error"]}</div>'
+        )
+        themed = themed.replace('<nav ', banner + '<nav ', 1)
+    elif s3['ok'] is None and not S3_BUCKET_NAME:
+        banner = (
+            '<div style="background:#1e3a5f;color:#93c5fd;padding:8px 20px;'
+            'font-size:.85rem;text-align:center;position:sticky;top:0;z-index:999;">'
+            '&#8505; S3 sync not configured — set S3_BUCKET_NAME in .env to enable cloud backup.</div>'
+        )
+        themed = themed.replace('<nav ', banner + '<nav ', 1)
+    if _MIXED_ENCRYPTION_WARNING:
+        enc_banner = (
+            '<div style="background:#78350f;color:#fde68a;padding:8px 20px;'
+            'font-size:.85rem;text-align:center;position:sticky;top:0;z-index:998;">'
+            '&#9888; Mixed encryption state — some notes are plaintext. '
+            'Run: <code>python Scripts/migrate_encrypt.py</code></div>'
+        )
+        themed = themed.replace('<nav ', enc_banner + '<nav ', 1)
     return render_template_string(themed, **kwargs)
 
 T_FOLDERS = STYLE + """
@@ -3608,8 +3686,8 @@ def api_search():
 if __name__ == '__main__':
     # SSL cert/key paths — override via env vars or generate a self-signed cert for dev:
     #   openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
-    ssl_cert = os.environ.get('SSL_CERT', 'cert.pem')
-    ssl_key  = os.environ.get('SSL_KEY',  'key.pem')
+    ssl_cert = os.environ.get('SSL_CERT', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'cert.pem'))
+    ssl_key  = os.environ.get('SSL_KEY',  os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'key.pem'))
     use_ssl  = os.path.exists(ssl_cert) and os.path.exists(ssl_key)
     ssl_ctx  = (ssl_cert, ssl_key) if use_ssl else None
     if not use_ssl:
