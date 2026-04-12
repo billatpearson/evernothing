@@ -17,7 +17,12 @@ import os, sys, sqlite3, base64
 # Ensure app root is on path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from evernothing import encrypt, decrypt, ENCRYPTION_ENABLED, DB
+from evernothing import encrypt, decrypt, ENCRYPTION_ENABLED
+
+# Always use DB/evernothing.db relative to the project root
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB = os.environ.get('DB_FILE',
+     os.path.join(_project_root, 'DB', 'evernothing.db'))
 
 def is_encrypted(value: str) -> bool:
     """Return True if value looks like AES-GCM base64 ciphertext."""
