@@ -32,8 +32,44 @@ S3_BUCKET_NAME  = config['S3_BUCKET_NAME']
 AWS_REGION      = config['AWS_REGION']
 AWS_ACCESS_KEY_ID     = config.get('AWS_ACCESS_KEY_ID') or None
 AWS_SECRET_ACCESS_KEY = config.get('AWS_SECRET_ACCESS_KEY') or None
+ENCRYPTION_ENABLED    = config.get('ENCRYPTION_ENABLED', 'true').lower() == 'true'
 # How often (seconds) the background thread checkpoints to S3. Default 15 min.
 CHECKPOINT_INTERVAL = int(os.environ.get('CHECKPOINT_INTERVAL', str(15 * 60)))
+
+# Derive AES-256 key from SECRET_KEY — no separate key file needed.
+# WARNING: changing SECRET_KEY makes existing encrypted notes unreadable.
+try:
+    import hashlib
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM as _AESGCM
+    _aes_key = hashlib.pbkdf2_hmac(
+        'sha256',
+        config['SECRET_KEY'].encode('utf-8'),
+        b'evernothing-aes-key-v1',
+        iterations=100_000,
+        dklen=32
+    )
+    _aesgcm = _AESGCM(_aes_key)
+    _encryption_available = True
+except Exception:
+    _aesgcm = None
+    _encryption_available = False
+
+def _encrypt(txt: str) -> str:
+    if not ENCRYPTION_ENABLED or not _encryption_available or not txt:
+        return txt or ''
+    import base64
+    nonce = os.urandom(12)
+    return base64.b64encode(nonce + _aesgcm.encrypt(nonce, txt.encode(), None)).decode()
+
+def _decrypt(txt: str) -> str:
+    if not txt:
+        return ''
+    try:
+        import base64
+        data = base64.b64decode(txt)
+        return _aesgcm.decrypt(data[:12], data[12:], None).decode()
+    except Exception:
+        return txt  # plaintext passthrough for unencrypted legacy data
 
 logging.basicConfig(
     level=logging.INFO,
@@ -239,6 +275,7 @@ def folder(fid):
         notes = cur.execute(
             "SELECT id,note_key,updated_at FROM notes WHERE user_id=? AND folder_id=? ORDER BY note_key",
             (current_user.id, fid)).fetchall()
+        notes = [(r[0], _decrypt(r[1]), r[2]) for r in notes]
         subfolders = cur.execute(
             "SELECT id,name FROM folders WHERE user_id=? AND parent_id=? ORDER BY name",
             (current_user.id, fid)).fetchall()
@@ -260,7 +297,9 @@ def view_note(nid):
     if not r:
         return redirect("/")
     return render_template_string(T_NOTE, nid=nid,
-        key=r[0], value=r[1], desc=r[2] or '', updated=r[3] or '', fid=r[4])
+        key=_decrypt(r[0]), value=_decrypt(r[1]),
+        desc=_decrypt(r[2]) if r[2] else '',
+        updated=r[3] or '', fid=r[4])
 
 @app.route("/note/add/<int:fid>", methods=["GET","POST"])
 @login_required
@@ -284,7 +323,7 @@ def add_note(fid):
                 else:
                     cur.execute(
                         "INSERT INTO notes (user_id,folder_id,note_key,note_value,description,updated_at) VALUES(?,?,?,?,?,?)",
-                        (current_user.id, fid, key, value, desc, _now()))
+                        (current_user.id, fid, _encrypt(key), _encrypt(value), _encrypt(desc), _now()))
                     con.commit()
                     return redirect(f"/folder/{fid}")
             finally:
@@ -316,13 +355,14 @@ def edit_note(nid):
                 cur = con.cursor()
                 cur.execute(
                     "UPDATE notes SET note_key=?,note_value=?,description=?,updated_at=? WHERE id=? AND user_id=?",
-                    (key, value, desc, _now(), nid, current_user.id))
+                    (_encrypt(key), _encrypt(value), _encrypt(desc), _now(), nid, current_user.id))
                 con.commit()
             finally:
                 con.close()
             return redirect(f"/note/{nid}")
     return render_template_string(T_EDIT_NOTE, nid=nid,
-        key=r[0], value=r[1], desc=r[2] or '', fid=r[3], error=error)
+        key=_decrypt(r[0]), value=_decrypt(r[1]),
+        desc=_decrypt(r[2]) if r[2] else '', fid=r[3], error=error)
 
 @app.route("/note/delete/<int:nid>", methods=["POST"])
 @login_required
@@ -373,8 +413,8 @@ def search():
                 (current_user.id,)).fetchall()
         finally:
             con.close()
-        results = [(r[0], r[1], r[2], r[3]) for r in rows
-                   if q in r[1].lower() or q in r[2].lower()]
+        results = [(r[0], _decrypt(r[1]), _decrypt(r[2]), r[3]) for r in rows
+                   if q in _decrypt(r[1]).lower() or q in _decrypt(r[2]).lower()]
     return render_template_string(T_SEARCH, q=q, results=results)
 
 @app.route("/checkpoint", methods=["POST"])

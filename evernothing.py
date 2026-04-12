@@ -286,17 +286,20 @@ def set_security_headers(response):
         "img-src 'self' data:;"
     )
     return response
-ENCRYPTION_ENABLED = os.environ.get('ENCRYPTION_ENABLED', 'false').lower() == 'true'
-KEY_FILE = "secret.key"
+ENCRYPTION_ENABLED = os.environ.get('ENCRYPTION_ENABLED', 'true').lower() == 'true'
 if AESGCM:
-    # Always load key for decryption, even if encryption is disabled
-    if os.path.exists(KEY_FILE):
-        with open(KEY_FILE, 'rb') as f: KEY = f.read()
-        aesgcm = AESGCM(KEY)
-    else:
-        KEY = AESGCM.generate_key(bit_length=256)
-        with open(KEY_FILE, 'wb') as f: f.write(KEY)
-        aesgcm = AESGCM(KEY)
+    # Derive the AES-256 key from SECRET_KEY using PBKDF2-SHA256.
+    # This eliminates the separate secret.key file — the DB can only be
+    # decrypted by someone who knows SECRET_KEY, even if they have the DB file.
+    import hashlib
+    KEY = hashlib.pbkdf2_hmac(
+        'sha256',
+        _secret_key.encode('utf-8'),
+        b'evernothing-aes-key-v1',  # fixed app-specific salt
+        iterations=100_000,
+        dklen=32
+    )
+    aesgcm = AESGCM(KEY)
 
     def encrypt(txt):
         if not ENCRYPTION_ENABLED or not txt: return txt if txt else ""
@@ -1538,6 +1541,9 @@ def admin_delete_user(uid):
         cur.execute("DELETE FROM notes WHERE user_id=?", (uid,))
         cur.execute("DELETE FROM folders WHERE user_id=?", (uid,))
         cur.execute("DELETE FROM note_history WHERE user_id=?", (uid,))
+        log_change(cur, 0, 'DELETE', 'user', uid,
+                   {'username': user[1]}, {},
+                   request.remote_addr)
         cur.execute("DELETE FROM users WHERE id=?", (uid,))
         con.commit()
         con.close()
