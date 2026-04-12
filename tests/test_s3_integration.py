@@ -293,7 +293,8 @@ class S3IntegrationTestCase(unittest.TestCase):
                 fid = con.execute("SELECT id FROM folders").fetchone()[0]
             self.client.post(f'/add/{fid}', data={'note': 'QNote2', 'content': 'original', 'description': ''})
             with sqlite3.connect(self.db_path) as con:
-                nid = con.execute("SELECT id FROM notes WHERE note_key='QNote2'").fetchone()[0]
+                # Note key is encrypted — get the most recently inserted note id
+                nid = con.execute("SELECT id FROM notes ORDER BY id DESC LIMIT 1").fetchone()[0]
             self.client.post(f'/edit/{nid}', data={
                 'note': 'QNote2', 'content': 'updated', 'folder_id': fid,
                 'description': '', 'confirm': 'yes'
