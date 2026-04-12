@@ -236,19 +236,19 @@ class EvernothingTestCase(unittest.TestCase):
         self._login()
         self.client.post('/folder/add', data={'name': 'OldName'}, follow_redirects=True)
         with sqlite3.connect(self.db_path) as con:
-            fid = con.execute("SELECT id FROM folders WHERE name='OldName'").fetchone()[0]
+            fid = con.execute("SELECT id FROM folders ORDER BY id DESC LIMIT 1").fetchone()[0]
         response = self.client.post(f'/folder/rename/{fid}', data={'name': 'NewName'}, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         with sqlite3.connect(self.db_path) as con:
             name = con.execute("SELECT name FROM folders WHERE id=?", (fid,)).fetchone()[0]
-        self.assertEqual(name, 'NewName')
+        self.assertEqual(evernothing.decrypt(name), 'NewName')
 
     @patch('evernothing.sync_s3')
     def test_delete_folder(self, mock_sync):
         self._login()
         self.client.post('/folder/add', data={'name': 'ToDelete'}, follow_redirects=True)
         with sqlite3.connect(self.db_path) as con:
-            fid = con.execute("SELECT id FROM folders WHERE name='ToDelete'").fetchone()[0]
+            fid = con.execute("SELECT id FROM folders ORDER BY id DESC LIMIT 1").fetchone()[0]
         self.client.post(f'/folder/delete/{fid}', follow_redirects=True)
         with sqlite3.connect(self.db_path) as con:
             r = con.execute("SELECT id FROM folders WHERE id=?", (fid,)).fetchone()
@@ -276,7 +276,7 @@ class EvernothingTestCase(unittest.TestCase):
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         with sqlite3.connect(self.db_path) as con:
-            r = con.execute("SELECT id FROM notes WHERE note_key='MyNote'").fetchone()
+            r = con.execute("SELECT id FROM notes ORDER BY id DESC LIMIT 1").fetchone()
         self.assertIsNotNone(r)
 
     @patch('evernothing.sync_s3')
@@ -310,14 +310,14 @@ class EvernothingTestCase(unittest.TestCase):
             fid = con.execute("SELECT id FROM folders").fetchone()[0]
         self.client.post(f'/add/{fid}', data={'note': 'EditMe', 'content': 'old', 'description': ''})
         with sqlite3.connect(self.db_path) as con:
-            nid = con.execute("SELECT id FROM notes WHERE note_key='EditMe'").fetchone()[0]
+            nid = con.execute("SELECT id FROM notes ORDER BY id DESC LIMIT 1").fetchone()[0]
         self.client.post(f'/edit/{nid}', data={
             'note': 'EditMe', 'content': 'new content', 'folder_id': fid,
             'description': '', 'confirm': 'yes'
         }, follow_redirects=True)
         with sqlite3.connect(self.db_path) as con:
             val = con.execute("SELECT note_value FROM notes WHERE id=?", (nid,)).fetchone()[0]
-        self.assertEqual(val, 'new content')
+        self.assertEqual(evernothing.decrypt(val), 'new content')
 
     @patch('evernothing.sync_s3')
     def test_delete_note(self, mock_sync):
@@ -327,7 +327,7 @@ class EvernothingTestCase(unittest.TestCase):
             fid = con.execute("SELECT id FROM folders").fetchone()[0]
         self.client.post(f'/add/{fid}', data={'note': 'DelNote', 'content': 'x', 'description': ''})
         with sqlite3.connect(self.db_path) as con:
-            nid = con.execute("SELECT id FROM notes WHERE note_key='DelNote'").fetchone()[0]
+            nid = con.execute("SELECT id FROM notes ORDER BY id DESC LIMIT 1").fetchone()[0]
         self.client.post(f'/note/delete/{nid}', follow_redirects=True)
         with sqlite3.connect(self.db_path) as con:
             r = con.execute("SELECT id FROM notes WHERE id=?", (nid,)).fetchone()
@@ -365,7 +365,7 @@ class EvernothingTestCase(unittest.TestCase):
             fid = con.execute("SELECT id FROM folders").fetchone()[0]
         self.client.post(f'/add/{fid}', data={'note': 'HistNote', 'content': 'v1', 'description': ''})
         with sqlite3.connect(self.db_path) as con:
-            nid = con.execute("SELECT id FROM notes WHERE note_key='HistNote'").fetchone()[0]
+            nid = con.execute("SELECT id FROM notes ORDER BY id DESC LIMIT 1").fetchone()[0]
         self.client.post(f'/edit/{nid}', data={
             'note': 'HistNote', 'content': 'v2', 'folder_id': fid,
             'description': '', 'confirm': 'yes'
@@ -477,7 +477,7 @@ class EvernothingTestCase(unittest.TestCase):
             fid = con.execute("SELECT id FROM folders").fetchone()[0]
         self.client.post(f'/add/{fid}', data={'note': 'SyncUpdate', 'content': 'v1', 'description': ''})
         with sqlite3.connect(self.db_path) as con:
-            nid = con.execute("SELECT id FROM notes WHERE note_key='SyncUpdate'").fetchone()[0]
+            nid = con.execute("SELECT id FROM notes ORDER BY id DESC LIMIT 1").fetchone()[0]
         self.client.post(f'/edit/{nid}', data={
             'note': 'SyncUpdate', 'content': 'v2', 'folder_id': fid,
             'description': '', 'confirm': 'yes'
@@ -497,7 +497,7 @@ class EvernothingTestCase(unittest.TestCase):
             fid = con.execute("SELECT id FROM folders").fetchone()[0]
         self.client.post(f'/add/{fid}', data={'note': 'SyncDel', 'content': 'x', 'description': ''})
         with sqlite3.connect(self.db_path) as con:
-            nid = con.execute("SELECT id FROM notes WHERE note_key='SyncDel'").fetchone()[0]
+            nid = con.execute("SELECT id FROM notes ORDER BY id DESC LIMIT 1").fetchone()[0]
         self.client.post(f'/note/delete/{nid}', follow_redirects=True)
         with sqlite3.connect(self.db_path) as con:
             r = con.execute(
@@ -514,7 +514,7 @@ class EvernothingTestCase(unittest.TestCase):
             fid = con.execute("SELECT id FROM folders").fetchone()[0]
         self.client.post(f'/add/{fid}', data={'note': 'SyncRoll', 'content': 'v1', 'description': ''})
         with sqlite3.connect(self.db_path) as con:
-            nid = con.execute("SELECT id FROM notes WHERE note_key='SyncRoll'").fetchone()[0]
+            nid = con.execute("SELECT id FROM notes ORDER BY id DESC LIMIT 1").fetchone()[0]
         self.client.post(f'/edit/{nid}', data={
             'note': 'SyncRoll', 'content': 'v2', 'folder_id': fid,
             'description': '', 'confirm': 'yes'
@@ -526,7 +526,7 @@ class EvernothingTestCase(unittest.TestCase):
         self.client.post(f'/history/restore/{hid}', follow_redirects=True)
         with sqlite3.connect(self.db_path) as con:
             val = con.execute("SELECT note_value FROM notes WHERE id=?", (nid,)).fetchone()[0]
-        self.assertEqual(val, 'v1')
+        self.assertEqual(evernothing.decrypt(val), 'v1')
 
     @patch('evernothing.sync_s3')
     def test_sync_queue_payload_contains_key(self, mock_sync):
@@ -542,8 +542,9 @@ class EvernothingTestCase(unittest.TestCase):
             ).fetchone()
         self.assertIsNotNone(row)
         payload = json.loads(row[0])
-        self.assertEqual(payload['note_key'], 'PayloadNote')
-        self.assertEqual(payload['description'], 'pdesc')
+        # Payload stores encrypted values — decrypt to verify
+        self.assertEqual(evernothing.decrypt(payload['note_key']), 'PayloadNote')
+        self.assertEqual(evernothing.decrypt(payload.get('description', '')), 'pdesc')
 
     @patch('evernothing.sync_s3')
     def test_sync_queue_unsynced_rows_start_null(self, mock_sync):
