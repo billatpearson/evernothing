@@ -53,6 +53,9 @@ HOST       = 127.0.0.1
 PORT       = 5000
 EOF
     echo "  *** Edit ~/evernothing/config.ini and add your S3 bucket + AWS credentials ***"
+    echo "  *** SECURITY: prefer setting credentials as env vars instead of config.ini: ***"
+    echo "  ***   export AWS_ACCESS_KEY_ID=your_key                                     ***"
+    echo "  ***   export AWS_SECRET_ACCESS_KEY=your_secret                              ***"
 else
     echo "[4/5] config.ini already exists — skipping."
 fi

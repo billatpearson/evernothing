@@ -22,17 +22,19 @@ def load_config():
             config['AWS_SECRET_ACCESS_KEY'] = parser['AWS'].get('AWS_SECRET_ACCESS_KEY', '')
 
         if 'APP' in parser:
-            config['SECRET_KEY'] = parser['APP'].get('SECRET_KEY', '')
+            config['SECRET_KEY']         = parser['APP'].get('SECRET_KEY', '')
+            config['ENCRYPTION_ENABLED'] = parser['APP'].get('ENCRYPTION_ENABLED', 'true')
             config['DB_FILE'] = parser['APP'].get('DB_FILE', 'evernothing.db')
-            config['HOST'] = parser['APP'].get('HOST', '127.0.0.1')
-            config['PORT'] = parser['APP'].getint('PORT', 5000)
+            config['HOST']    = parser['APP'].get('HOST', '127.0.0.1')
+            config['PORT']    = parser['APP'].getint('PORT', 5000)
 
     # Environment variables override config.ini
     config['S3_BUCKET_NAME'] = os.environ.get('S3_BUCKET_NAME', config.get('S3_BUCKET_NAME', ''))
     config['AWS_REGION'] = os.environ.get('AWS_REGION', config.get('AWS_REGION', 'us-east-1'))
     config['AWS_ACCESS_KEY_ID'] = os.environ.get('AWS_ACCESS_KEY_ID', config.get('AWS_ACCESS_KEY_ID', ''))
     config['AWS_SECRET_ACCESS_KEY'] = os.environ.get('AWS_SECRET_ACCESS_KEY', config.get('AWS_SECRET_ACCESS_KEY', ''))
-    config['SECRET_KEY'] = os.environ.get('SECRET_KEY', config.get('SECRET_KEY', ''))
+    config['SECRET_KEY']         = os.environ.get('SECRET_KEY',         config.get('SECRET_KEY', ''))
+    config['ENCRYPTION_ENABLED'] = os.environ.get('ENCRYPTION_ENABLED', config.get('ENCRYPTION_ENABLED', 'true'))
     config['DB_FILE'] = os.environ.get('DB_FILE', config.get('DB_FILE', 'evernothing.db'))
     config['HOST'] = os.environ.get('HOST', config.get('HOST', '127.0.0.1'))
     config['PORT'] = int(os.environ.get('PORT', config.get('PORT', 5000)))

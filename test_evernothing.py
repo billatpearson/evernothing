@@ -482,7 +482,7 @@ class EvernothingTestCase(unittest.TestCase):
         with sqlite3.connect(self.db_path) as con:
             row = con.execute("SELECT description FROM notes WHERE id=1").fetchone()
         self.assertIsNotNone(row)
-        self.assertIn('My short desc', row[0])
+        self.assertIn('My short desc', self.decrypt(row[0]))
 
     @patch('evernothing.sync_s3')
     def test_description_truncated_at_255(self, mock_sync):
@@ -494,7 +494,8 @@ class EvernothingTestCase(unittest.TestCase):
         with sqlite3.connect(self.db_path) as con:
             row = con.execute("SELECT description FROM notes WHERE id=1").fetchone()
         self.assertIsNotNone(row)
-        self.assertLessEqual(len(row[0]), 255)
+        # Check the decrypted value is truncated, not the ciphertext
+        self.assertLessEqual(len(self.decrypt(row[0])), 255)
 
     @patch('evernothing.sync_s3')
     def test_description_empty_allowed(self, mock_sync):
@@ -525,7 +526,7 @@ class EvernothingTestCase(unittest.TestCase):
         }, follow_redirects=True)
         with sqlite3.connect(self.db_path) as con:
             row = con.execute("SELECT description FROM notes WHERE id=1").fetchone()
-        self.assertIn('New desc', row[0])
+        self.assertIn('New desc', self.decrypt(row[0]))
 
     @patch('evernothing.sync_s3')
     def test_description_in_export(self, mock_sync):
