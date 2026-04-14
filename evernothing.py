@@ -1477,6 +1477,7 @@ def restore_history(hid):
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -1629,6 +1630,7 @@ def admin_iam_policy():
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -1936,11 +1938,11 @@ def logout():
 @app.route("/set_theme")
 def set_theme():
     t = request.args.get('t', '')
-    if t in ('stellar', 'unicorn', 'startrek'):
+    if t in ('stellar', 'unicorn', 'startrek', 'shrek'):
         session['theme'] = t
     else:
-        # fallback cycle: stellar -> unicorn -> startrek -> stellar
-        cycle = {'stellar': 'unicorn', 'unicorn': 'startrek', 'startrek': 'stellar'}
+        # fallback cycle: stellar -> unicorn -> startrek -> shrek -> stellar
+        cycle = {'stellar': 'unicorn', 'unicorn': 'startrek', 'startrek': 'shrek', 'shrek': 'stellar'}
         session['theme'] = cycle.get(session.get('theme', 'stellar'), 'stellar')
     return redirect(request.referrer or '/')
 
@@ -2518,11 +2520,176 @@ tr:hover td { background:rgba(255,153,0,.04); }
 # Keep STYLE as an alias so error handlers that reference it still work
 STYLE = STYLE_STELLAR
 
+STYLE_SHREK = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@400;600&family=Lora:wght@400;600&display=swap');
+:root {
+  --swamp:    #4a7c3f;
+  --mud:      #8b6914;
+  --onion:    #c8a84b;
+  --slime:    #7ec850;
+  --mist:     #a8c878;
+  --parchment:#f5e6c8;
+  --dark:     #1a2e0a;
+  --bark:     #3d2b1f;
+  --danger:   #c0392b;
+  --bg:       #0d1a08;
+  --bg2:      #162410;
+  --bg3:      #1e3015;
+  --border:   #3a5a2a;
+  --radius:   4px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  background-image:
+    /* Swamp mist layers */
+    radial-gradient(ellipse 120% 40% at 50% 100%, rgba(74,124,63,.25) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 30% at 20% 80%, rgba(126,200,80,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 20% at 80% 90%, rgba(74,124,63,.15) 0%, transparent 50%),
+    /* Night sky */
+    radial-gradient(ellipse 200% 60% at 50% 0%, #0a1505 0%, #0d1a08 100%);
+  color: var(--parchment);
+  font-family: 'Lora', Georgia, serif;
+  min-height: 100vh;
+  padding-bottom: 40px;
+  position: relative;
+  overflow-x: hidden;
+}
+/* Fireflies */
+body::before {
+  content: '✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦';
+  position: fixed;
+  top: 15%;
+  left: 0;
+  width: 100%;
+  color: rgba(200,168,75,.4);
+  font-size: .6rem;
+  letter-spacing: 3rem;
+  pointer-events: none;
+  z-index: 0;
+  animation: fireflies 8s ease-in-out infinite alternate;
+}
+body::after {
+  content: '✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧';
+  position: fixed;
+  top: 60%;
+  left: 5%;
+  width: 100%;
+  color: rgba(126,200,80,.3);
+  font-size: .5rem;
+  letter-spacing: 4rem;
+  pointer-events: none;
+  z-index: 0;
+  animation: fireflies 6s ease-in-out infinite alternate-reverse;
+}
+@keyframes fireflies {
+  0%   { opacity: .2; transform: translateY(0px); }
+  50%  { opacity: .8; transform: translateY(-8px); }
+  100% { opacity: .3; transform: translateY(4px); }
+}
+body > * { position: relative; z-index: 1; }
+a { color: var(--slime); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--onion); text-shadow: 0 0 8px rgba(200,168,75,.5); }
+/* Swamp mud top border */
+.nav {
+  background: linear-gradient(135deg, #0d1a08 0%, #162410 100%);
+  border-bottom: 3px solid var(--mud);
+  box-shadow: 0 3px 20px rgba(74,124,63,.3), inset 0 -1px 0 var(--swamp);
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 100;
+}
+.nav-brand {
+  font-family: 'Cinzel', serif;
+  font-size: 1rem; font-weight: 600;
+  color: var(--onion);
+  text-shadow: 0 0 12px rgba(200,168,75,.6), 0 2px 4px rgba(0,0,0,.8);
+  letter-spacing: 2px; margin-right: 10px;
+  text-transform: uppercase;
+}
+.nav a { font-size:.82rem;padding:4px 10px;border-radius:2px;border:1px solid transparent;color:var(--mist);transition:all .2s;font-family:'Lora',serif; }
+.nav a:hover { border-color:var(--swamp);color:var(--onion);background:rgba(74,124,63,.15);text-shadow:0 0 6px rgba(200,168,75,.4);text-decoration:none; }
+.nav .sep { color:var(--border); }
+.nav .nav-logout { margin-left:auto;color:var(--danger);border-color:var(--danger);border-radius:2px;border:1px solid;padding:4px 12px; }
+.nav .nav-logout:hover { background:var(--danger);color:#fff;text-shadow:none; }
+.container { max-width:1100px;margin:0;padding:24px 20px; }
+h2,h3 { font-family:'Cinzel',serif;color:var(--onion);margin-bottom:16px;font-weight:600;letter-spacing:1px;text-shadow:0 0 10px rgba(200,168,75,.3); }
+h4 { color:var(--mist);margin:20px 0 10px;font-size:.9rem;text-transform:uppercase;letter-spacing:2px;font-family:'Cinzel',serif; }
+.card {
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--swamp);
+  border-radius: var(--radius);
+  padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(74,124,63,.1);
+}
+.item-list { list-style:none; }
+.item-list li { display:flex;align-items:center;gap:8px;padding:6px 12px;margin-bottom:2px;border-radius:var(--radius);border:1px solid transparent;transition:all .2s; }
+.item-list li:hover { background:rgba(74,124,63,.1);border-color:var(--border); }
+.item-list li a { flex:1;font-size:.95rem;color:var(--slime); }
+.item-list li a:hover { color:var(--onion); }
+.item-list .actions { display:flex;gap:6px;opacity:0;transition:opacity .15s; }
+.item-list li:hover .actions { opacity:1; }
+.item-list .actions a { font-size:.75rem;padding:2px 8px;border-radius:2px;border:1px solid var(--border);flex:none;color:var(--mist); }
+.item-list .actions a:hover { border-color:var(--onion);color:var(--onion); }
+.item-list .del { color:var(--danger)!important; }
+.empty { color:var(--border);font-style:italic;padding:12px;font-family:'Lora',serif; }
+label { display:block;font-size:.82rem;color:var(--mist);margin-bottom:4px;margin-top:12px;letter-spacing:.5px;text-transform:uppercase;font-family:'Cinzel',serif; }
+input[type=text],input[type=password],input[type=email],input[type=date],input:not([type]),textarea,select {
+  background:var(--bg3);color:var(--parchment);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px 12px;font-size:.9rem;font-family:'Lora',serif;
+  width:100%;transition:border-color .2s,box-shadow .2s;outline:none;
+}
+input:focus,textarea:focus,select:focus { border-color:var(--swamp);box-shadow:0 0 0 3px rgba(74,124,63,.2); }
+textarea { resize:vertical;font-family:'Lora',serif;font-size:.9rem; }
+select option { background:var(--bg2); }
+.form-row { display:flex;gap:12px;flex-wrap:wrap; }
+.form-row > * { flex:1;min-width:200px; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:8px 22px;border-radius:2px;border:1px solid var(--swamp);background:transparent;color:var(--mist);font-size:.9rem;font-family:'Lora',serif;cursor:pointer;transition:all .2s;text-decoration:none;letter-spacing:.5px; }
+.btn:hover { background:rgba(74,124,63,.15);border-color:var(--onion);color:var(--onion);box-shadow:0 0 14px rgba(200,168,75,.2);text-decoration:none; }
+.btn-primary { background:rgba(74,124,63,.2);color:var(--onion);border-color:var(--mud);font-weight:600;box-shadow:0 0 10px rgba(74,124,63,.15); }
+.btn-primary:hover { background:rgba(74,124,63,.35);box-shadow:0 0 20px rgba(200,168,75,.3);color:var(--parchment); }
+.btn-danger { border-color:var(--danger);color:var(--danger); }
+.btn-danger:hover { background:var(--danger);color:#fff;box-shadow:0 0 14px rgba(192,57,43,.35);text-shadow:none; }
+.btn-sm { padding:4px 14px;font-size:.8rem; }
+.btn-group { display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center; }
+err { display:block;color:var(--danger);background:rgba(192,57,43,.08);border:1px solid var(--danger);border-radius:var(--radius);padding:8px 12px;margin:10px 0;font-size:.9rem; }
+.breadcrumb { font-size:.85rem;color:var(--border);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.breadcrumb a { color:var(--mist); }
+.breadcrumb a:hover { color:var(--onion); }
+.breadcrumb .sep { color:var(--border); }
+.badge { font-size:.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:2px;padding:1px 8px;color:var(--mist); }
+.timestamp { font-size:.8rem;color:var(--border); }
+table { width:100%;border-collapse:collapse;font-size:.9rem; }
+th { text-align:left;padding:10px 12px;border-bottom:1px solid var(--mud);color:var(--mist);font-size:.8rem;text-transform:uppercase;letter-spacing:1px;font-family:'Cinzel',serif; }
+td { padding:6px 12px;vertical-align:top;border-bottom:1px solid var(--bg3); }
+tr:hover td { background:rgba(74,124,63,.06); }
+.search-box { display:flex;gap:8px;margin-bottom:20px; }
+.search-box input { flex:1; }
+.tag-create { color:var(--slime);font-weight:600; }
+.tag-update { color:var(--mist);font-weight:600; }
+.tag-delete { color:var(--danger);font-weight:600; }
+.footer { position:fixed;bottom:0;left:0;width:100%;background:var(--bg2);border-top:2px solid var(--mud);color:var(--border);text-align:center;font-size:.75rem;padding:5px;z-index:99;font-family:'Cinzel',serif;letter-spacing:1px; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+@media (max-width:600px) { .two-col { grid-template-columns:1fr; } .nav { gap:4px; } textarea { width:100%; } }
+.confirm-box { background:var(--bg2);border:1px solid var(--mud);border-radius:var(--radius);padding:24px;max-width:600px;box-shadow:0 4px 24px rgba(74,124,63,.12); }
+.confirm-box p { margin-bottom:12px;line-height:1.6; }
+.confirm-box .field { margin:8px 0;font-size:.9rem; }
+.confirm-box .field b { color:var(--slime); }
+.theme-select { background:var(--bg3);color:var(--mist);border:1px solid var(--border);border-radius:2px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:'Lora',serif; }
+.theme-select:focus { outline:none;border-color:var(--swamp); }</style>
+<div class="footer">&#127807; {{ build_date }} &#127807;</div>
+"""
+
 def _get_style():
     """Return the CSS block for the current user's theme (reads Flask session)."""
     t = session.get('theme', 'stellar')
     if t == 'unicorn':   return STYLE_UNICORN
     if t == 'startrek':  return STYLE_STARTREK
+    if t == 'shrek':     return STYLE_SHREK
     return STYLE_STELLAR
 
 def _render(template, **kwargs):
@@ -2575,6 +2742,7 @@ T_FOLDERS = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2629,6 +2797,7 @@ T_ADD_FOLDER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2659,6 +2828,7 @@ T_ADD_SUBFOLDER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2688,6 +2858,7 @@ T_RENAME_FOLDER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2717,6 +2888,7 @@ T_CHANGE_PASSWORD = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2767,6 +2939,7 @@ T_DELETE_NOTE = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2796,6 +2969,7 @@ T_EDIT_CONFIRM = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2835,6 +3009,7 @@ T_NOTES = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2890,6 +3065,7 @@ T_ADD = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3045,6 +3221,7 @@ T_SEARCH = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3114,6 +3291,7 @@ T_DELETE_FOLDER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3143,6 +3321,7 @@ T_HISTORY = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3194,6 +3373,7 @@ T_ADMIN_SESSIONS = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3232,6 +3412,7 @@ T_ADMIN_DASHBOARD = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3272,6 +3453,7 @@ T_ADMIN_EDIT_USER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3309,6 +3491,7 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3341,6 +3524,7 @@ T_ADMIN_DELETE_USER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3406,6 +3590,7 @@ T_AUDIT_REPORT = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3439,6 +3624,7 @@ T_SESSIONS = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3479,6 +3665,7 @@ T_ADMIN_AUDIT_LOGS = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
