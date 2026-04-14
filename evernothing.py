@@ -1273,14 +1273,26 @@ def view_folder(fid):
         con.close()
         return redirect("/")
 
+    # Build breadcrumb: walk up parent chain
+    breadcrumb = [(folder[0], decrypt(folder[1]))]
+    parent_id = folder[2]
+    while parent_id:
+        parent = cur.execute("SELECT id,name,parent_id FROM folders WHERE id=? AND user_id=?", (parent_id, current_user.id)).fetchone()
+        if not parent:
+            break
+        breadcrumb.insert(0, (parent[0], decrypt(parent[1])))
+        parent_id = parent[2]
+
     cur.execute("SELECT id,name FROM folders WHERE user_id=? AND parent_id=?", (current_user.id, fid))
     subfolders = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
-    
+
     cur.execute("SELECT id,note_key FROM notes WHERE user_id=? AND folder_id=?", (current_user.id, fid))
     notes = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
     con.close()
-    
-    return _render(T_NOTES, notes=notes, subfolders=subfolders, folder=(folder[0], decrypt(folder[1]), folder[2]))
+
+    return _render(T_NOTES, notes=notes, subfolders=subfolders,
+                   folder=(folder[0], decrypt(folder[1]), folder[2]),
+                   breadcrumb=breadcrumb)
 
 @app.route("/add/<int:fid>", methods=["GET","POST"])
 @login_required
@@ -2828,7 +2840,17 @@ T_NOTES = STYLE + """
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
-  <h3>&#128193; {{folder[1]}}</h3>
+  <div class="breadcrumb">
+    <a href="/">&#127968; Home</a>
+    {% for bc_id, bc_name in breadcrumb %}
+      <span class="sep">&#8250;</span>
+      {% if bc_id == folder[0] %}
+        <span>{{bc_name}}</span>
+      {% else %}
+        <a href="/folder/{{bc_id}}">{{bc_name}}</a>
+      {% endif %}
+    {% endfor %}
+  </div>
   <div class="two-col">
     <div>
       <h4>Notes</h4>
