@@ -452,6 +452,26 @@ class EvernothingTestCase(unittest.TestCase):
             r = con.execute("SELECT id FROM users WHERE username='otheruser'").fetchone()
         self.assertIsNone(r)
 
+    @patch('evernothing.sync_s3')
+    def test_admin_edit_user_duplicate_username(self, mock_sync):
+        """G7: Admin renaming a user to an existing username shows error, not crash."""
+        self._admin_login()
+        with sqlite3.connect(self.db_path) as con:
+            uid = con.execute("SELECT id FROM users WHERE username='otheruser'").fetchone()[0]
+        # Try to rename 'otheruser' to 'testuser' which already exists
+        response = self.client.post(f'/admin/user/{uid}', data={
+            'new_username': 'testuser',
+            'new_password': '',
+            'last_login': '',
+            'confirm': 'yes'
+        }, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'already exists', response.data)
+        # Verify the original username was NOT changed
+        with sqlite3.connect(self.db_path) as con:
+            r = con.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
+        self.assertEqual(r[0], 'otheruser')
+
 
     # --- 13. Sync queue (delta S3) ---
 
