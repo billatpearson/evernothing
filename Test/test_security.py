@@ -14,6 +14,9 @@ Covers:
   HTTPS redirect (enforce_https before_request hook)
   Secure cookie defaults
 """
+import sys, os
+# Add Scripts/ to path so setup_aws_s3 is importable after reorganization
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'Scripts'))
 
 import io
 import json
