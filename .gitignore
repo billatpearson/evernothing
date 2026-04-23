@@ -11,3 +11,4 @@ q/
 q/bin/
 *.exe
 *.bin
+*.pem
