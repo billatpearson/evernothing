@@ -1,189 +1,6 @@
 # (Full single-file EverNothing application with all prompt instructions included as comments)
-# ---------------------------------------------------------
-"""
-Unit test:
-python test_evernothing.py -v
-Prompt: 
- 0. Include all prompt instructions as comment.
-0.1 Document instructions for installing all packages and runtimes required.
-0.2 Document instructions for accessing the web application.
-0.3 Document instructions for accessing the web application fron amazon playstore.
-0.4 build date will be appear as a footer to the all pages with the format (MM/DD/YY:HH:MM)
-1. Python web application
-2. Python web application that can be run on android phones
-3. Web application will store notes in a database in a searchable key-value pair.
-3.2 Users can search on key or value
-3.2.1 Organize all key value pairs alphabetically by key.
-3.3 Requires username and password login
-3.3.0 If login fails display error message
-3.3.1 After login user is redirected to a list of folders
-3.3.2 If the user has zero folders the user will be able to create one.
-3.4 Users see recently edited notes with timestamp with the format "MM/dd/yyyy HH:MM"
-3.5 Per-user data isolation
-3.6 Display matching key or value
-3.6.1 Edit page with commit / cancel / choose folder select control/ delete with confirmation.
-3.6.2 Note page will provide bread crumb links to root, folder, subfolder at the top page. 
-3.6.2.1 If the note was edited, "Edited: MM/dd/yyyy HH:MM" which will link to a list of recently edits of this note notes.
-3.6.3 On commit edit page will display confirmation message. Yes,no buttons. If contents are identical do not prompt.
-3.7 Link to add note
-3.7.1 Note = single-line, Contents = multiline (120w 40h) text area
-3.7.2 Do not allow empty note or content or duplicate note name
-3.7.2 Add or cancel
-3.8 Subfolders
-3.8.1 Create subfolder
-3.8.1.1 List notes in folder above subfolder list
-3.8.1.1.1 List subfolders in folder
-3.8.1.2 Nest notes in subfolder
-3.8.1.3 Delete with warning
-3.8.1.4 rename folder
-3.8.1.5 add note
-3.9 Change password
-3.10 Cancel button on register page
-4. Security
-5. AWS integration
-6. Continuty
-6.1 All record changes will be logged and maintained in separate tables.
-6.2 User will be able to review changes in the log and have UI capabilities to roll back to previous change. Roll back dates should have the format of "MM/dd/yyyy HH:MM"
+# see evernothing initscripts.txt  ---------------------------------------------------------
 
-7. UI
-7.01 All list and selects are sorted alphabetically.
-7.1 background color "black"
-7.2 text color "gold"
-7.3 Link colar "gold"
-7.4 Link hovor "red"
-7.5 Text Inputs borders "red"
-7.6 Text Inputs area borders "red"
-7.8 Select inputs "red"
-7.9 Delete link text "red"
-7.10 Cancel link 1px border "red"
-7.11 Input, text area, select horizontal spacing 2px
-7.20 All pages shall provide a log out option on the main menu
-8 Input position
-8.1 "Add note" should appear in th folder options. 
-9 S3 Buckets
-9.1 sycrhronize all tables with an Aws S3 bucket  "evernothing011126" uesername "billspeiser2" continue on synch falure with warning
-9.2 all AWS  data will be stored with AES-256 encryption.
-9.2.1 include decryiption function to retrieve data using JSON and JWT.
-9.2 all data will be stored with AES-256.
-9.3 Include instructions for generating and installing keys. 
-10.1 include instructions for restart of application in comments.
-10.2 include python command script for database backup in comments.
-10.3 include python command for database export in comments.
-10.3.1 Export file will contain user name, note key, note value as a comma separated text file in comments. 
-10.4 include instructions for running as a background process in comments. 
-13. Security
-13.1 logout function will expire all login_required data
-14. ADMINISTRATION
-14.1 System administrator.
-14.1.1 login ( http://127.0.0.1:5000/admin)
-14.1.2 administrator login user: "admin" password: "admin"
-14.1.3 admin can search and provided a list of current user.
-14.1.4 list will contain: user name, sorted alphabetically, number of notes in thier user space.
-14.1.5 clicking on user name link will allow admin to change users Dialogs "new username," new user name" and  "new password", with verication.  
-14.1.6 A Conformation dialog will bee displayed when the new user name will be commited.
-14.1.7 all notes and note folder hierarcy will remain attached to the user selected. 
-14.2 delete user
-14.2.1 list of user to be selected with name, number of folders, number of folders, and last accessed date. 
-15.2.2 provide UI to delete user, folder, and notes associated with the user.
-14.2.3 admin privileges.
-14.2.3.1 admin user can view all users in a list, user name, clear text password, and last accessed date.
-14.2.3.2 admin can modify users user name, clear text password, and last accessed date.
-16. Adnriod access.
-16.1 include instructions for accessing application as android phone in comments.)
-14.1.2 administrator login user: "admin" password: "admin"
-14.1.3 admin can search and provided a list of current user.
-14.1.4 list will contain: user name, sorted alphabetically, number of notes in thier user space.
-14.1.5 clicking on user name link will allow admin to change users Dialogs "new username," new user name" with verication. 
-14.1.6 A Conformation dialog will bee displayed when the new user name will be commited.
-14.1.7 all notes and note folder hierarcy will remain attached to the user selected. 
-14.2 delete user
-14.2.1 list of user to be selected with name, number of folders, number of folders, and last accessed date. 
-15.2.2 provide UI to delete user, folder, and notes associated with the user.
-16. Android access
-16.1 include instructions for accessing application as android phone in comments.
-17. Deprecation.
-17.1 Do not install libraries that have been deprecated.
-17.2 Install libraries that are comptibile and safe.
-17.3 Provide a script to install all required libries in the comments.
-18. Change Control
-18.1 All user changes will be logged in the following format:
-18.2 JSON USERID current record and updated record. 
-18.3 Store changes in a table named "note_history" with the following fields:
-18.3.1 id
-18.3.2 note_id
-18.3.3 user_id
-18.3.4 note_key (encrypted)
-18.3.5 note_value (encrypted)
-18.3.6 folder_id
-18.3.7 updated_at (timestamp)
-18.4 All user login sessions will be logged in a table named "user_sessions" with the following fields:
-18.4.1 id
-18.4.2 user_id
-18.4.3 session_id
-18.4.4 login_time
-18.4.5 logout_time
-18.4.6 ip_address
-18.4.7 user_agent
-INSTALLATION (0.1):
- pip install flask flask-login werkzeug boto3 cryptography itsdangerous pyjwt
-
-ACCESS (0.2):
- python evernothing.py
- http://127.0.0.1:5000
-
-ANDROID ACCESS (16.1):
- 1. Install Termux from F-Droid.
- 2. pkg install python
- 3. pip install flask flask-login werkzeug boto3 cryptography
- 3. pip install flask flask-login werkzeug boto3 cryptography itsdangerous pyjwt
- 4. python evernothing.py
- 5. Open Chrome/Browser and go to http://127.0.0.1:5000
-
-RESTART:
- Ctrl+C then python evernothing.py
-
-BACKGROUND:
- Linux/Mac: nohup python evernothing.py &
- Windows: start /B python evernothing.py
- Android (Termux): nohup python evernothing.py &
-
-BACKUP:
- python - <<EOF
- import shutil
- shutil.copy('evernothing.db','evernothing_backup.db')
- EOF
-
-DECRYPTION (9.2.1):
- python - <<EOF
- import sqlite3,json,base64,os,jwt
- from cryptography.hazmat.primitives.ciphers.aead import AESGCM
- with open('secret.key','rb') as f: key=f.read()
- aes=AESGCM(key)
- def dec(t):
-  try: return aes.decrypt(base64.b64decode(t)[:12], base64.b64decode(t)[12:], None).decode('utf-8')
-  except: return t
- c=sqlite3.connect('evernothing.db');cur=c.cursor()
- cur.execute('SELECT users.username,notes.note_key,notes.note_value FROM notes JOIN users ON users.id=notes.user_id')
- data = [{'user':r[0],'key':dec(r[1]),'value':dec(r[2])} for r in cur.fetchall()]
- print(json.dumps(data, indent=2))
- # NOTE: use a dedicated JWT_SECRET env var — never reuse the AES encryption key as a JWT secret
- jwt_secret = os.environ.get('JWT_SECRET')
- if not jwt_secret:
-  raise RuntimeError("Set JWT_SECRET env var before generating tokens")
- print("\nJWT Token:\n" + jwt.encode({"data": data}, jwt_secret, algorithm="HS256"))
- c.close()
- EOF
-
-EXPORT:
- python - <<EOF
- import sqlite3,csv
- c=sqlite3.connect('evernothing.db');cur=c.cursor()
- cur.execute('SELECT users.username,notes.note_key,notes.note_value FROM notes JOIN users ON users.id=notes.user_id')
- with open('evernothing_export.csv','w',newline='',encoding='utf-8') as f:
-  w=csv.writer(f);w.writerow(['username','note_key','note_value']);w.writerows(cur.fetchall())
- c.close()
- EOF
-"""
 
 try:
     import os as _os
@@ -246,7 +63,10 @@ app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '
 app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 app.config['REMEMBER_COOKIE_NAME'] = 'remember_token'
-DB = "evernothing.db"
+# DB path: always use DB/evernothing.db relative to this file's directory.
+# DB_FILE env var overrides for tests and custom deployments.
+_db_default = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'DB', 'evernothing.db')
+DB = os.environ.get('DB_FILE', _db_default)
 BUILD_DATE = datetime.datetime.now().strftime("%m/%d/%y:%H:%M")
 
 @app.before_request
@@ -257,8 +77,8 @@ def enforce_https():
         return
     # Skip if the app itself is not running with SSL (no cert configured)
     # — redirecting to https:// when the server only speaks HTTP causes ERR_SSL_PROTOCOL_ERROR
-    ssl_cert = os.environ.get('SSL_CERT', 'cert.pem')
-    ssl_key  = os.environ.get('SSL_KEY',  'key.pem')
+    ssl_cert = os.environ.get('SSL_CERT', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'cert.pem'))
+    ssl_key  = os.environ.get('SSL_KEY',  os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'key.pem'))
     if not (os.path.exists(ssl_cert) and os.path.exists(ssl_key)):
         return
     if request.is_secure:
@@ -536,6 +356,44 @@ def compress_old_backups(days=5, backup_dir="Backups"):
 
 compress_old_backups()
 
+# --- Encryption migration check ---
+# Detects mixed plaintext/encrypted state and warns the operator.
+# Run Scripts/migrate_encrypt.py to resolve.
+_MIXED_ENCRYPTION_WARNING = False
+
+def _check_encryption_state():
+    """Sample notes table to detect plaintext rows when encryption is enabled."""
+    global _MIXED_ENCRYPTION_WARNING
+    if not ENCRYPTION_ENABLED:
+        return
+    try:
+        con = db(); cur = con.cursor()
+        rows = cur.execute(
+            "SELECT note_key FROM notes ORDER BY RANDOM() LIMIT 20"
+        ).fetchall()
+        con.close()
+        plaintext_count = 0
+        for (val,) in rows:
+            if val:
+                try:
+                    base64.b64decode(val)
+                    decoded_len = len(base64.b64decode(val))
+                    if decoded_len < 28:   # too short to be AES-GCM
+                        plaintext_count += 1
+                except Exception:
+                    plaintext_count += 1   # not base64 → plaintext
+        if plaintext_count > 0:
+            _MIXED_ENCRYPTION_WARNING = True
+            logger.warning(
+                f"MIXED ENCRYPTION STATE: {plaintext_count} of {len(rows)} sampled notes "
+                "appear to be stored as plaintext. Run Scripts/migrate_encrypt.py to "
+                "encrypt all existing data."
+            )
+    except Exception:
+        pass  # table may not exist yet on first run
+
+_check_encryption_state()
+
 # --- AWS SYNC ---
 def _s3_client():
     """Return a boto3 S3 client.
@@ -782,6 +640,13 @@ def sync_s3_async():
     import threading
     threading.Thread(target=_sync_s3_worker, daemon=True).start()
 
+# S3 availability status — updated by _sync_s3_worker on each attempt
+_s3_status = {'ok': None, 'error': None}   # None = not yet attempted
+
+def get_s3_status():
+    """Return (ok: bool|None, error: str|None) for display in the UI."""
+    return _s3_status.copy()
+
 def _sync_s3_worker():
     try:
         import io
@@ -844,10 +709,13 @@ def _sync_s3_worker():
             now = datetime.datetime.now(timezone.utc).isoformat()
             cur.execute(f"UPDATE sync_queue SET synced_at=? WHERE id IN ({','.join('?'*len(delta_ids))})", [now]+delta_ids)
             con.commit(); con.close()
-        print("S3 ASynch")
+        _s3_status['ok'] = True
+        _s3_status['error'] = None
+        logger.info("S3 sync OK")
     except Exception as e:
+        _s3_status['ok'] = False
+        _s3_status['error'] = str(e)
         logger.error(f"S3 Sync Error: {e}")
-        print(f"S3 Sync Error: {e}")
 
 def restore_from_s3():
     """Download DB from S3 if local file is missing (recovery on startup)."""
@@ -1222,14 +1090,26 @@ def view_folder(fid):
         con.close()
         return redirect("/")
 
+    # Build breadcrumb: walk up parent chain
+    breadcrumb = [(folder[0], decrypt(folder[1]))]
+    parent_id = folder[2]
+    while parent_id:
+        parent = cur.execute("SELECT id,name,parent_id FROM folders WHERE id=? AND user_id=?", (parent_id, current_user.id)).fetchone()
+        if not parent:
+            break
+        breadcrumb.insert(0, (parent[0], decrypt(parent[1])))
+        parent_id = parent[2]
+
     cur.execute("SELECT id,name FROM folders WHERE user_id=? AND parent_id=?", (current_user.id, fid))
     subfolders = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
-    
+
     cur.execute("SELECT id,note_key FROM notes WHERE user_id=? AND folder_id=?", (current_user.id, fid))
     notes = sorted([(r[0], decrypt(r[1])) for r in cur.fetchall()], key=lambda x: x[1].lower())
     con.close()
-    
-    return _render(T_NOTES, notes=notes, subfolders=subfolders, folder=(folder[0], decrypt(folder[1]), folder[2]))
+
+    return _render(T_NOTES, notes=notes, subfolders=subfolders,
+                   folder=(folder[0], decrypt(folder[1]), folder[2]),
+                   breadcrumb=breadcrumb)
 
 @app.route("/add/<int:fid>", methods=["GET","POST"])
 @login_required
@@ -1414,6 +1294,8 @@ def restore_history(hid):
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -1566,6 +1448,8 @@ def admin_iam_policy():
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -1873,11 +1757,10 @@ def logout():
 @app.route("/set_theme")
 def set_theme():
     t = request.args.get('t', '')
-    if t in ('stellar', 'unicorn', 'startrek'):
+    if t in ('stellar', 'unicorn', 'startrek', 'shrek', 'lotr'):
         session['theme'] = t
     else:
-        # fallback cycle: stellar -> unicorn -> startrek -> stellar
-        cycle = {'stellar': 'unicorn', 'unicorn': 'startrek', 'startrek': 'stellar'}
+        cycle = {'stellar': 'unicorn', 'unicorn': 'startrek', 'startrek': 'shrek', 'shrek': 'lotr', 'lotr': 'stellar'}
         session['theme'] = cycle.get(session.get('theme', 'stellar'), 'stellar')
     return redirect(request.referrer or '/')
 
@@ -2455,20 +2338,340 @@ tr:hover td { background:rgba(255,153,0,.04); }
 # Keep STYLE as an alias so error handlers that reference it still work
 STYLE = STYLE_STELLAR
 
+STYLE_LOTR = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Cinzel+Decorative:wght@400;700&family=Uncial+Antiqua&display=swap');
+:root {
+  --gold:     #c9a84c;
+  --gold2:    #e8c97a;
+  --silver:   #a8b8c8;
+  --shadow:   #1a0a00;
+  --ember:    #8b2500;
+  --mithril:  #d4e0ec;
+  --shire:    #4a7c3f;
+  --danger:   #8b0000;
+  --bg:       #0a0500;
+  --bg2:      #120a02;
+  --bg3:      #1a1005;
+  --border:   #3a2a10;
+  --radius:   2px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  background-image:
+    linear-gradient(rgba(10,5,0,.65), rgba(10,5,0,.65)),
+    url('/static/lotr.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--mithril);
+  font-family: 'IM Fell English', Georgia, serif;
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+a { color: var(--gold); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--gold2); text-shadow: 0 0 8px rgba(201,168,76,.6); }
+.nav {
+  background: linear-gradient(135deg, rgba(10,5,0,.95) 0%, rgba(26,16,5,.95) 100%);
+  border-bottom: 2px solid var(--gold);
+  box-shadow: 0 2px 20px rgba(201,168,76,.2);
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 100;
+}
+.nav-brand {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: .9rem; font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 0 14px rgba(201,168,76,.7), 0 2px 4px rgba(0,0,0,.9);
+  letter-spacing: 2px; margin-right: 10px;
+}
+.nav a { font-size:.82rem;padding:4px 10px;border-radius:1px;border:1px solid transparent;color:var(--silver);transition:all .2s;font-family:'IM Fell English',serif; }
+.nav a:hover { border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.08);text-shadow:0 0 6px rgba(201,168,76,.4);text-decoration:none; }
+.nav .sep { color:var(--border); }
+.nav .nav-logout { margin-left:auto;color:var(--danger);border-color:var(--danger);border-radius:1px;border:1px solid;padding:4px 12px; }
+.nav .nav-logout:hover { background:var(--danger);color:var(--mithril);text-shadow:none; }
+.container { max-width:1100px;margin:0;padding:24px 20px; }
+h2,h3 { font-family:'Cinzel Decorative',serif;color:var(--gold);margin-bottom:16px;font-weight:700;letter-spacing:1px;text-shadow:0 0 12px rgba(201,168,76,.4); }
+h4 { color:var(--silver);margin:20px 0 10px;font-size:.85rem;text-transform:uppercase;letter-spacing:2px;font-family:'Cinzel Decorative',serif; }
+.card {
+  background: linear-gradient(135deg, rgba(18,10,2,.88) 0%, rgba(26,16,5,.88) 100%);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--gold);
+  border-radius: var(--radius);
+  padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.6), inset 0 1px 0 rgba(201,168,76,.1);
+}
+.item-list { list-style:none; }
+.item-list li { display:flex;align-items:center;gap:8px;padding:6px 12px;margin-bottom:2px;border-radius:var(--radius);border:1px solid transparent;transition:all .2s; }
+.item-list li:hover { background:rgba(201,168,76,.06);border-color:var(--border); }
+.item-list li a { flex:1;font-size:.95rem;color:var(--gold2); }
+.item-list li a:hover { color:var(--gold);text-shadow:0 0 6px rgba(201,168,76,.4); }
+.item-list .actions { display:flex;gap:6px;opacity:0;transition:opacity .15s; }
+.item-list li:hover .actions { opacity:1; }
+.item-list .actions a { font-size:.75rem;padding:2px 8px;border-radius:1px;border:1px solid var(--border);flex:none;color:var(--silver); }
+.item-list .actions a:hover { border-color:var(--gold);color:var(--gold); }
+.item-list .del { color:var(--danger)!important; }
+.empty { color:var(--border);font-style:italic;padding:12px; }
+label { display:block;font-size:.82rem;color:var(--silver);margin-bottom:4px;margin-top:12px;letter-spacing:.5px;text-transform:uppercase;font-family:'Cinzel Decorative',serif; }
+input[type=text],input[type=password],input[type=email],input[type=date],input:not([type]),textarea,select {
+  background:rgba(18,10,2,.9);color:var(--mithril);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px 12px;font-size:.9rem;font-family:'IM Fell English',serif;
+  width:100%;transition:border-color .2s,box-shadow .2s;outline:none;
+}
+input:focus,textarea:focus,select:focus { border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.15); }
+textarea { resize:vertical;font-family:'IM Fell English',serif;font-size:.9rem; }
+select option { background:var(--bg2); }
+.form-row { display:flex;gap:12px;flex-wrap:wrap; }
+.form-row > * { flex:1;min-width:200px; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:8px 22px;border-radius:1px;border:1px solid var(--gold);background:transparent;color:var(--gold);font-size:.9rem;font-family:'IM Fell English',serif;cursor:pointer;transition:all .2s;text-decoration:none;letter-spacing:.5px; }
+.btn:hover { background:rgba(201,168,76,.1);border-color:var(--gold2);color:var(--gold2);box-shadow:0 0 14px rgba(201,168,76,.2);text-decoration:none; }
+.btn-primary { background:rgba(201,168,76,.15);color:var(--gold2);border-color:var(--gold);font-weight:600;box-shadow:0 0 10px rgba(201,168,76,.15); }
+.btn-primary:hover { background:rgba(201,168,76,.28);box-shadow:0 0 20px rgba(201,168,76,.35);color:#fff; }
+.btn-danger { border-color:var(--danger);color:var(--danger); }
+.btn-danger:hover { background:var(--danger);color:var(--mithril);box-shadow:0 0 14px rgba(139,0,0,.4);text-shadow:none; }
+.btn-sm { padding:4px 14px;font-size:.8rem; }
+.btn-group { display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center; }
+err { display:block;color:var(--danger);background:rgba(139,0,0,.08);border:1px solid var(--danger);border-radius:var(--radius);padding:8px 12px;margin:10px 0;font-size:.9rem; }
+.breadcrumb { font-size:.85rem;color:var(--border);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.breadcrumb a { color:var(--silver); }
+.breadcrumb a:hover { color:var(--gold); }
+.breadcrumb .sep { color:var(--border); }
+.badge { font-size:.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:1px;padding:1px 8px;color:var(--silver); }
+.timestamp { font-size:.8rem;color:var(--border); }
+table { width:100%;border-collapse:collapse;font-size:.9rem; }
+th { text-align:left;padding:10px 12px;border-bottom:1px solid var(--gold);color:var(--silver);font-size:.8rem;text-transform:uppercase;letter-spacing:1px;font-family:'Cinzel Decorative',serif; }
+td { padding:6px 12px;vertical-align:top;border-bottom:1px solid var(--bg3); }
+tr:hover td { background:rgba(201,168,76,.04); }
+.search-box { display:flex;gap:8px;margin-bottom:20px; }
+.search-box input { flex:1; }
+.tag-create { color:var(--shire);font-weight:600; }
+.tag-update { color:var(--silver);font-weight:600; }
+.tag-delete { color:var(--danger);font-weight:600; }
+.footer { position:fixed;bottom:0;left:0;width:100%;background:rgba(10,5,0,.95);border-top:1px solid var(--gold);color:var(--gold);text-align:center;font-size:.75rem;padding:5px;z-index:99;font-family:'Cinzel Decorative',serif;letter-spacing:2px; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+@media (max-width:600px) { .two-col { grid-template-columns:1fr; } .nav { gap:4px; } textarea { width:100%; } }
+.confirm-box { background:rgba(18,10,2,.92);border:1px solid var(--gold);border-radius:var(--radius);padding:24px;max-width:600px;box-shadow:0 4px 24px rgba(0,0,0,.7); }
+.confirm-box p { margin-bottom:12px;line-height:1.6; }
+.confirm-box .field { margin:8px 0;font-size:.9rem; }
+.confirm-box .field b { color:var(--gold2); }
+.theme-select { background:rgba(18,10,2,.9);color:var(--gold);border:1px solid var(--border);border-radius:1px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:'IM Fell English',serif; }
+.theme-select:focus { outline:none;border-color:var(--gold); }</style>
+<div class="footer">&#9770; {{ build_date }} &#9770;</div>
+"""
+
+STYLE_SHREK = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@400;600&family=Lora:wght@400;600&display=swap');
+:root {
+  --swamp:    #4a7c3f;
+  --mud:      #8b6914;
+  --onion:    #c8a84b;
+  --slime:    #7ec850;
+  --mist:     #a8c878;
+  --parchment:#f5e6c8;
+  --dark:     #1a2e0a;
+  --bark:     #3d2b1f;
+  --danger:   #c0392b;
+  --bg:       #0d1a08;
+  --bg2:      #162410;
+  --bg3:      #1e3015;
+  --border:   #3a5a2a;
+  --radius:   4px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  background-image:
+    /* Swamp mist layers */
+    radial-gradient(ellipse 120% 40% at 50% 100%, rgba(74,124,63,.25) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 30% at 20% 80%, rgba(126,200,80,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 20% at 80% 90%, rgba(74,124,63,.15) 0%, transparent 50%),
+    /* Night sky */
+    radial-gradient(ellipse 200% 60% at 50% 0%, #0a1505 0%, #0d1a08 100%);
+  color: var(--parchment);
+  font-family: 'Lora', Georgia, serif;
+  min-height: 100vh;
+  padding-bottom: 40px;
+  position: relative;
+  overflow-x: hidden;
+}
+/* Fireflies */
+body::before {
+  content: '✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦';
+  position: fixed;
+  top: 15%;
+  left: 0;
+  width: 100%;
+  color: rgba(200,168,75,.4);
+  font-size: .6rem;
+  letter-spacing: 3rem;
+  pointer-events: none;
+  z-index: 0;
+  animation: fireflies 8s ease-in-out infinite alternate;
+}
+body::after {
+  content: '✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧';
+  position: fixed;
+  top: 60%;
+  left: 5%;
+  width: 100%;
+  color: rgba(126,200,80,.3);
+  font-size: .5rem;
+  letter-spacing: 4rem;
+  pointer-events: none;
+  z-index: 0;
+  animation: fireflies 6s ease-in-out infinite alternate-reverse;
+}
+@keyframes fireflies {
+  0%   { opacity: .2; transform: translateY(0px); }
+  50%  { opacity: .8; transform: translateY(-8px); }
+  100% { opacity: .3; transform: translateY(4px); }
+}
+body > * { position: relative; z-index: 1; }
+a { color: var(--slime); text-decoration: none; transition: color .2s; }
+a:hover { color: var(--onion); text-shadow: 0 0 8px rgba(200,168,75,.5); }
+/* Swamp mud top border */
+.nav {
+  background: linear-gradient(135deg, #0d1a08 0%, #162410 100%);
+  border-bottom: 3px solid var(--mud);
+  box-shadow: 0 3px 20px rgba(74,124,63,.3), inset 0 -1px 0 var(--swamp);
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 100;
+}
+.nav-brand {
+  font-family: 'Cinzel', serif;
+  font-size: 1rem; font-weight: 600;
+  color: var(--onion);
+  text-shadow: 0 0 12px rgba(200,168,75,.6), 0 2px 4px rgba(0,0,0,.8);
+  letter-spacing: 2px; margin-right: 10px;
+  text-transform: uppercase;
+}
+.nav a { font-size:.82rem;padding:4px 10px;border-radius:2px;border:1px solid transparent;color:var(--mist);transition:all .2s;font-family:'Lora',serif; }
+.nav a:hover { border-color:var(--swamp);color:var(--onion);background:rgba(74,124,63,.15);text-shadow:0 0 6px rgba(200,168,75,.4);text-decoration:none; }
+.nav .sep { color:var(--border); }
+.nav .nav-logout { margin-left:auto;color:var(--danger);border-color:var(--danger);border-radius:2px;border:1px solid;padding:4px 12px; }
+.nav .nav-logout:hover { background:var(--danger);color:#fff;text-shadow:none; }
+.container { max-width:1100px;margin:0;padding:24px 20px; }
+h2,h3 { font-family:'Cinzel',serif;color:var(--onion);margin-bottom:16px;font-weight:600;letter-spacing:1px;text-shadow:0 0 10px rgba(200,168,75,.3); }
+h4 { color:var(--mist);margin:20px 0 10px;font-size:.9rem;text-transform:uppercase;letter-spacing:2px;font-family:'Cinzel',serif; }
+.card {
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--swamp);
+  border-radius: var(--radius);
+  padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(74,124,63,.1);
+}
+.item-list { list-style:none; }
+.item-list li { display:flex;align-items:center;gap:8px;padding:6px 12px;margin-bottom:2px;border-radius:var(--radius);border:1px solid transparent;transition:all .2s; }
+.item-list li:hover { background:rgba(74,124,63,.1);border-color:var(--border); }
+.item-list li a { flex:1;font-size:.95rem;color:var(--slime); }
+.item-list li a:hover { color:var(--onion); }
+.item-list .actions { display:flex;gap:6px;opacity:0;transition:opacity .15s; }
+.item-list li:hover .actions { opacity:1; }
+.item-list .actions a { font-size:.75rem;padding:2px 8px;border-radius:2px;border:1px solid var(--border);flex:none;color:var(--mist); }
+.item-list .actions a:hover { border-color:var(--onion);color:var(--onion); }
+.item-list .del { color:var(--danger)!important; }
+.empty { color:var(--border);font-style:italic;padding:12px;font-family:'Lora',serif; }
+label { display:block;font-size:.82rem;color:var(--mist);margin-bottom:4px;margin-top:12px;letter-spacing:.5px;text-transform:uppercase;font-family:'Cinzel',serif; }
+input[type=text],input[type=password],input[type=email],input[type=date],input:not([type]),textarea,select {
+  background:var(--bg3);color:var(--parchment);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px 12px;font-size:.9rem;font-family:'Lora',serif;
+  width:100%;transition:border-color .2s,box-shadow .2s;outline:none;
+}
+input:focus,textarea:focus,select:focus { border-color:var(--swamp);box-shadow:0 0 0 3px rgba(74,124,63,.2); }
+textarea { resize:vertical;font-family:'Lora',serif;font-size:.9rem; }
+select option { background:var(--bg2); }
+.form-row { display:flex;gap:12px;flex-wrap:wrap; }
+.form-row > * { flex:1;min-width:200px; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:8px 22px;border-radius:2px;border:1px solid var(--swamp);background:transparent;color:var(--mist);font-size:.9rem;font-family:'Lora',serif;cursor:pointer;transition:all .2s;text-decoration:none;letter-spacing:.5px; }
+.btn:hover { background:rgba(74,124,63,.15);border-color:var(--onion);color:var(--onion);box-shadow:0 0 14px rgba(200,168,75,.2);text-decoration:none; }
+.btn-primary { background:rgba(74,124,63,.2);color:var(--onion);border-color:var(--mud);font-weight:600;box-shadow:0 0 10px rgba(74,124,63,.15); }
+.btn-primary:hover { background:rgba(74,124,63,.35);box-shadow:0 0 20px rgba(200,168,75,.3);color:var(--parchment); }
+.btn-danger { border-color:var(--danger);color:var(--danger); }
+.btn-danger:hover { background:var(--danger);color:#fff;box-shadow:0 0 14px rgba(192,57,43,.35);text-shadow:none; }
+.btn-sm { padding:4px 14px;font-size:.8rem; }
+.btn-group { display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center; }
+err { display:block;color:var(--danger);background:rgba(192,57,43,.08);border:1px solid var(--danger);border-radius:var(--radius);padding:8px 12px;margin:10px 0;font-size:.9rem; }
+.breadcrumb { font-size:.85rem;color:var(--border);margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.breadcrumb a { color:var(--mist); }
+.breadcrumb a:hover { color:var(--onion); }
+.breadcrumb .sep { color:var(--border); }
+.badge { font-size:.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:2px;padding:1px 8px;color:var(--mist); }
+.timestamp { font-size:.8rem;color:var(--border); }
+table { width:100%;border-collapse:collapse;font-size:.9rem; }
+th { text-align:left;padding:10px 12px;border-bottom:1px solid var(--mud);color:var(--mist);font-size:.8rem;text-transform:uppercase;letter-spacing:1px;font-family:'Cinzel',serif; }
+td { padding:6px 12px;vertical-align:top;border-bottom:1px solid var(--bg3); }
+tr:hover td { background:rgba(74,124,63,.06); }
+.search-box { display:flex;gap:8px;margin-bottom:20px; }
+.search-box input { flex:1; }
+.tag-create { color:var(--slime);font-weight:600; }
+.tag-update { color:var(--mist);font-weight:600; }
+.tag-delete { color:var(--danger);font-weight:600; }
+.footer { position:fixed;bottom:0;left:0;width:100%;background:var(--bg2);border-top:2px solid var(--mud);color:var(--border);text-align:center;font-size:.75rem;padding:5px;z-index:99;font-family:'Cinzel',serif;letter-spacing:1px; }
+.two-col { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+@media (max-width:600px) { .two-col { grid-template-columns:1fr; } .nav { gap:4px; } textarea { width:100%; } }
+.confirm-box { background:var(--bg2);border:1px solid var(--mud);border-radius:var(--radius);padding:24px;max-width:600px;box-shadow:0 4px 24px rgba(74,124,63,.12); }
+.confirm-box p { margin-bottom:12px;line-height:1.6; }
+.confirm-box .field { margin:8px 0;font-size:.9rem; }
+.confirm-box .field b { color:var(--slime); }
+.theme-select { background:var(--bg3);color:var(--mist);border:1px solid var(--border);border-radius:2px;padding:3px 8px;font-size:.8rem;cursor:pointer;font-family:'Lora',serif; }
+.theme-select:focus { outline:none;border-color:var(--swamp); }</style>
+<div class="footer">&#127807; {{ build_date }} &#127807;</div>
+"""
+
 def _get_style():
     """Return the CSS block for the current user's theme (reads Flask session)."""
     t = session.get('theme', 'stellar')
     if t == 'unicorn':   return STYLE_UNICORN
     if t == 'startrek':  return STYLE_STARTREK
+    if t == 'shrek':     return STYLE_SHREK
+    if t == 'lotr':      return STYLE_LOTR
     return STYLE_STELLAR
 
 def _render(template, **kwargs):
     """Swap STYLE_STELLAR for the user's chosen theme, then render.
-    Also injects theme and build_date so Jinja2 variables resolve."""
+    Also injects theme, build_date, and S3 status so Jinja2 variables resolve."""
     theme = session.get('theme', 'stellar')
     themed = template.replace(STYLE_STELLAR, _get_style())
     kwargs.setdefault('theme', theme)
     kwargs.setdefault('build_date', BUILD_DATE)
+    # Inject S3 status so every page can show the alert banner
+    s3 = get_s3_status()
+    kwargs.setdefault('s3_ok', s3['ok'])
+    kwargs.setdefault('s3_error', s3['error'])
+    # Prepend S3 warning banner when sync has failed
+    if s3['ok'] is False:
+        banner = (
+            '<div style="background:#7f1d1d;color:#fca5a5;padding:8px 20px;'
+            'font-size:.85rem;text-align:center;position:sticky;top:0;z-index:999;">'
+            '&#9888; S3 Sync unavailable — running on local database only. '
+            f'Error: {s3["error"]}</div>'
+        )
+        themed = themed.replace('<nav ', banner + '<nav ', 1)
+    elif s3['ok'] is None and not S3_BUCKET_NAME:
+        banner = (
+            '<div style="background:#1e3a5f;color:#93c5fd;padding:8px 20px;'
+            'font-size:.85rem;text-align:center;position:sticky;top:0;z-index:999;">'
+            '&#8505; S3 sync not configured — set S3_BUCKET_NAME in .env to enable cloud backup.</div>'
+        )
+        themed = themed.replace('<nav ', banner + '<nav ', 1)
+    if _MIXED_ENCRYPTION_WARNING:
+        enc_banner = (
+            '<div style="background:#78350f;color:#fde68a;padding:8px 20px;'
+            'font-size:.85rem;text-align:center;position:sticky;top:0;z-index:998;">'
+            '&#9888; Mixed encryption state — some notes are plaintext. '
+            'Run: <code>python Scripts/migrate_encrypt.py</code></div>'
+        )
+        themed = themed.replace('<nav ', enc_banner + '<nav ', 1)
     return render_template_string(themed, **kwargs)
 
 T_FOLDERS = STYLE + """
@@ -2484,6 +2687,8 @@ T_FOLDERS = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2538,6 +2743,8 @@ T_ADD_FOLDER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2568,6 +2775,8 @@ T_ADD_SUBFOLDER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2597,6 +2806,8 @@ T_RENAME_FOLDER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2626,6 +2837,8 @@ T_CHANGE_PASSWORD = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2676,6 +2889,8 @@ T_DELETE_NOTE = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2705,6 +2920,8 @@ T_EDIT_CONFIRM = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2744,12 +2961,24 @@ T_NOTES = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
 </nav>
 <div class="container">
-  <h3>&#128193; {{folder[1]}}</h3>
+  <div class="breadcrumb">
+    <a href="/">&#127968; Home</a>
+    {% for bc_id, bc_name in breadcrumb %}
+      <span class="sep">&#8250;</span>
+      {% if bc_id == folder[0] %}
+        <span>{{bc_name}}</span>
+      {% else %}
+        <a href="/folder/{{bc_id}}">{{bc_name}}</a>
+      {% endif %}
+    {% endfor %}
+  </div>
   <div class="two-col">
     <div>
       <h4>Notes</h4>
@@ -2789,6 +3018,8 @@ T_ADD = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -2944,6 +3175,8 @@ T_SEARCH = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3013,6 +3246,8 @@ T_DELETE_FOLDER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3042,6 +3277,8 @@ T_HISTORY = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3093,6 +3330,8 @@ T_ADMIN_SESSIONS = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3131,6 +3370,8 @@ T_ADMIN_DASHBOARD = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3171,6 +3412,8 @@ T_ADMIN_EDIT_USER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3208,6 +3451,8 @@ T_ADMIN_EDIT_USER_CONFIRM = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3240,6 +3485,8 @@ T_ADMIN_DELETE_USER = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3305,6 +3552,8 @@ T_AUDIT_REPORT = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3338,6 +3587,8 @@ T_SESSIONS = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3378,6 +3629,8 @@ T_ADMIN_AUDIT_LOGS = STYLE + """
       <option value="stellar" {% if theme != "unicorn" %}selected="selected"{% endif %}>&#11088; Stellar</option>
       <option value="unicorn" {% if theme == "unicorn" %}selected="selected"{% endif %}>&#x1F984; Unicorn</option>
       <option value="startrek" {% if theme == "startrek" %}selected="selected"{% endif %}>&#x1F596; Star Trek</option>
+      <option value="shrek" {% if theme == "shrek" %}selected="selected"{% endif %}>&#127807; Shrek</option>
+      <option value="lotr" {% if theme == "lotr" %}selected="selected"{% endif %}>&#9770; LOTR</option>
     </select>
   </form>
   <a href=/logout class="nav-logout">Logout</a>
@@ -3608,8 +3861,8 @@ def api_search():
 if __name__ == '__main__':
     # SSL cert/key paths — override via env vars or generate a self-signed cert for dev:
     #   openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
-    ssl_cert = os.environ.get('SSL_CERT', 'cert.pem')
-    ssl_key  = os.environ.get('SSL_KEY',  'key.pem')
+    ssl_cert = os.environ.get('SSL_CERT', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'cert.pem'))
+    ssl_key  = os.environ.get('SSL_KEY',  os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'key.pem'))
     use_ssl  = os.path.exists(ssl_cert) and os.path.exists(ssl_key)
     ssl_ctx  = (ssl_cert, ssl_key) if use_ssl else None
     if not use_ssl:

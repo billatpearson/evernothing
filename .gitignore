@@ -5,3 +5,10 @@ evernothing.db
 *.pyc
 .env
 secret.key
+.copilot-specs-cache/
+
+q/
+q/bin/
+*.exe
+*.bin
+*.pem
