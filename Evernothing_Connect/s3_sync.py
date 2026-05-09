@@ -117,6 +117,13 @@ def _enable_s3_object_lock(s3, bucket_name):
 # Upload with retry
 # ---------------------------------------------------------------------------
 def _s3_upload_with_retry(fn, *args, **kwargs):
+    """Retry an S3 call up to 3 times.
+
+    IMPORTANT: boto3.upload_fileobj consumes and closes the passed stream.
+    If you need to retry an upload, use _s3_upload_bytes_with_retry instead —
+    it rebuilds the BytesIO on every attempt so retry #2 doesn't fail with
+    "I/O operation on closed file."
+    """
     for attempt in range(3):
         try:
             return fn(*args, **kwargs)
@@ -124,6 +131,21 @@ def _s3_upload_with_retry(fn, *args, **kwargs):
             if attempt == 2: raise
             wait = 2 ** attempt
             logger.warning(f'S3 upload attempt {attempt+1} failed ({e}), retrying in {wait}s')
+            time.sleep(wait)
+
+
+def _s3_upload_bytes_with_retry(s3, data: bytes, bucket: str, key: str, extra_args=None):
+    """Retryable bytes-to-S3 upload. Fresh BytesIO per attempt."""
+    for attempt in range(3):
+        try:
+            return s3.upload_fileobj(io.BytesIO(data), bucket, key,
+                                     ExtraArgs=extra_args or {})
+        except Exception as e:
+            if attempt == 2: raise
+            wait = 2 ** attempt
+            logger.warning(
+                f's3://{bucket}/{key} upload attempt {attempt+1} failed ({e}), '
+                f'retrying in {wait}s')
             time.sleep(wait)
 
 # ---------------------------------------------------------------------------
@@ -191,8 +213,10 @@ def _sync_s3_worker():
         if rows:
             changes = [{'op':r[3],'entity':r[1],'id':r[2],'data':json.loads(r[4]),'at':r[5]} for r in rows]
             ts = datetime.datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
-            _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(json.dumps(changes).encode()),
-                                  S3_BUCKET_NAME, f'changes/{DEVICE_ID}/{ts}.json', ExtraArgs=extra_json)
+            _s3_upload_bytes_with_retry(
+                s3, json.dumps(changes).encode(),
+                S3_BUCKET_NAME, f'changes/{DEVICE_ID}/{ts}.json',
+                extra_args=extra_json)
             delta_ids = [r[0] for r in rows]
         con.close()
 
@@ -205,8 +229,8 @@ def _sync_s3_worker():
             enc_suffix = '.enc'
         else:
             enc_suffix = ''
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, DB+enc_suffix, ExtraArgs=extra_db)
-        _s3_upload_with_retry(s3.upload_fileobj, io.BytesIO(db_bytes), S3_BUCKET_NAME, f'backups/{DB}.{ts}{enc_suffix}', ExtraArgs=extra_db)
+        _s3_upload_bytes_with_retry(s3, db_bytes, S3_BUCKET_NAME, DB+enc_suffix, extra_args=extra_db)
+        _s3_upload_bytes_with_retry(s3, db_bytes, S3_BUCKET_NAME, f'backups/{DB}.{ts}{enc_suffix}', extra_args=extra_db)
         logger.info(f'S3 DB backup: s3://{S3_BUCKET_NAME}/backups/{DB}.{ts}{enc_suffix}')
 
         if delta_ids:
