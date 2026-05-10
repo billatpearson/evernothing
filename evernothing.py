@@ -3876,6 +3876,15 @@ if __name__ == '__main__':
     ssl_ctx  = (ssl_cert, ssl_key) if use_ssl else None
     if not use_ssl:
         logger.warning("SSL cert/key not found — running without HTTPS. Set SSL_CERT and SSL_KEY env vars.")
+
+    # Start the S3 pull worker (multi-device replication). No-op when S3
+    # isn't configured or app.config['TESTING'] is True.
+    try:
+        from Evernothing_Connect.s3_pull import start_pull_worker
+        start_pull_worker()
+    except Exception as _e:
+        logger.warning(f'S3 pull worker not started: {_e}')
+
     app.run(host='0.0.0.0', port=5443 if use_ssl else 5000, ssl_context=ssl_ctx)
 
 
