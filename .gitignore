@@ -11,4 +11,26 @@ q/
 q/bin/
 *.exe
 *.bin
+
+# --- TLS / HTTPS key material — NEVER commit -----------------------
+# Private keys of any format
 *.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+# Explicit paths — also listed in case a future reorg adds new dirs
+Startup/cert.pem
+Startup/key.pem
+Startup/*.pem
+Startup/*.key
+Startup/*.crt
+Scripts/cert.pem
+Scripts/key.pem
+# -----------------------------------------------------------------
+
+# Pre-migration DB backups may contain secrets — never commit
+*.bak
+*.premigration_*
+DB/Backups/

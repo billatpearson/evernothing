@@ -17,8 +17,8 @@ import evernothing as _en
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
-        admin_user = os.environ.get('ADMIN_USER', 'admin')
-        admin_pass = os.environ.get('ADMIN_PASS', 'admin')
+        admin_user = os.environ.get('ADMIN_USER') or 'admin'
+        admin_pass = os.environ.get('ADMIN_PASS') or 'admin'
         if (request.form.get('username') == admin_user and
                 request.form.get('password') == admin_pass):
             session['admin_logged_in'] = True

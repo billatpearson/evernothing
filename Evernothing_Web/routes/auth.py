@@ -1,7 +1,7 @@
 """Evernothing_Web/routes/auth.py — Authentication routes."""
 import datetime, os, sqlite3
 from datetime import timezone
-from flask import redirect, request, session
+from flask import make_response, redirect, request, session
 from flask_login import login_user, logout_user, login_required
 from werkzeug.security import check_password_hash, generate_password_hash
 from itsdangerous import URLSafeTimedSerializer
@@ -96,10 +96,19 @@ def login():
                         (r['id'], sid, now, request.remote_addr, request.user_agent.string))
             con.commit(); con.close()
             login_user(User(r['id'], request.form['username']), remember=remember_me)
-            return redirect('/')
+            resp = make_response(redirect('/'))
+            resp.set_cookie(
+                'last_user', request.form['username'],
+                max_age=60 * 60 * 24 * 365,
+                httponly=True,
+                secure=app.config.get('SESSION_COOKIE_SECURE', True),
+                samesite='Lax',
+            )
+            return resp
         con.close()
         error = 'Invalid username or password'
-    return _render(_en.T_LOGIN, error=error)
+    return _render(_en.T_LOGIN, error=error,
+                   last_user=request.cookies.get('last_user', ''))
 
 
 @app.route('/register', methods=['GET', 'POST'])

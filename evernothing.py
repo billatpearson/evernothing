@@ -1692,10 +1692,19 @@ def login():
             con.commit()
             con.close()
             login_user(User(r[0], request.form['username']), remember=remember_me)
-            return redirect("/")
+            resp = make_response(redirect("/"))
+            # Remember username for this device (1 year). Not the password.
+            resp.set_cookie(
+                'last_user', request.form['username'],
+                max_age=60 * 60 * 24 * 365,
+                httponly=True,
+                secure=app.config.get('SESSION_COOKIE_SECURE', True),
+                samesite='Lax',
+            )
+            return resp
         error = "Invalid username or password"
     con.close()
-    return _render(T_LOGIN, error=error)
+    return _render(T_LOGIN, error=error, last_user=request.cookies.get('last_user', ''))
 
 @app.route("/register", methods=["GET","POST"])
 def register():
@@ -3123,12 +3132,12 @@ T_LOGIN = STYLE + """
     <h2 style="text-align:center;margin-bottom:4px">&#127775;EverNothing</h2>
     <p style="text-align:center;color:#666;font-size:.85rem;margin-bottom:20px">Sign in to your notes</p>
     {% if error %}<err>{{error}}</err>{% endif %}
-    <form method=post>
+    <form method=post autocomplete="on">
       <input type=hidden name=csrf_token value="{{ csrf_token() }}">
       <label>Username</label>
-      <input name=username autofocus>
+      <input name=username value="{{ last_user|default('', true) }}" autocomplete="username" {% if not last_user %}autofocus{% endif %}>
       <label>Password</label>
-      <input type=password name=password>
+      <input type=password name=password autocomplete="current-password" {% if last_user %}autofocus{% endif %}>
       <label style="flex-direction:row;display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
         <input type=checkbox name=remember_me style="width:auto;margin:0"> Remember me for 30 days
       </label>
