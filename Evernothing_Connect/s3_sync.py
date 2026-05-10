@@ -125,16 +125,31 @@ def _s3_client():
 # Bucket hardening
 # ---------------------------------------------------------------------------
 def _apply_bucket_policy(s3, bucket_name):
+    """Apply a safe default bucket policy.
+
+    Principals allowed:
+      - Anything under the AWS account that owns the bucket (root + IAM).
+      - Any ARN in S3_ALLOWED_PRINCIPALS (comma-separated).
+    Denies:
+      - Any request that isn't HTTPS.
+      - Any principal outside the account or the allow list.
+      - Requests from IPs outside S3_ALLOWED_IPS (optional).
+
+    We deliberately DO NOT lock the bucket to a single IAM user ARN —
+    that's a footgun when keys rotate or the user is deleted.
+    """
     allowed_ips = [ip.strip() for ip in os.environ.get('S3_ALLOWED_IPS', '').split(',') if ip.strip()]
+    extra_principals = [p.strip() for p in os.environ.get('S3_ALLOWED_PRINCIPALS', '').split(',') if p.strip()]
+
+    account_id = None
     try:
         sts_kw = {'region_name': AWS_REGION}
         if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
             sts_kw.update(aws_access_key_id=AWS_ACCESS_KEY_ID,
                           aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
-        caller_arn = boto3.client('sts', **sts_kw).get_caller_identity()['Arn']
+        account_id = boto3.client('sts', **sts_kw).get_caller_identity()['Account']
     except Exception as e:
-        logger.warning(f'Could not get caller ARN: {e}')
-        caller_arn = None
+        logger.warning(f'Could not resolve AWS account id: {e}')
 
     stmts = [{
         'Sid': 'DenyInsecureTransport', 'Effect': 'Deny', 'Principal': '*',
@@ -142,13 +157,24 @@ def _apply_bucket_policy(s3, bucket_name):
         'Resource': [f'arn:aws:s3:::{bucket_name}', f'arn:aws:s3:::{bucket_name}/*'],
         'Condition': {'Bool': {'aws:SecureTransport': 'false'}},
     }]
-    if caller_arn:
+
+    if account_id:
+        # Allow anyone in the owning account + any explicitly listed principal.
+        # Without the account we skip this rule rather than publish a bucket.
+        allowed_principals = [f'arn:aws:iam::{account_id}:root'] + extra_principals
         stmts.append({
-            'Sid': 'DenyAllExceptCaller', 'Effect': 'Deny', 'Principal': '*',
+            'Sid': 'DenyOutsideAccount', 'Effect': 'Deny', 'Principal': '*',
             'Action': 's3:*',
             'Resource': [f'arn:aws:s3:::{bucket_name}', f'arn:aws:s3:::{bucket_name}/*'],
-            'Condition': {'StringNotEquals': {'aws:PrincipalArn': caller_arn}},
+            'Condition': {
+                'StringNotEquals': {'aws:PrincipalAccount': account_id},
+                'StringNotEqualsIfExists': {'aws:PrincipalArn': allowed_principals},
+            },
         })
+    else:
+        logger.warning('Bucket policy will be DenyInsecureTransport only — '
+                       'set S3_ALLOWED_PRINCIPALS to restrict access by ARN.')
+
     if allowed_ips:
         stmts.append({
             'Sid': 'DenyNonAllowedIPs', 'Effect': 'Deny', 'Principal': '*',
@@ -166,10 +192,13 @@ def _apply_bucket_policy(s3, bucket_name):
 
 def _enable_s3_access_logging(s3, bucket_name):
     log_bucket = f'{bucket_name}-logs'
+    log_retention_days = int(os.environ.get('S3_LOG_RETENTION_DAYS', '90'))
     try:
+        created = False
         try:
             s3.head_bucket(Bucket=log_bucket)
         except Exception:
+            created = True
             if AWS_REGION == 'us-east-1':
                 s3.create_bucket(Bucket=log_bucket)
             else:
@@ -180,16 +209,43 @@ def _enable_s3_access_logging(s3, bucket_name):
                     'BlockPublicAcls': True, 'IgnorePublicAcls': True,
                     'BlockPublicPolicy': True, 'RestrictPublicBuckets': True,
                 })
+
+        # Always enforce these — harmless to reapply on existing buckets.
+        try:
+            s3.put_bucket_encryption(Bucket=log_bucket,
+                ServerSideEncryptionConfiguration={'Rules': [
+                    {'ApplyServerSideEncryptionByDefault': {'SSEAlgorithm': 'AES256'}}]})
+        except Exception as e:
+            logger.warning(f'Could not enable SSE on log bucket: {e}')
+
+        try:
+            s3.put_bucket_lifecycle_configuration(Bucket=log_bucket,
+                LifecycleConfiguration={'Rules': [{
+                    'ID': 'ExpireOldAccessLogs',
+                    'Status': 'Enabled',
+                    'Filter': {'Prefix': 'access-logs/'},
+                    'Expiration': {'Days': log_retention_days},
+                    'AbortIncompleteMultipartUpload': {'DaysAfterInitiation': 7},
+                }]})
+            logger.info(f'Log bucket lifecycle: expire after {log_retention_days}d')
+        except Exception as e:
+            logger.warning(f'Could not set lifecycle on log bucket: {e}')
+
         s3.put_bucket_acl(Bucket=log_bucket, ACL='log-delivery-write')
         s3.put_bucket_logging(Bucket=bucket_name, BucketLoggingStatus={
             'LoggingEnabled': {'TargetBucket': log_bucket, 'TargetPrefix': 'access-logs/'},
         })
+        if created:
+            logger.info(f'Created hardened log bucket s3://{log_bucket}/')
         logger.info(f'S3 access logging -> s3://{log_bucket}/access-logs/')
     except Exception as e:
         logger.warning(f'Could not enable S3 access logging: {e}')
 
 
 def _enable_s3_object_lock(s3, bucket_name):
+    """Apply Object Lock default retention. Object Lock must have been
+    enabled at bucket creation — if it wasn't, this call will fail cleanly
+    and we'll only warn once (not on every sync)."""
     lock_days = int(os.environ.get('S3_LOCK_DAYS', '30'))
     try:
         s3.put_object_lock_configuration(Bucket=bucket_name, ObjectLockConfiguration={
@@ -198,8 +254,8 @@ def _enable_s3_object_lock(s3, bucket_name):
         })
         logger.info(f'S3 Object Lock GOVERNANCE {lock_days}d on {bucket_name}')
     except Exception as e:
-        # Object Lock must be enabled at bucket creation; log and move on.
-        logger.warning(f'Object Lock not applied (likely bucket was not created with it): {e}')
+        logger.info('Object Lock not applied (only possible at bucket creation): %s',
+                    _sanitize_error(e))
 
 
 # ---------------------------------------------------------------------------
@@ -223,11 +279,17 @@ def _s3_upload_with_retry(fn, *args, **kwargs):
 
 
 def _s3_upload_bytes_with_retry(s3, data: bytes, bucket: str, key: str, extra_args=None):
-    """Retryable bytes-to-S3 upload. Fresh BytesIO per attempt."""
+    """Retryable bytes-to-S3 upload. Fresh BytesIO per attempt.
+
+    Adds ChecksumAlgorithm='SHA256' so S3 verifies the payload against a
+    client-side hash — any corruption in transit is rejected with an error.
+    """
+    args = {'ChecksumAlgorithm': 'SHA256'}
+    if extra_args:
+        args.update(extra_args)
     for attempt in range(3):
         try:
-            return s3.upload_fileobj(io.BytesIO(data), bucket, key,
-                                     ExtraArgs=extra_args or {})
+            return s3.upload_fileobj(io.BytesIO(data), bucket, key, ExtraArgs=args)
         except Exception as e:
             if attempt == 2:
                 raise
