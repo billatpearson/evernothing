@@ -34,3 +34,7 @@ Scripts/key.pem
 *.bak
 *.premigration_*
 DB/Backups/
+
+# S3 bucket-hardening sentinels (legacy + current path)
+.bucket_policy_applied
+log/.s3_bucket_hardened
