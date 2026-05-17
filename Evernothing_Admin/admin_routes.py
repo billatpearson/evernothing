@@ -17,15 +17,18 @@ import evernothing as _en
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
-        admin_user = os.environ.get('ADMIN_USER') or 'admin'
-        admin_pass = os.environ.get('ADMIN_PASS') or 'admin'
-        if (request.form.get('username') == admin_user and
-                request.form.get('password') == admin_pass):
+        from rate_limiter import check_rate_limit, RATE_LIMIT_LOGIN
+        from Evernothing_Security.admin_auth import verify_admin
+        if not check_rate_limit(request.remote_addr, 'admin', RATE_LIMIT_LOGIN):
+            logger.warning(f'Rate limit exceeded for admin login from {request.remote_addr}')
+            return _render(_en.T_ADMIN_LOGIN, error='Too many attempts. Please try again later.')
+        if verify_admin(request.form.get('username', ''), request.form.get('password', '')):
             session['admin_logged_in'] = True
             session['admin_login_time'] = datetime.datetime.now(timezone.utc).isoformat()
             con = get_db(); cur = con.cursor()
             log_change(cur, 0, 'CREATE', 'admin_session', 0, {},
-                       {'admin': admin_user, 'ip': request.remote_addr}, request.remote_addr)
+                       {'admin': os.environ.get('ADMIN_USER') or 'admin',
+                        'ip': request.remote_addr}, request.remote_addr)
             con.commit(); con.close()
             return redirect('/admin/dashboard')
         return _render(_en.T_ADMIN_LOGIN, error='Invalid credentials')
