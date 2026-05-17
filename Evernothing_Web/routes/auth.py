@@ -58,6 +58,9 @@ def reset_password(token):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     from rate_limiter import check_rate_limit, get_remaining_attempts, RATE_LIMIT_LOGIN
+    from Evernothing_Security.login_lockout import (
+        is_locked, register_failure, clear_failures, lockout_seconds_remaining,
+    )
     error = None
     if request.args.get('timeout'):
         error = 'Session expired due to inactivity. Please login again.'
@@ -65,14 +68,23 @@ def login():
         error = 'Invalid session. Please login again.'
 
     if request.method == 'POST':
+        username = request.form.get('username', '')
         if not check_rate_limit(request.remote_addr, 'login', RATE_LIMIT_LOGIN):
             logger.warning(f'Rate limit exceeded for login from {request.remote_addr}')
-            return _render(_en.T_LOGIN, error='Too many login attempts. Please try again later.')
+            return _render(_en.T_LOGIN, error='Too many login attempts. Please try again later.',
+                           last_user=request.cookies.get('last_user', ''))
+        if is_locked(username):
+            secs = lockout_seconds_remaining(username)
+            mins = max(1, secs // 60)
+            return _render(_en.T_LOGIN,
+                           error=f'Account locked due to repeated failed logins. Try again in ~{mins} min.',
+                           last_user=request.cookies.get('last_user', ''))
 
         con = get_db(); cur = con.cursor()
         r = cur.execute('SELECT id,password FROM users WHERE username=?',
-                        (request.form['username'],)).fetchone()
+                        (username,)).fetchone()
         if r and check_password_hash(r['password'], request.form['password']):
+            clear_failures(username)
             # Enforce max 3 concurrent sessions
             active = cur.execute(
                 'SELECT COUNT(*) FROM user_sessions WHERE user_id=? AND logout_time IS NULL', (r['id'],)
@@ -95,10 +107,10 @@ def login():
             cur.execute('INSERT INTO user_sessions (user_id,session_id,login_time,ip_address,user_agent) VALUES(?,?,?,?,?)',
                         (r['id'], sid, now, request.remote_addr, request.user_agent.string))
             con.commit(); con.close()
-            login_user(User(r['id'], request.form['username']), remember=remember_me)
+            login_user(User(r['id'], username), remember=remember_me)
             resp = make_response(redirect('/'))
             resp.set_cookie(
-                'last_user', request.form['username'],
+                'last_user', username,
                 max_age=60 * 60 * 24 * 365,
                 httponly=True,
                 secure=app.config.get('SESSION_COOKIE_SECURE', True),
@@ -106,6 +118,8 @@ def login():
             )
             return resp
         con.close()
+        if register_failure(username):
+            logger.warning(f'Account locked for {username!r} after repeated failed logins from {request.remote_addr}')
         error = 'Invalid username or password'
     return _render(_en.T_LOGIN, error=error,
                    last_user=request.cookies.get('last_user', ''))
@@ -143,5 +157,12 @@ def logout():
         cur.execute('UPDATE user_sessions SET logout_time=? WHERE session_id=?',
                     (datetime.datetime.now(timezone.utc).isoformat(), session['session_id']))
         con.commit(); con.close()
+    forget_device = request.args.get('forget') == '1'
     logout_user(); session.clear()
-    return redirect('/login')
+    resp = make_response(redirect('/login'))
+    if forget_device:
+        resp.set_cookie('last_user', '', max_age=0, expires=0,
+                        httponly=True,
+                        secure=app.config.get('SESSION_COOKIE_SECURE', True),
+                        samesite='Lax')
+    return resp

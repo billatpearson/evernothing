@@ -143,7 +143,16 @@ else:
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
-login_manager.session_protection = "basic"
+# 'strong' rotates the session id when remote_addr or user_agent changes
+# coarsely. 'basic' was a meaningful gap.
+login_manager.session_protection = "strong"
+
+# One-time boot-time warning if admin creds are still defaults.
+try:
+    from Evernothing_Security.admin_auth import log_admin_security_warnings
+    log_admin_security_warnings(logger)
+except Exception:
+    pass
 
 # Session validation
 @app.before_request
@@ -1337,14 +1346,22 @@ from evernothing_security import admin_required, api_login_required
 @app.route("/admin", methods=["GET","POST"])
 def admin_login():
     if request.method == "POST":
-        admin_user = os.environ.get('ADMIN_USER', 'admin')
-        admin_pass = os.environ.get('ADMIN_PASS', 'admin')
-        if request.form.get("username") == admin_user and request.form.get("password") == admin_pass:
+        from rate_limiter import check_rate_limit, RATE_LIMIT_LOGIN
+        from Evernothing_Security.admin_auth import verify_admin
+        # Rate-limit admin POSTs per IP using the same hourly bucket as user
+        # login. Was previously unrestricted.
+        if not check_rate_limit(request.remote_addr, 'admin', RATE_LIMIT_LOGIN):
+            logger.warning(f"Rate limit exceeded for admin login from {request.remote_addr}")
+            return _render(T_ADMIN_LOGIN, error="Too many attempts. Please try again later.")
+
+        if verify_admin(request.form.get("username", ""), request.form.get("password", "")):
             # #10/#11: record login time for timeout; log to audit_log
             session['admin_logged_in'] = True
             session['admin_login_time'] = datetime.datetime.now(timezone.utc).isoformat()
             con = db(); cur = con.cursor()
-            log_change(cur, 0, 'CREATE', 'admin_session', 0, {}, {'admin': admin_user, 'ip': request.remote_addr}, request.remote_addr)
+            log_change(cur, 0, 'CREATE', 'admin_session', 0, {},
+                       {'admin': os.environ.get('ADMIN_USER') or 'admin', 'ip': request.remote_addr},
+                       request.remote_addr)
             con.commit(); con.close()
             return redirect("/admin/dashboard")
         return _render(T_ADMIN_LOGIN, error="Invalid credentials")
@@ -1632,31 +1649,44 @@ def reset_password(token):
 @app.route("/login", methods=["GET","POST"])
 def login():
     from rate_limiter import check_rate_limit, get_remaining_attempts, RATE_LIMIT_LOGIN
-    
+    from Evernothing_Security.login_lockout import (
+        is_locked, register_failure, clear_failures, lockout_seconds_remaining,
+    )
+
     con = db()
     cur = con.cursor()
     error = None
-    
+
     # Check for timeout/invalid session messages
     if request.args.get('timeout'):
         error = "Session expired due to inactivity. Please login again."
     elif request.args.get('invalid'):
         error = "Invalid session. Please login again."
-    
+
     if request.method == "POST":
-        # Check rate limit
+        username = request.form.get('username', '')
+
+        # Per-IP rate limit
         if not check_rate_limit(request.remote_addr, 'login', RATE_LIMIT_LOGIN):
-            remaining = get_remaining_attempts(request.remote_addr, 'login', RATE_LIMIT_LOGIN)
-            error = f"Too many login attempts. Please try again later."
             logger.warning(f"Rate limit exceeded for login from {request.remote_addr}")
             con.close()
-            return _render(T_LOGIN, error=error)
-        
+            return _render(T_LOGIN, error="Too many login attempts. Please try again later.",
+                           last_user=request.cookies.get('last_user', ''))
+
+        # Per-username lockout
+        if is_locked(username):
+            secs = lockout_seconds_remaining(username)
+            mins = max(1, secs // 60)
+            con.close()
+            return _render(T_LOGIN,
+                           error=f"Account locked due to repeated failed logins. Try again in ~{mins} min.",
+                           last_user=request.cookies.get('last_user', ''))
+
         r = cur.execute(
-            "SELECT id,password FROM users WHERE username=?",
-            (request.form['username'],)
+            "SELECT id,password FROM users WHERE username=?", (username,)
         ).fetchone()
         if r and check_password_hash(r[1], request.form['password']):
+            clear_failures(username)
             # Check concurrent session limit (max 3 active sessions)
             active_sessions = cur.execute(
                 "SELECT COUNT(*) FROM user_sessions WHERE user_id=? AND logout_time IS NULL",
@@ -1691,17 +1721,21 @@ def login():
             )
             con.commit()
             con.close()
-            login_user(User(r[0], request.form['username']), remember=remember_me)
+            login_user(User(r[0], username), remember=remember_me)
             resp = make_response(redirect("/"))
             # Remember username for this device (1 year). Not the password.
             resp.set_cookie(
-                'last_user', request.form['username'],
+                'last_user', username,
                 max_age=60 * 60 * 24 * 365,
                 httponly=True,
                 secure=app.config.get('SESSION_COOKIE_SECURE', True),
                 samesite='Lax',
             )
             return resp
+        # Failed login — register against username (mitigates IP-rotation
+        # bypass of the per-IP rate limiter).
+        if register_failure(username):
+            logger.warning(f"Account locked for {username!r} after repeated failed logins from {request.remote_addr}")
         error = "Invalid username or password"
     con.close()
     return _render(T_LOGIN, error=error, last_user=request.cookies.get('last_user', ''))
@@ -1761,7 +1795,17 @@ def logout():
         )
         con.commit()
         con.close()
-    logout_user(); session.clear(); return redirect("/login")
+    forget_device = request.args.get('forget') == '1'
+    logout_user(); session.clear()
+    resp = make_response(redirect("/login"))
+    if forget_device:
+        # Clear the remembered-username cookie. Match the original
+        # set_cookie attributes so the browser actually overwrites it.
+        resp.set_cookie('last_user', '', max_age=0, expires=0,
+                        httponly=True,
+                        secure=app.config.get('SESSION_COOKIE_SECURE', True),
+                        samesite='Lax')
+    return resp
 
 @app.route("/set_theme")
 def set_theme():
@@ -3712,12 +3756,28 @@ from flask import jsonify
 @app.route("/api/login", methods=["POST"])
 @csrf.exempt
 def api_login():
+    from rate_limiter import check_rate_limit, RATE_LIMIT_LOGIN
+    from Evernothing_Security.login_lockout import (
+        is_locked, register_failure, clear_failures,
+    )
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Invalid request'}), 400
+    username = data.get('username', '')
+
+    # Per-IP rate limit. Same hourly bucket as the form login.
+    if not check_rate_limit(request.remote_addr, 'login', RATE_LIMIT_LOGIN):
+        logger.warning(f"Rate limit exceeded for /api/login from {request.remote_addr}")
+        return jsonify({'error': 'Too many login attempts'}), 429
+
+    # Per-username lockout
+    if is_locked(username):
+        return jsonify({'error': 'Account temporarily locked'}), 423
+
     con = db(); cur = con.cursor()
-    r = cur.execute("SELECT id,password FROM users WHERE username=?", (data.get('username',''),)).fetchone()
+    r = cur.execute("SELECT id,password FROM users WHERE username=?", (username,)).fetchone()
     if r and check_password_hash(r[1], data.get('password','')):
+        clear_failures(username)
         session_id = os.urandom(16).hex()
         session['session_id'] = session_id
         session['last_activity'] = datetime.datetime.now(timezone.utc).isoformat()
@@ -3727,9 +3787,11 @@ def api_login():
         cur.execute("INSERT INTO user_sessions (user_id, session_id, login_time, ip_address, user_agent) VALUES (?,?,?,?,?)",
             (r[0], session_id, datetime.datetime.now(timezone.utc).isoformat(), request.remote_addr, request.user_agent.string))
         con.commit(); con.close()
-        login_user(User(r[0], data['username']))
-        return jsonify({'ok': True, 'username': data['username']})
+        login_user(User(r[0], username))
+        return jsonify({'ok': True, 'username': username})
     con.close()
+    if register_failure(username):
+        logger.warning(f"Account locked for {username!r} via /api/login from {request.remote_addr}")
     return jsonify({'error': 'Invalid username or password'}), 401
 
 @app.route("/api/logout", methods=["POST"])
