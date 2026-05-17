@@ -566,7 +566,8 @@ def _apply_bucket_policy(s3, bucket_name):
         logger.warning(f"Could not apply bucket policy: {e}")
 
 
-_BUCKET_POLICY_SENTINEL = ".bucket_policy_applied"
+_BUCKET_POLICY_SENTINEL = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'log', '.s3_bucket_hardened')
 
 def _enable_s3_access_logging(s3, bucket_name):
     """Enable S3 server access logging (fix #13). Logs go to <bucket>-logs."""
@@ -661,6 +662,7 @@ def _sync_s3_worker():
         import io
         global _bucket_policy_applied
         s3 = _s3_client()
+        os.makedirs(os.path.dirname(_BUCKET_POLICY_SENTINEL), exist_ok=True)
         # file sentinel prevents redundant hardening calls across workers
         if not _bucket_policy_applied and not os.path.exists(_BUCKET_POLICY_SENTINEL):
             _apply_bucket_policy(s3, S3_BUCKET_NAME)
