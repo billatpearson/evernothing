@@ -279,6 +279,29 @@ See `sms_service\README.md` for the full interface and test matrix.
 
 ## Troubleshooting
 
+### Encryption health check
+
+To audit every encrypted column for rows that look like ciphertext but
+won't decrypt under the current `SECRET_KEY`:
+
+```cmd
+python Scripts\encryption_health_scan.py
+```
+
+Reports counts per table (`notes`, `folders`, `note_history`) and lists
+any cell flagged `plaintext`, `bad-decrypt`, or `double-wrap`. Exit code
+is non-zero if `bad-decrypt` or `double-wrap` rows exist.
+
+`bad-decrypt` rows are typically history snapshots that were written
+under an older `SECRET_KEY` and not re-encrypted during a key rotation.
+They cannot be recovered without the old key.
+
+`double-wrap` is a rotation-time bug where ciphertext got treated as
+plaintext and re-wrapped. Newly-detected double-wrap rows mean the
+rotation script didn't preserve the original ciphertext correctly.
+
+
+
 ### Mixed-encryption banner on dashboard
 
 Some rows were written before encryption was enabled. Run:

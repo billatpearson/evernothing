@@ -32,6 +32,11 @@ import Evernothing_Security.security  # noqa
 from Evernothing_Connect.s3_sync import restore_from_s3
 restore_from_s3()
 
+# 3a. Start the S3 pull worker (Option B multi-device replication).
+#     Safe no-op when S3 isn't configured or app is in TESTING mode.
+from Evernothing_Connect.s3_pull import start_pull_worker
+start_pull_worker()
+
 # 4. Register all route modules (each imports app and decorates routes)
 import Evernothing_Web.routes.auth      # noqa
 import Evernothing_Web.routes.notes     # noqa

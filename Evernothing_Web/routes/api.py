@@ -23,12 +23,26 @@ def _delete_recursive(cur, fid, uid):
 @app.route('/api/login', methods=['POST'])
 @csrf.exempt
 def api_login():
+    from rate_limiter import check_rate_limit, RATE_LIMIT_LOGIN
+    from Evernothing_Security.login_lockout import (
+        is_locked, register_failure, clear_failures,
+    )
+    from Evernothing_Web.app import logger as _logger
     data = request.get_json()
     if not data: return jsonify({'error': 'Invalid request'}), 400
+    username = data.get('username', '')
+
+    if not check_rate_limit(request.remote_addr, 'login', RATE_LIMIT_LOGIN):
+        _logger.warning(f'Rate limit exceeded for /api/login from {request.remote_addr}')
+        return jsonify({'error': 'Too many login attempts'}), 429
+    if is_locked(username):
+        return jsonify({'error': 'Account temporarily locked'}), 423
+
     con = get_db(); cur = con.cursor()
     r = cur.execute('SELECT id,password FROM users WHERE username=?',
-                    (data.get('username', ''),)).fetchone()
+                    (username,)).fetchone()
     if r and check_password_hash(r[1], data.get('password', '')):
+        clear_failures(username)
         sid = os.urandom(16).hex()
         now = datetime.datetime.now(timezone.utc).isoformat()
         session.update({'session_id': sid, 'last_activity': now,
@@ -38,9 +52,11 @@ def api_login():
         cur.execute('INSERT INTO user_sessions (user_id,session_id,login_time,ip_address,user_agent) VALUES(?,?,?,?,?)',
                     (r[0], sid, now, request.remote_addr, request.user_agent.string))
         con.commit(); con.close()
-        login_user(User(r[0], data['username']))
-        return jsonify({'ok': True, 'username': data['username']})
+        login_user(User(r[0], username))
+        return jsonify({'ok': True, 'username': username})
     con.close()
+    if register_failure(username):
+        _logger.warning(f'Account locked for {username!r} via /api/login from {request.remote_addr}')
     return jsonify({'error': 'Invalid username or password'}), 401
 
 
