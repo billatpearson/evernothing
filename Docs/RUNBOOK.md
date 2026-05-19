@@ -277,6 +277,47 @@ See `sms_service\README.md` for the full interface and test matrix.
 
 ---
 
+## Run as a Windows service (auto-start at boot)
+
+Scripts under `Startup\service\` register the app as a Windows service so
+it starts at boot and restarts on failure. Wraps `python evernothing.py`
+with NSSM (downloaded on first install).
+
+Install (right-click → "Run as administrator", or just double-click and
+accept the UAC prompt):
+
+```cmd
+Startup\service\install_service.bat
+```
+
+The installer prompts once for your Windows password — required because
+the service runs as your user account so it can read `~/.aws/credentials`
+and `.env`. The password is handed to the Windows Service Control
+Manager and stored in LSA, never written to a file.
+
+Service properties:
+
+- Display name: `EverNothing Notes Service`
+- Start type: delayed-auto (boots ~2 min after Windows)
+- Auto-restart on crash, 5 second delay
+- Stdout: `log\service.log` (rotates at 10 MB)
+- Stderr: `log\service_err.log`
+
+Quick commands:
+
+```cmd
+Startup\service\service_status.bat       :: status + recent logs (no elevation)
+sc start EverNothing                      :: needs admin
+sc stop EverNothing                       :: needs admin
+sc query EverNothing
+Startup\service\uninstall_service.bat    :: full removal, leaves data alone
+```
+
+If you also run `Startup\test_and_restart.bat` while the service is up,
+both will fight for port 5443. Stop one before running the other.
+
+---
+
 ## Troubleshooting
 
 ### Encryption health check
