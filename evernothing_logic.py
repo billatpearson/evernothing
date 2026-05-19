@@ -18,7 +18,9 @@ except ImportError:
     boto3 = None
 
 _bucket_policy_applied = False
-_BUCKET_POLICY_SENTINEL = ".bucket_policy_applied"  # #17: file sentinel survives worker restarts
+_BUCKET_POLICY_SENTINEL = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    'log', '.s3_bucket_hardened')  # file sentinel survives worker restarts
 _S3_RETRY_ATTEMPTS = 3
 
 
@@ -185,6 +187,7 @@ def _sync_s3_worker():
     try:
         global _bucket_policy_applied
         s3 = _s3_client()
+        os.makedirs(os.path.dirname(_BUCKET_POLICY_SENTINEL), exist_ok=True)
 
         # #17: use file sentinel so policy is applied once per host, not per worker
         if not _bucket_policy_applied and not os.path.exists(_BUCKET_POLICY_SENTINEL):

@@ -52,6 +52,15 @@ app.config.update(
 csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-login_manager.session_protection = 'basic'
+# 'strong' rotates session id when remote_addr/user_agent changes coarsely.
+# 'basic' was a meaningful gap.
+login_manager.session_protection = 'strong'
+
+# One-time boot-time warning if admin creds are at defaults.
+try:
+    from Evernothing_Security.admin_auth import log_admin_security_warnings
+    log_admin_security_warnings(logger)
+except Exception:
+    pass
 
 BUILD_DATE = datetime.datetime.now().strftime('%m/%d/%y:%H:%M')
