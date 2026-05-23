@@ -85,7 +85,7 @@ echo.
 cd /d "%APP_DIR%"
 
 echo --- Main app tests ---
-"%PYTHON%" -m pytest Test/test_evernothing.py Test/test_all.py Test/test_note_operations.py Test/test_dashboard.py Test/test_themes.py Test/test_security.py Test/test_feature_matrix.py tests/test_evernothing.py tests/test_s3_sync.py tests/test_s3_integration.py -n auto --tb=short 2>&1
+"%PYTHON%" -m pytest Test/test_evernothing.py Test/test_all.py Test/test_note_operations.py Test/test_dashboard.py Test/test_themes.py Test/test_security.py Test/test_feature_matrix.py tests/test_evernothing.py tests/test_s3_sync.py tests/test_s3_integration.py -n auto --dist loadfile --tb=short 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [FAILED] Main app tests failed. Task NOT restarted.

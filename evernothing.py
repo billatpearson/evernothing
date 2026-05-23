@@ -341,7 +341,6 @@ def backup_database():
         shutil.copy(DB, backup_file)
         print(f"Database backed up to: {backup_file}")
 
-backup_database()
 
 def compress_old_backups(days=5, backup_dir="Backups"):
     """Compress .db backup files older than `days` days into .gz archives."""
@@ -363,7 +362,36 @@ def compress_old_backups(days=5, backup_dir="Backups"):
             except Exception as e:
                 print(f"Compress error ({fname}): {e}")
 
-compress_old_backups()
+
+def prune_old_backups(days=5):
+    """Delete backup files (.db and .db.gz) older than `days` days from
+    both the legacy repo-root 'Backups/' and 'DB/Backups/'."""
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+    deleted = 0
+    for backup_dir in ('Backups', os.path.join('DB', 'Backups')):
+        if not os.path.isdir(backup_dir):
+            continue
+        for fname in os.listdir(backup_dir):
+            if not (fname.endswith('.db') or fname.endswith('.db.gz')):
+                continue
+            fpath = os.path.join(backup_dir, fname)
+            try:
+                if datetime.datetime.fromtimestamp(os.path.getmtime(fpath)) < cutoff:
+                    os.remove(fpath)
+                    deleted += 1
+            except OSError as e:
+                print(f'Prune error ({fname}): {e}')
+    if deleted:
+        print(f'Pruned {deleted} backup file(s) older than {days} days.')
+
+
+def _run_startup_tasks():
+    """Filesystem-touching startup work — only called from __main__ so
+    that test imports don't race on the same Backups directory under
+    pytest -n auto."""
+    backup_database()
+    compress_old_backups()
+    prune_old_backups()
 
 # --- Encryption migration check ---
 # Detects mixed plaintext/encrypted state and warns the operator.
@@ -3957,6 +3985,10 @@ def api_search():
     return jsonify(sorted(results, key=lambda x: x['key'].lower()))
 
 if __name__ == '__main__':
+    # Filesystem-side-effect startup tasks. Moved out of module-scope so
+    # parallel test runs don't race on the same Backups directory.
+    _run_startup_tasks()
+
     # SSL cert/key paths — override via env vars or generate a self-signed cert for dev:
     #   openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
     ssl_cert = os.environ.get('SSL_CERT', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Startup', 'cert.pem'))
