@@ -38,3 +38,8 @@ DB/Backups/
 # S3 bucket-hardening sentinels (legacy + current path)
 .bucket_policy_applied
 log/.s3_bucket_hardened
+
+# NSSM binary downloaded by the service installer — don't commit
+Startup/service/nssm.exe
+log/service.log*
+log/service_err.log*

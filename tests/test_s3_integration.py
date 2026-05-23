@@ -45,9 +45,9 @@ class S3IntegrationTestCase(unittest.TestCase):
         with sqlite3.connect(self.db_path) as con:
             con.executescript("""
             CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, last_login TEXT, email TEXT);
-            CREATE TABLE folders(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, parent_id INTEGER);
-            CREATE TABLE notes(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, folder_id INTEGER, note_key TEXT, note_value TEXT, description TEXT, updated_at TEXT);
-            CREATE TABLE note_history(id INTEGER PRIMARY KEY AUTOINCREMENT, note_id INTEGER, user_id INTEGER, note_key TEXT, note_value TEXT, description TEXT, folder_id INTEGER, updated_at TEXT);
+            CREATE TABLE folders(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, parent_id INTEGER, version INTEGER NOT NULL DEFAULT 1, last_modified_device TEXT);
+            CREATE TABLE notes(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, folder_id INTEGER, note_key TEXT, note_value TEXT, description TEXT, updated_at TEXT, version INTEGER NOT NULL DEFAULT 1, last_modified_device TEXT);
+            CREATE TABLE note_history(id INTEGER PRIMARY KEY AUTOINCREMENT, note_id INTEGER, user_id INTEGER, note_key TEXT, note_value TEXT, description TEXT, folder_id INTEGER, updated_at TEXT, version INTEGER NOT NULL DEFAULT 1, last_modified_device TEXT);
             CREATE TABLE user_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, session_id TEXT, login_time TEXT, logout_time TEXT, ip_address TEXT, user_agent TEXT);
             CREATE TABLE attachments(id INTEGER PRIMARY KEY AUTOINCREMENT, note_id INTEGER, user_id INTEGER, filename TEXT, file_data BLOB, file_size INTEGER, uploaded_at TEXT);
             CREATE TABLE audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT, entity_type TEXT, entity_id INTEGER, old_values TEXT, new_values TEXT, timestamp TEXT, ip_address TEXT);
