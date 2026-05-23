@@ -325,17 +325,41 @@ def _prune_old_backups(s3, bucket, db_path):
 # Sync queue
 # ---------------------------------------------------------------------------
 def queue_change(cur, entity_type, entity_id, operation, payload=None):
+    """Queue a change for upload to S3.
+
+    Phase 3 Option A semantics:
+      - Bumps the row's `version` and stamps `last_modified_device = DEVICE_ID`
+        before reading it back, so the published payload reflects the local
+        write. CREATE on a fresh row starts at version 1.
+      - Skip the bump on DELETE (no row left to stamp).
+      - Receiver-applied changes don't call queue_change at all (s3_pull
+        writes via raw sqlite3), so this never bumps versions for incoming
+        rows — that's the loop-prevention.
+    """
+    op = (operation or '').upper()
     if payload is None:
         payload = {}
         try:
             if entity_type == 'note':
+                if op != 'DELETE':
+                    cur.execute(
+                        'UPDATE notes SET version = COALESCE(version, 0) + 1, '
+                        'last_modified_device = ? WHERE id = ?',
+                        (DEVICE_ID, entity_id))
                 r = cur.execute(
-                    'SELECT id,user_id,folder_id,note_key,note_value,description,updated_at '
+                    'SELECT id,user_id,folder_id,note_key,note_value,description,'
+                    'updated_at,version,last_modified_device '
                     'FROM notes WHERE id=?', (entity_id,)).fetchone()
                 if r: payload = dict(r)
             elif entity_type == 'folder':
+                if op != 'DELETE':
+                    cur.execute(
+                        'UPDATE folders SET version = COALESCE(version, 0) + 1, '
+                        'last_modified_device = ? WHERE id = ?',
+                        (DEVICE_ID, entity_id))
                 r = cur.execute(
-                    'SELECT id,user_id,name,parent_id FROM folders WHERE id=?',
+                    'SELECT id,user_id,name,parent_id,version,last_modified_device '
+                    'FROM folders WHERE id=?',
                     (entity_id,)).fetchone()
                 if r: payload = dict(r)
         except Exception as e:

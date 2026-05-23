@@ -1,0 +1,5 @@
+@echo off
+echo ============================================
+echo  EverNothing scheduled task status
+echo ============================================
+powershell -NoProfile -Command "$t = Get-ScheduledTask -TaskName EverNothing -ErrorAction SilentlyContinue; if (-not $t) { Write-Host 'Task is not registered. Run install_task.bat to install it.'; exit 1 }; $i = Get-ScheduledTaskInfo -TaskName EverNothing; Write-Host ('Name             : ' + $t.TaskName); Write-Host ('State            : ' + $t.State); Write-Host ('Last run         : ' + $i.LastRunTime); Write-Host ('Last result      : ' + $i.LastTaskResult + '  (267009 = currently running, 0 = success)'); Write-Host ('Next run         : ' + $i.NextRunTime); Write-Host ''; Write-Host '--- Listening ports ---'; netstat -ano | findstr ':5443 ' | findstr 'LISTENING'; netstat -ano | findstr ':5000 ' | findstr 'LISTENING'; Write-Host ''; Write-Host '--- Recent stdout (last 20 lines) ---'; Get-Content '%~dp0..\..\log\task.log' -Tail 20 -ErrorAction SilentlyContinue; Write-Host ''; Write-Host '--- Recent stderr (last 20 lines) ---'; Get-Content '%~dp0..\..\log\task_err.log' -Tail 20 -ErrorAction SilentlyContinue"
