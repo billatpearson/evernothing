@@ -35,7 +35,9 @@ class EvernothingTestCase(unittest.TestCase):
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
                 name TEXT,
-                parent_id INTEGER
+                parent_id INTEGER,
+                version INTEGER NOT NULL DEFAULT 1,
+                last_modified_device TEXT
             );
             CREATE TABLE notes(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +46,9 @@ class EvernothingTestCase(unittest.TestCase):
                 note_key TEXT,
                 note_value TEXT,
                 description TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                version INTEGER NOT NULL DEFAULT 1,
+                last_modified_device TEXT
             );
             CREATE TABLE note_history(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +58,9 @@ class EvernothingTestCase(unittest.TestCase):
                 note_value TEXT,
                 description TEXT,
                 folder_id INTEGER,
-                updated_at TEXT
+                updated_at TEXT,
+                version INTEGER NOT NULL DEFAULT 1,
+                last_modified_device TEXT
             );
             CREATE TABLE user_sessions(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
