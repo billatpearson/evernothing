@@ -125,3 +125,30 @@ def compress_old_backups(days: int = 5):
                 os.remove(fpath)
             except Exception as e:
                 print(f'Compress error ({fname}): {e}')
+
+
+def prune_old_backups(days: int = 5):
+    """Delete backup files (.db and .db.gz) older than `days` days.
+
+    Cleans both the legacy repo-root 'Backups/' directory (used by the
+    monolith's old code path) and the canonical 'DB/Backups/' directory.
+    Idempotent and safe to call on every startup.
+    """
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+    deleted = 0
+    for backup_dir in (os.path.join(_ROOT, 'DB', 'Backups'),
+                       os.path.join(_ROOT, 'Backups')):
+        if not os.path.isdir(backup_dir):
+            continue
+        for fname in os.listdir(backup_dir):
+            if not (fname.endswith('.db') or fname.endswith('.db.gz')):
+                continue
+            fpath = os.path.join(backup_dir, fname)
+            try:
+                if datetime.datetime.fromtimestamp(os.path.getmtime(fpath)) < cutoff:
+                    os.remove(fpath)
+                    deleted += 1
+            except OSError as e:
+                print(f'Prune error ({fname}): {e}')
+    if deleted:
+        print(f'Pruned {deleted} backup file(s) older than {days} days.')

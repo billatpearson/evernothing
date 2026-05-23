@@ -19,11 +19,12 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 # 1. Bootstrap DB
-from Evernothing_DB.database import init_db, backup_database, compress_old_backups, DB
+from Evernothing_DB.database import init_db, backup_database, compress_old_backups, prune_old_backups, DB
 os.makedirs(os.path.dirname(DB), exist_ok=True)
 init_db()
 backup_database()
 compress_old_backups()
+prune_old_backups()
 
 # 2. Bootstrap security hooks (before_request / after_request)
 import Evernothing_Security.security  # noqa
