@@ -1,4 +1,4 @@
-# install_service.ps1 — Register EverNothing as a Windows service.
+# install_service.ps1 - Register EverNothing as a Windows service.
 #
 # Uses NSSM (Non-Sucking Service Manager) to wrap the python process.
 # Service runs as the current user so AWS credentials in
@@ -6,7 +6,7 @@
 # Start type is SERVICE_DELAYED_AUTO_START so the box can boot fully
 # before the notes service spins up.
 #
-# Idempotent — re-running this updates settings on an existing service
+# Idempotent - re-running this updates settings on an existing service
 # rather than failing.
 
 $ErrorActionPreference = 'Stop'
@@ -27,7 +27,7 @@ if (-not $isAdmin) {
 $ServiceName  = 'EverNothing'
 $DisplayName  = 'EverNothing Notes Service'
 $Description  = 'EverNothing encrypted notes web service. Listens on https://127.0.0.1:5443'
-$AppDir       = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
+$AppDir       = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Python       = 'C:\Users\bills\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\python.exe'
 $AppScript    = Join-Path $AppDir 'evernothing.py'
 $LogDir       = Join-Path $AppDir 'log'
@@ -50,7 +50,7 @@ if (-not (Test-Path $LogDir))     { New-Item -ItemType Directory -Path $LogDir |
 
 # --- Fetch NSSM if missing ----------------------------------------------------
 if (-not (Test-Path $Nssm)) {
-    Write-Host "NSSM not found locally — downloading..." -ForegroundColor Yellow
+    Write-Host "NSSM not found locally - downloading..." -ForegroundColor Yellow
     $tmpZip = Join-Path $env:TEMP 'nssm.zip'
     $tmpDir = Join-Path $env:TEMP 'nssm-extract'
     if (Test-Path $tmpDir) { Remove-Item $tmpDir -Recurse -Force }
@@ -96,18 +96,23 @@ if ($existing) {
 & $Nssm set $ServiceName AppRestartDelay   5000                                   | Out-Null
 & $Nssm set $ServiceName Start             SERVICE_DELAYED_AUTO_START             | Out-Null
 
-# --- Service account: prompt for current user's password ----------------------
-$currentUser = "$env:USERDOMAIN\$env:USERNAME"
+# --- Service account ----------------------------------------------------------
+# Run as LocalSystem (built-in account, no password). Trade-off: the service
+# cannot read user-profile files like %USERPROFILE%\.aws\credentials or
+# the user's HOME-relative .env. To make S3 sync work under LocalSystem,
+# either:
+#   - put AWS keys in the project's own .env (already supported), or
+#   - copy %USERPROFILE%\.aws\credentials to a machine-readable location
+#     and point AWS_SHARED_CREDENTIALS_FILE at it.
+# We do NOT prompt for a password here. PIN / Windows Hello are not
+# accepted by the Service Control Manager, so requesting a password
+# from a typical Hello-only user fails reliably.
+$null = & sc.exe config $ServiceName obj= 'LocalSystem'
+if ($LASTEXITCODE -ne 0) {
+    throw "sc.exe config failed with exit code $LASTEXITCODE - service account NOT updated"
+}
 Write-Host ""
-Write-Host "Service will run as: $currentUser" -ForegroundColor Cyan
-Write-Host "Enter your Windows password (stored in LSA, not in any file)." -ForegroundColor Cyan
-$pwd  = Read-Host "Password" -AsSecureString
-$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($pwd)
-$plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-& $Nssm set $ServiceName ObjectName $currentUser $plain | Out-Null
-$plain = $null  # drop reference; not a real wipe but at least don't keep it around
-[gc]::Collect()
+Write-Host "Service account: LocalSystem (no password)" -ForegroundColor Cyan
 
 # --- Start --------------------------------------------------------------------
 Write-Host ""

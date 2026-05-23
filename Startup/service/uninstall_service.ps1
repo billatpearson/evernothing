@@ -1,4 +1,4 @@
-# uninstall_service.ps1 — Stop and remove the EverNothing service.
+# uninstall_service.ps1 - Stop and remove the EverNothing service.
 # Leaves DB, logs, AWS creds, and source code untouched.
 
 $ErrorActionPreference = 'Stop'
