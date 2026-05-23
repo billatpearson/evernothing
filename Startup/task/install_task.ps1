@@ -8,7 +8,11 @@ $ErrorActionPreference = 'Stop'
 $TaskName    = 'EverNothing'
 $TaskFolder  = '\'
 $AppDir      = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$Wrapper     = Join-Path $PSScriptRoot 'run_evernothing.bat'
+# Use pythonw.exe (Python's no-console binary) so no command window ever
+# appears. The app already writes its own logs via Python's logging module
+# (log/evernothing.log).
+$Pythonw     = 'C:\Users\bills\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\pythonw.exe'
+$AppScript   = Join-Path $AppDir 'evernothing.py'
 $Description = 'Launches EverNothing notes web service at logon. Listens on https://127.0.0.1:5443'
 
 Write-Host "================================================" -ForegroundColor Cyan
@@ -18,7 +22,8 @@ Write-Host "  AppDir  : $AppDir"
 Write-Host "  Wrapper : $Wrapper"
 Write-Host ""
 
-if (-not (Test-Path $Wrapper)) { throw "Wrapper not found at $Wrapper" }
+if (-not (Test-Path $Pythonw))   { throw "pythonw.exe not found at $Pythonw" }
+if (-not (Test-Path $AppScript)) { throw "App script not found at $AppScript" }
 
 # Remove any existing task with this name (idempotent re-install)
 $existing = Get-ScheduledTask -TaskName $TaskName -TaskPath $TaskFolder -ErrorAction SilentlyContinue
@@ -27,7 +32,7 @@ if ($existing) {
     Unregister-ScheduledTask -TaskName $TaskName -TaskPath $TaskFolder -Confirm:$false
 }
 
-$action = New-ScheduledTaskAction -Execute $Wrapper -WorkingDirectory $AppDir
+$action = New-ScheduledTaskAction -Execute $Pythonw -Argument "`"$AppScript`"" -WorkingDirectory $AppDir
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
 # Slight delay so the network and AWS profile resolution are ready when the
 # python process boots.
@@ -62,8 +67,8 @@ Write-Host "Name        : $($task.TaskName)"
 Write-Host "State       : $($task.State)"
 Write-Host "Triggers    : at logon (30s delay) for $env:USERDOMAIN\$env:USERNAME"
 Write-Host "Restarts    : up to 3 times, 5 min apart, on failure"
-Write-Host "Stdout log  : $AppDir\log\task.log"
-Write-Host "Stderr log  : $AppDir\log\task_err.log"
+Write-Host "Stdout log  : (pythonw has no stdout; app writes log/evernothing.log)"
+Write-Host "App log     : $AppDir\log\evernothing.log"
 Write-Host ""
 
 # Offer to start it now so we don't have to wait for next logon
