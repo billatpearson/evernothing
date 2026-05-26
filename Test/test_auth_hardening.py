@@ -287,5 +287,35 @@ class SessionProtectionTests(_Base):
         self.assertEqual(m.group(1), 'strong')
 
 
+class CSRFExpiryRedirectTests(_Base):
+    """Stale or missing CSRF tokens redirect to /login?csrf=1 with the
+    'Your session has expired' message instead of a 400 error page."""
+
+    def setUp(self):
+        super().setUp()
+        # Re-enable CSRF for this test class — the base class's app config
+        # has WTF_CSRF_ENABLED=False so most tests can post forms freely.
+        self.app.config['WTF_CSRF_ENABLED'] = True
+
+    def tearDown(self):
+        # Reset the CSRF setting so other test classes aren't surprised.
+        self.app.config['WTF_CSRF_ENABLED'] = False
+        super().tearDown()
+
+    def test_post_without_csrf_token_redirects_to_login_csrf(self):
+        # A POST that has no csrf_token field should trip CSRFError, which
+        # our handler converts into a redirect.
+        rv = self.client.post('/login',
+                              data={'username': 'a', 'password': 'b'},
+                              follow_redirects=False)
+        self.assertEqual(rv.status_code, 302, rv.data[:200])
+        self.assertIn('/login?csrf=1', rv.headers.get('Location', ''))
+
+    def test_login_csrf_query_renders_session_expired_message(self):
+        rv = self.client.get('/login?csrf=1')
+        self.assertEqual(rv.status_code, 200)
+        self.assertIn(b'Your session has expired', rv.data)
+
+
 if __name__ == '__main__':
     unittest.main()

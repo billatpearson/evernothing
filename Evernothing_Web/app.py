@@ -5,7 +5,7 @@ All other modules import `app`, `csrf`, `login_manager` from here.
 """
 import os, datetime, secrets, logging
 from flask import Flask
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_login import LoginManager
 
 try:
@@ -55,6 +55,22 @@ login_manager.login_view = 'login'
 # 'strong' rotates session id when remote_addr/user_agent changes coarsely.
 # 'basic' was a meaningful gap.
 login_manager.session_protection = 'strong'
+
+
+# CSRF token expiry / invalid token handler:
+# Flask-WTF raises CSRFError for missing-or-stale tokens. Default is a 400.
+# Instead, log out and redirect to /login?csrf=1 so the user sees
+# "Your session has expired."
+@app.errorhandler(CSRFError)
+def _handle_csrf_error(e):
+    from flask import redirect, session
+    from flask_login import logout_user
+    try:
+        logout_user()
+    except Exception:
+        pass
+    session.clear()
+    return redirect('/login?csrf=1')
 
 # One-time boot-time warning if admin creds are at defaults.
 try:

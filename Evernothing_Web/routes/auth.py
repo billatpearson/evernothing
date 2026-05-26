@@ -66,6 +66,8 @@ def login():
         error = 'Session expired due to inactivity. Please login again.'
     elif request.args.get('invalid'):
         error = 'Invalid session. Please login again.'
+    elif request.args.get('csrf'):
+        error = 'Your session has expired. Please log in again.'
 
     if request.method == 'POST':
         username = request.form.get('username', '')
