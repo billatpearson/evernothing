@@ -10,7 +10,7 @@ except ImportError:
     pass
 
 from flask import Flask, request, redirect, render_template_string, make_response, session
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
@@ -53,6 +53,20 @@ app.secret_key = _secret_key
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['WTF_CSRF_ENABLED'] = True
 csrf = CSRFProtect(app)
+
+
+# CSRF token expiry / invalid token handler:
+# Flask-WTF raises CSRFError for missing-or-stale tokens. By default this
+# returns a 400 page. Instead, log out any current session and redirect to
+# /login?csrf=1 so the user sees "Your session has expired."
+@app.errorhandler(CSRFError)
+def _handle_csrf_error(e):
+    try:
+        logout_user()
+    except Exception:
+        pass
+    session.clear()
+    return redirect('/login?csrf=1')
 _remember_days = int(os.environ.get('REMEMBER_COOKIE_DAYS', '30'))
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=_remember_days)
 app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=_remember_days)
@@ -1717,6 +1731,8 @@ def login():
         error = "Session expired due to inactivity. Please login again."
     elif request.args.get('invalid'):
         error = "Invalid session. Please login again."
+    elif request.args.get('csrf'):
+        error = "Your session has expired. Please log in again."
 
     if request.method == "POST":
         username = request.form.get('username', '')
