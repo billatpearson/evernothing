@@ -280,6 +280,11 @@ def init_db():
         changed_at TEXT,
         synced_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS replication_cursor(
+        peer_device TEXT PRIMARY KEY,
+        last_key    TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+    );
     """)
     for _col_sql in [
         "ALTER TABLE notes ADD COLUMN description TEXT",
@@ -340,6 +345,29 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)")
     except Exception as e:
         print(f"Warning: Failed to create indexes: {e}")
+
+    # Phase 3 replication columns (idempotent). Without these, queue_change's
+    # `UPDATE ... SET version = ..., last_modified_device = ...` silently
+    # fails in its try/except and publishes empty-data deltas to S3, which
+    # peer devices then either apply as NULLs (constraint failure) or
+    # skip (harmless with REQ-09 receiver guard, but wrong regardless).
+    for _tbl, _col, _def in [
+        ('notes',        'version',              'INTEGER NOT NULL DEFAULT 1'),
+        ('notes',        'last_modified_device', 'TEXT'),
+        ('folders',      'version',              'INTEGER NOT NULL DEFAULT 1'),
+        ('folders',      'last_modified_device', 'TEXT'),
+        ('note_history', 'version',              'INTEGER NOT NULL DEFAULT 1'),
+        ('note_history', 'last_modified_device', 'TEXT'),
+    ]:
+        existing = cur.execute(f"PRAGMA table_info({_tbl})").fetchall()
+        if any(row[1] == _col for row in existing):
+            continue
+        try:
+            cur.execute(f"ALTER TABLE {_tbl} ADD COLUMN {_col} {_def}")
+            logger.info(f"schema: added {_tbl}.{_col}")
+        except Exception as e:
+            logger.warning(f"schema: could not add {_tbl}.{_col}: {e}")
+
     c.commit()
     c.close()
 
@@ -524,6 +552,212 @@ def queue_change(cur, entity_type, entity_id, operation, payload=None):
         (entity_type, entity_id, operation, json.dumps(payload),
          datetime.datetime.now(timezone.utc).isoformat())
     )
+
+
+# ---------------------------------------------------------------------------
+# Pull path (REQ-10). Mirrors evernothing_android.py; PC ingests deltas
+# published by peer devices under changes/<peer>/<ts>.json. Per-peer
+# cursor lives in replication_cursor so restarts don't re-apply.
+# Defensive guard (REQ-09 mirror) skips incomplete payloads instead of
+# halting the whole cursor on NOT NULL constraint failures.
+# ---------------------------------------------------------------------------
+def _incoming_wins(local_version, local_device, incoming_version, incoming_device):
+    """Deterministic LWW: higher version wins; tie broken by larger device
+    id lexicographically."""
+    if incoming_version > local_version:
+        return True
+    if incoming_version < local_version:
+        return False
+    return (incoming_device or '') > (local_device or '')
+
+
+def _apply_remote_note(cur, op, nid, data, version, device):
+    if op == 'DELETE':
+        cur.execute('DELETE FROM notes WHERE id=?', (nid,))
+        return cur.rowcount
+
+    # Defensive: empty/incomplete payloads (e.g. from a sender whose
+    # schema was missing version/last_modified_device columns) skip
+    # cleanly instead of halting the cursor on NULL user_id.
+    if (not data
+            or data.get('user_id') is None
+            or data.get('note_key') is None
+            or data.get('note_value') is None):
+        keys = list(data.keys()) if isinstance(data, dict) else type(data).__name__
+        logger.warning(f'apply note {op} id={nid} from {device} skipped: incomplete payload (keys={keys})')
+        return 0
+
+    incoming_ts = data.get('updated_at') or ''
+    existing = cur.execute(
+        'SELECT id, version, last_modified_device FROM notes WHERE id=?',
+        (nid,)).fetchone()
+
+    if existing:
+        local_v = int(existing[1] or 1)
+        local_d = existing[2]
+        if not _incoming_wins(local_v, local_d, version, device):
+            return 0
+        cur.execute(
+            'UPDATE notes SET user_id=?, folder_id=?, note_key=?, note_value=?, '
+            'description=?, updated_at=?, version=?, last_modified_device=? '
+            'WHERE id=?',
+            (data.get('user_id'), data.get('folder_id'), data.get('note_key'),
+             data.get('note_value'), data.get('description'), incoming_ts,
+             version, device, nid))
+    else:
+        cur.execute(
+            'INSERT INTO notes (id, user_id, folder_id, note_key, note_value, '
+            'description, updated_at, version, last_modified_device) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (nid, data.get('user_id'), data.get('folder_id'),
+             data.get('note_key'), data.get('note_value'),
+             data.get('description'), incoming_ts, version, device))
+    return cur.rowcount
+
+
+def _apply_remote_folder(cur, op, fid, data, version, device):
+    if op == 'DELETE':
+        cur.execute('DELETE FROM folders WHERE id=?', (fid,))
+        return cur.rowcount
+
+    if (not data
+            or data.get('user_id') is None
+            or data.get('name') is None):
+        keys = list(data.keys()) if isinstance(data, dict) else type(data).__name__
+        logger.warning(f'apply folder {op} id={fid} from {device} skipped: incomplete payload (keys={keys})')
+        return 0
+
+    existing = cur.execute(
+        'SELECT id, version, last_modified_device FROM folders WHERE id=?',
+        (fid,)).fetchone()
+    if existing:
+        local_v = int(existing[1] or 1)
+        local_d = existing[2]
+        if not _incoming_wins(local_v, local_d, version, device):
+            return 0
+        cur.execute(
+            'UPDATE folders SET user_id=?, name=?, parent_id=?, version=?, '
+            'last_modified_device=? WHERE id=?',
+            (data.get('user_id'), data.get('name'), data.get('parent_id'),
+             version, device, fid))
+    else:
+        cur.execute(
+            'INSERT INTO folders (id, user_id, name, parent_id, version, '
+            'last_modified_device) VALUES (?, ?, ?, ?, ?, ?)',
+            (fid, data.get('user_id'), data.get('name'), data.get('parent_id'),
+             version, device))
+    return cur.rowcount
+
+
+def _apply_remote_changes(changes, sender_device):
+    """Apply a batch of remote change entries to the local DB via raw
+    sqlite3 (bypassing queue_change so applied rows aren't re-published).
+    Returns count of rows touched."""
+    con = sqlite3.connect(DB)
+    cur = con.cursor()
+    touched = 0
+    try:
+        for ch in changes:
+            op       = (ch.get('op') or '').upper()
+            entity   = ch.get('entity')
+            data     = ch.get('data') or {}
+            eid      = ch.get('id') or data.get('id')
+            in_dev   = data.get('last_modified_device') or sender_device
+            in_ver   = int(data.get('version') or 1)
+            if entity == 'note':
+                touched += _apply_remote_note(cur, op, eid, data, in_ver, in_dev)
+            elif entity == 'folder':
+                touched += _apply_remote_folder(cur, op, eid, data, in_ver, in_dev)
+            # (other entity types intentionally ignored until REQ-11 lands users)
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        con.close()
+    return touched
+
+
+def _load_pull_cursors():
+    """Return {peer_device: last_key} from replication_cursor."""
+    con = sqlite3.connect(DB)
+    try:
+        return {row[0]: row[1] for row in
+                con.execute('SELECT peer_device, last_key FROM replication_cursor')}
+    finally:
+        con.close()
+
+
+def _save_pull_cursor(peer, last_key):
+    now = datetime.datetime.now(timezone.utc).isoformat()
+    con = sqlite3.connect(DB)
+    try:
+        con.execute(
+            'INSERT INTO replication_cursor (peer_device, last_key, updated_at) '
+            'VALUES (?, ?, ?) ON CONFLICT(peer_device) DO UPDATE SET '
+            'last_key = excluded.last_key, updated_at = excluded.updated_at',
+            (peer, last_key, now))
+        con.commit()
+    finally:
+        con.close()
+
+
+def pull_deltas(silent=False):
+    """Pull pending deltas from peer devices' changes/<peer>/ prefixes.
+    Returns total rows applied. Per-peer cursor in replication_cursor
+    makes restart-safe; we never re-apply a key we've already processed."""
+    if not boto3:
+        if not silent:
+            logger.warning('S3 pull skipped: boto3 unavailable')
+        return 0
+    if not S3_BUCKET_NAME:
+        if not silent:
+            logger.warning('S3 pull skipped: S3_BUCKET_NAME empty')
+        return 0
+
+    import io
+    s3 = _s3_client()
+    cursors = _load_pull_cursors()
+    new_keys_by_peer = {}
+    try:
+        paginator = s3.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=S3_BUCKET_NAME, Prefix='changes/'):
+            for obj in page.get('Contents', []) or []:
+                key = obj['Key']
+                parts = key.split('/', 2)
+                if len(parts) < 3:
+                    continue
+                peer = parts[1]
+                if peer == DEVICE_ID:
+                    continue
+                if cursors.get(peer) and key <= cursors[peer]:
+                    continue
+                new_keys_by_peer.setdefault(peer, []).append(key)
+    except Exception as e:
+        logger.warning(f'S3 pull list failed: {e}')
+        return 0
+
+    total = 0
+    for peer, keys in new_keys_by_peer.items():
+        keys.sort()
+        for key in keys:
+            try:
+                buf = io.BytesIO()
+                s3.download_fileobj(S3_BUCKET_NAME, key, buf)
+                changes = json.loads(buf.getvalue().decode('utf-8'))
+            except Exception as e:
+                logger.warning(f'S3 pull fetch {key} failed: {e}')
+                break
+            try:
+                applied = _apply_remote_changes(changes, sender_device=peer)
+                total += applied
+                _save_pull_cursor(peer, key)
+                logger.info(f'S3 pull: applied {applied} row(s) from {key}')
+            except Exception as e:
+                logger.error(f'S3 pull apply {key} failed: {e}')
+                break
+    return total
+
 
 # Minimum required S3 actions for this application
 _REQUIRED_S3_ACTIONS = [
@@ -790,6 +1024,16 @@ def _sync_s3_worker():
         _s3_status['ok'] = True
         _s3_status['error'] = None
         logger.info("S3 sync OK")
+
+        # After a successful publish + backup, pull any pending deltas
+        # from peer devices so the local DB converges. Failures here are
+        # logged but don't flip _s3_status to error -- pushing succeeded.
+        try:
+            n = pull_deltas(silent=True)
+            if n:
+                logger.info(f"S3 pull: applied {n} row(s) from peers")
+        except Exception as e:
+            logger.warning(f"S3 pull failed: {e}")
     except Exception as e:
         _s3_status['ok'] = False
         _s3_status['error'] = str(e)
