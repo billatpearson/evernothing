@@ -43,3 +43,10 @@ log/.s3_bucket_hardened
 Startup/service/nssm.exe
 log/service.log*
 log/service_err.log*
+
+# Gzipped DB backups (created by the checkpoint job; not source)
+*.db.gz
+Backups/
+
+# Kiro session-artifact helper scripts (ephemeral drivers)
+.kiro-*.ps1
