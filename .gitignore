@@ -48,5 +48,10 @@ log/service_err.log*
 *.db.gz
 Backups/
 
-# Kiro session-artifact helper scripts (ephemeral drivers)
-.kiro-*.ps1
+# Kiro session-artifact helper scripts (ephemeral drivers). Broad match
+# covers .ps1, .py (verifiers), .hash (password hashes from PC DB), etc.
+# NEVER commit .kiro-auth-fix.hash — it contains a live scrypt password hash.
+.kiro-*
+
+# Runtime PID file (regenerated on each server start)
+server.pid
