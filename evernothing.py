@@ -759,6 +759,124 @@ def pull_deltas(silent=False):
     return total
 
 
+# ---------------------------------------------------------------------------
+# Phase 0 — bootstrap. A fresh device (empty DB) hydrates from the best
+# available S3 snapshot and seeds its per-peer pull cursors at each
+# peer's latest key, so the next pull cycle only fetches deltas newer
+# than the snapshot instead of replaying months of history.
+# ---------------------------------------------------------------------------
+def _db_is_empty() -> bool:
+    """True when users, notes, and folders are all empty. sync_queue
+    and replication_cursor are not counted; a bootstrapped-but-aborted
+    state may leave leftovers there and we still want to retry."""
+    try:
+        con = sqlite3.connect(DB)
+        try:
+            u = con.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+            n = con.execute('SELECT COUNT(*) FROM notes').fetchone()[0]
+            f = con.execute('SELECT COUNT(*) FROM folders').fetchone()[0]
+        finally:
+            con.close()
+        return u == 0 and n == 0 and f == 0
+    except Exception:
+        return True
+
+
+# S3 keys to try in priority order when bootstrapping the PC. First
+# candidate is the PC's own last plaintext snapshot; second is the phone's
+# snapshot as a fallback for a fresh PC hydrating from a phone.
+_PC_BOOTSTRAP_KEY_CANDIDATES = [
+    '{db_basename}',
+    'DB/{db_basename}',
+    'android/{db_basename}',
+]
+
+
+def _bootstrap_from_s3() -> bool:
+    """If the DB is empty, hydrate from the best available S3 snapshot
+    and seed replication_cursor at each peer's latest key. Returns True
+    if bootstrap ran to completion. Idempotent: a populated DB no-ops."""
+    if not _db_is_empty():
+        return False
+    if not boto3:
+        logger.info('bootstrap: skipped (boto3 unavailable)')
+        return False
+    if not S3_BUCKET_NAME:
+        logger.info('bootstrap: skipped (S3_BUCKET_NAME not configured)')
+        return False
+
+    import io
+    try:
+        s3 = _s3_client()
+    except Exception as e:
+        logger.warning(f'bootstrap: S3 client init failed: {e}')
+        return False
+
+    db_basename = os.path.basename(DB)
+    restored = False
+    for template in _PC_BOOTSTRAP_KEY_CANDIDATES:
+        key = template.format(db_basename=db_basename)
+        try:
+            buf = io.BytesIO()
+            s3.download_fileobj(S3_BUCKET_NAME, key, buf)
+            data = buf.getvalue()
+            if not data:
+                continue
+            # SQLite header sanity: reject anything else (e.g. gzipped or
+            # encrypted). Bootstrap only handles plaintext SQLite files.
+            if not data.startswith(b'SQLite format 3\x00'):
+                logger.info(f'bootstrap: {key} not a SQLite file, skipping')
+                continue
+            os.makedirs(os.path.dirname(DB) or '.', exist_ok=True)
+            with open(DB, 'wb') as f:
+                f.write(data)
+            logger.info(f'bootstrap: restored {DB} from s3://{S3_BUCKET_NAME}/{key} ({len(data)} bytes)')
+            restored = True
+            break
+        except Exception as e:
+            logger.info(f'bootstrap: {key} not usable ({e})')
+
+    if not restored:
+        logger.warning('bootstrap: no S3 snapshot available; starting with empty DB')
+        return False
+
+    # Re-run migrations to ensure replication columns are present on the
+    # restored snapshot (may predate the Phase 3 schema).
+    init_db()
+
+    # Seed cursors so pull_deltas() starts fresh from each peer's latest key.
+    _seed_pull_cursors_from_s3(s3)
+    return True
+
+
+def _seed_pull_cursors_from_s3(s3) -> int:
+    """List every changes/<peer>/*.json and mark each peer's cursor at
+    the LATEST key. Skips our own DEVICE_ID's prefix. Returns count of
+    peers seeded."""
+    latest_by_peer: dict = {}
+    try:
+        paginator = s3.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=S3_BUCKET_NAME, Prefix='changes/'):
+            for obj in page.get('Contents', []) or []:
+                key = obj['Key']
+                parts = key.split('/', 2)
+                if len(parts) < 3:
+                    continue
+                peer = parts[1]
+                if peer == DEVICE_ID:
+                    continue
+                if peer not in latest_by_peer or key > latest_by_peer[peer]:
+                    latest_by_peer[peer] = key
+    except Exception as e:
+        logger.warning(f'bootstrap: list changes/ failed: {e}')
+        return 0
+
+    for peer, key in latest_by_peer.items():
+        _save_pull_cursor(peer, key)
+        logger.info(f'bootstrap: cursor[{peer}] = {key}')
+    return len(latest_by_peer)
+
+
 # Minimum required S3 actions for this application
 _REQUIRED_S3_ACTIONS = [
     "s3:PutObject",
@@ -4251,6 +4369,11 @@ if __name__ == '__main__':
     # Filesystem-side-effect startup tasks. Moved out of module-scope so
     # parallel test runs don't race on the same Backups directory.
     _run_startup_tasks()
+
+    # Phase 0: bootstrap from S3 if the local DB is empty. No-op on a
+    # populated DB, which is the steady state for a long-running PC.
+    if _bootstrap_from_s3():
+        logger.info('bootstrap: complete; entering steady-state delta mode')
 
     # SSL cert/key paths — override via env vars or generate a self-signed cert for dev:
     #   openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
