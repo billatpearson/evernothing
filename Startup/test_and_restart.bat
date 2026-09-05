@@ -95,7 +95,7 @@ if %ERRORLEVEL% NEQ 0 (
 echo.
 echo --- Android tests ---
 cd /d "%ANDROID_DIR%"
-"%PYTHON%" -m pytest test_android.py -n auto --tb=short 2>&1
+"%PYTHON%" -m pytest test_android.py test_bootstrap.py -n auto --tb=short 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [FAILED] Android tests failed. Task NOT restarted.
