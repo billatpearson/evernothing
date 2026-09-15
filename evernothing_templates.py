@@ -90,6 +90,7 @@ a:hover { color: var(--pulsar); text-shadow: 0 0 8px var(--pulsar); }
   border-bottom: 1px solid var(--pulsar);
   box-shadow: 0 2px 20px rgba(0,212,255,.15);
   padding: 10px 20px;
+  padding-top: 24px; /* Offset for status bar height */
   display: flex;
   align-items: center;
   gap: 6px;
