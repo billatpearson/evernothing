@@ -4277,6 +4277,7 @@ def api_create_folder():
     con = db(); cur = con.cursor()
     cur.execute("INSERT INTO folders (user_id, name, parent_id) VALUES(?,?,?)", (current_user.id, encrypt(name), parent_id))
     fid = cur.lastrowid
+    queue_change(cur, 'folder', fid, 'INSERT')
     con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True, 'id': fid})
 
@@ -4286,6 +4287,7 @@ def api_create_folder():
 def api_delete_folder(fid):
     con = db(); cur = con.cursor()
     delete_recursive(cur, fid, current_user.id)
+    queue_change(cur, 'folder', fid, 'DELETE')
     con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
@@ -4331,6 +4333,7 @@ def api_create_note():
     cur.execute("INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
         (nid, current_user.id, encrypt(key), encrypt(value), encrypt(desc), fid, now))
     log_change(cur, current_user.id, 'CREATE', 'note', nid, {}, {'key': key, 'folder_id': fid}, request.remote_addr)
+    queue_change(cur, 'note', nid, 'INSERT')
     con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True, 'id': nid})
 
@@ -4352,6 +4355,7 @@ def api_update_note(nid):
     cur.execute("INSERT INTO note_history (note_id, user_id, note_key, note_value, description, folder_id, updated_at) VALUES(?,?,?,?,?,?,?)",
         (nid, current_user.id, encrypt(key), encrypt(value), encrypt(desc), fid, now))
     log_change(cur, current_user.id, 'UPDATE', 'note', nid, {}, {'key': key, 'folder_id': fid}, request.remote_addr)
+    queue_change(cur, 'note', nid, 'UPDATE')
     con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
@@ -4361,6 +4365,7 @@ def api_update_note(nid):
 def api_delete_note(nid):
     con = db(); cur = con.cursor()
     cur.execute("DELETE FROM notes WHERE id=? AND user_id=?", (nid, current_user.id))
+    queue_change(cur, 'note', nid, 'DELETE')
     con.commit(); con.close(); sync_s3_async()
     return jsonify({'ok': True})
 
