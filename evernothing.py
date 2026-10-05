@@ -107,6 +107,15 @@ def enforce_https():
 def inject_build_date():
     return dict(build_date=BUILD_DATE)
 
+# Inject CSRF token for render_template_string usage
+@app.context_processor
+def inject_csrf_token():
+    try:
+        from flask_wtf.csrf import generate_csrf
+        return {'csrf_token': generate_csrf}
+    except Exception:
+        return {}
+
 @app.after_request
 def set_security_headers(response):
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
@@ -3128,11 +3137,17 @@ def _get_style():
 
 def _render(template, **kwargs):
     """Swap STYLE_STELLAR for the user's chosen theme, then render.
-    Also injects theme, build_date, and S3 status so Jinja2 variables resolve."""
+    Also injects theme, build_date, S3 status, and CSRF token so Jinja2 variables resolve."""
     theme = session.get('theme', 'stellar')
     themed = template.replace(STYLE_STELLAR, _get_style())
     kwargs.setdefault('theme', theme)
     kwargs.setdefault('build_date', BUILD_DATE)
+    # Inject CSRF token for render_template_string
+    try:
+        from flask_wtf.csrf import generate_csrf
+        kwargs.setdefault('csrf_token', generate_csrf)
+    except Exception:
+        pass
     # Inject S3 status so every page can show the alert banner
     s3 = get_s3_status()
     kwargs.setdefault('s3_ok', s3['ok'])
