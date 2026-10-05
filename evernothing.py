@@ -777,11 +777,7 @@ def pull_deltas(silent=False):
 def _db_is_empty() -> bool:
     """True when users, notes, and folders are all empty. sync_queue
     and replication_cursor are not counted; a bootstrapped-but-aborted
-    state may leave leftovers there and we still want to retry.
-    
-    CRITICAL: A database with users but no notes/folders is CORRUPTED
-    and should NOT be bootstrapped from S3 - this indicates data loss.
-    The sync system assumes all nodes have the same initial data."""
+    state may leave leftovers there and we still want to retry."""
     try:
         con = sqlite3.connect(DB)
         try:
@@ -790,34 +786,8 @@ def _db_is_empty() -> bool:
             f = con.execute('SELECT COUNT(*) FROM folders').fetchone()[0]
         finally:
             con.close()
-        # Empty only if ALL three are empty
-        # If users exist but notes/folders are empty, this is corruption
         return u == 0 and n == 0 and f == 0
     except Exception:
-        return True
-
-
-def _db_has_corruption() -> bool:
-    """Detect if database has users but missing notes/folders.
-    This is a corruption state that requires operator intervention."""
-    try:
-        con = sqlite3.connect(DB)
-        try:
-            u = con.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-            n = con.execute('SELECT COUNT(*) FROM notes').fetchone()[0]
-            f = con.execute('SELECT COUNT(*) FROM folders').fetchone()[0]
-        finally:
-            con.close()
-        # Has users but no notes OR no folders = corruption
-        if u > 0 and (n == 0 or f == 0):
-            logger.error(f"DATABASE CORRUPTION DETECTED: users={u}, notes={n}, folders={f}")
-            logger.error("This database has users but is missing notes or folders.")
-            logger.error("This indicates data loss that cannot be safely bootstrapped.")
-            logger.error("Restore from backup or contact support.")
-            return True
-        return False
-    except Exception as e:
-        logger.error(f"Failed to check database corruption: {e}")
         return True
 
 
@@ -834,11 +804,7 @@ _PC_BOOTSTRAP_KEY_CANDIDATES = [
 def _bootstrap_from_s3() -> bool:
     """If the DB is empty, hydrate from the best available S3 snapshot
     and seed replication_cursor at each peer's latest key. Returns True
-    if bootstrap ran to completion. Idempotent: a populated DB no-ops.
-    
-    CRITICAL: If the database has users but no notes/folders, this is
-    corruption - do NOT bootstrap, as it would overwrite local users with
-    a snapshot that may have different user IDs."""
+    if bootstrap ran to completion. Idempotent: a populated DB no-ops."""
     if not _db_is_empty():
         return False
     if not boto3:
@@ -846,11 +812,6 @@ def _bootstrap_from_s3() -> bool:
         return False
     if not S3_BUCKET_NAME:
         logger.info('bootstrap: skipped (S3_BUCKET_NAME not configured)')
-        return False
-    
-    # Check for corruption: users but missing notes/folders
-    if _db_has_corruption():
-        logger.error('bootstrap: ABORTED - database corruption detected')
         return False
 
     import io
