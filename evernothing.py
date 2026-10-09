@@ -791,6 +791,22 @@ def _db_is_empty() -> bool:
         return True
 
 
+def _db_has_users_but_empty_data() -> bool:
+    """Detect corruption: users exist but notes/folders are empty.
+    This is a corrupted state that requires manual intervention."""
+    try:
+        con = sqlite3.connect(DB)
+        try:
+            u = con.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+            n = con.execute('SELECT COUNT(*) FROM notes').fetchone()[0]
+            f = con.execute('SELECT COUNT(*) FROM folders').fetchone()[0]
+        finally:
+            con.close()
+        return u > 0 and (n == 0 or f == 0)
+    except Exception:
+        return False
+
+
 # S3 keys to try in priority order when bootstrapping the PC. First
 # candidate is the PC's own last plaintext snapshot; second is the phone's
 # snapshot as a fallback for a fresh PC hydrating from a phone.
@@ -812,6 +828,13 @@ def _bootstrap_from_s3() -> bool:
         return False
     if not S3_BUCKET_NAME:
         logger.info('bootstrap: skipped (S3_BUCKET_NAME not configured)')
+        return False
+
+    # Check for corruption: users exist but notes/folders are empty
+    # This requires manual intervention, not auto-bootstrap
+    if _db_has_users_but_empty_data():
+        logger.error('bootstrap: ABORTED - database has users but no notes/folders')
+        logger.error('This indicates data loss. Restore from backup or contact support.')
         return False
 
     import io
@@ -836,6 +859,23 @@ def _bootstrap_from_s3() -> bool:
             if not data.startswith(b'SQLite format 3\x00'):
                 logger.info(f'bootstrap: {key} not a SQLite file, skipping')
                 continue
+            
+            # Validate snapshot: check user count matches local if local has users
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
+                tmp.write(data)
+                tmp_path = tmp.name
+            
+            try:
+                with sqlite3.connect(tmp_path) as tmp_con:
+                    local_users = con.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+                    snapshot_users = tmp_con.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+                    if local_users > 0 and snapshot_users != local_users:
+                        logger.warning(f'bootstrap: local has {local_users} users, snapshot has {snapshot_users}')
+                        logger.warning('User count mismatch - bootstrap will overwrite local users')
+            finally:
+                os.unlink(tmp_path)
+            
             os.makedirs(os.path.dirname(DB) or '.', exist_ok=True)
             with open(DB, 'wb') as f:
                 f.write(data)
@@ -1969,6 +2009,71 @@ def admin_s3_restore(key):
         return _render(T_ADMIN_S3_BACKUPS, backups=[], error=f"Restore failed: {e}")
     
     return redirect("/admin/s3_backups")
+
+
+@app.route("/admin/confirm_bootstrap", methods=["GET", "POST"])
+@admin_required
+def admin_confirm_bootstrap():
+    """Double consent endpoint: user must explicitly acknowledge bootstrap risk."""
+    if request.method == "GET":
+        has_users_empty_data = _db_has_users_but_empty_data()
+        return _render(STYLE + """
+<nav class="nav">
+  <span class="nav-brand">&#11088; Admin</span>
+  <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href=/logout class="nav-logout">Logout</a>
+</nav>
+<div class="container">
+  <h3>Bootstrap Confirmation</h3>
+  {% if has_users_empty_data %}
+  <div class="card" style="border-left: 4px solid #d93025;">
+    <h4 style="color:#d93025">&#9888; Database Corruption Detected</h4>
+    <p>Your database has users but is missing notes or folders.</p>
+    <p><strong>Bootstrap will:</strong></p>
+    <ul>
+      <li>Download the latest database snapshot from S3</li>
+      <li>Replace your local database</li>
+      <li>May overwrite your local user IDs</li>
+    </ul>
+    <p><strong>Do you want to proceed?</strong></p>
+  </div>
+  {% else %}
+  <div class="card">
+    <p>Your database is empty and ready for bootstrap.</p>
+    <p>This will download the latest snapshot from S3.</p>
+  </div>
+  {% endif %}
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-danger">I understand - proceed with bootstrap</button>
+    <a href=/admin/dashboard class="btn">Cancel</a>
+  </form>
+</div>
+""", has_users_empty_data=has_users_empty_data)
+    
+    # POST - user confirmed
+    if _db_has_users_but_empty_data():
+        logger.warning(f"User {current_user.id} confirmed bootstrap despite corruption")
+    
+    # Trigger bootstrap
+    result = _bootstrap_from_s3()
+    if result:
+        logger.info(f"Bootstrap completed via admin confirm: {current_user.username}")
+        return _render(STYLE + """
+<nav class="nav">
+  <span class="nav-brand">&#11088; Admin</span>
+  <a href=/admin/dashboard>&#8592; Dashboard</a>
+  <a href=/logout class="nav-logout">Logout</a>
+</nav>
+<div class="container">
+  <h3>&#10004; Bootstrap Complete</h3>
+  <p>Database restored from S3. Please restart the application.</p>
+  <a href=/ class="btn btn-primary">Home</a>
+</div>
+""", _inject_csrf_token())
+    else:
+        logger.error("Bootstrap failed after user confirmation")
+        return _render(T_ADMIN_S3_BACKUPS, backups=[], error="Bootstrap failed. Check logs.")
 
 @app.route("/admin/sessions")
 @admin_required
