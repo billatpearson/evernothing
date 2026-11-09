@@ -163,16 +163,42 @@ class _Base(unittest.TestCase):
         self.s3_pull.S3_BUCKET_NAME = 'test-bucket'
 
         # Import + configure the Android app against the Android DB.
+        #
+        # The PC repo ships an older, unrelated android_app/evernothing_android.py
+        # and its own config_loader.py. Under the full suite another test can
+        # import those first, and a plain `import evernothing_android` would then
+        # return the stale cached module (no _queue_change / pull_deltas). So we
+        # load the real Android app by explicit file path with the Android dir
+        # first on sys.path, and restore sys.modules/sys.path in tearDown.
         os.environ['DB_FILE'] = self.droid_db
         os.environ['DEVICE_ID'] = 'android-PHONE'
-        import evernothing_android as ea
-        importlib.reload(ea)
+        self._saved_modules = {n: sys.modules.get(n)
+                               for n in ('evernothing_android', 'config_loader')}
+        self._saved_path = list(sys.path)
+        for n in self._saved_modules:
+            sys.modules.pop(n, None)
+        sys.path.insert(0, _ANDROID_ROOT)
+        from importlib import util as _ilu
+        spec = _ilu.spec_from_file_location(
+            'evernothing_android', os.path.join(_ANDROID_ROOT, 'evernothing_android.py'))
+        ea = _ilu.module_from_spec(spec)
+        sys.modules['evernothing_android'] = ea
+        spec.loader.exec_module(ea)
         ea.DB = self.droid_db
         ea.DEVICE_ID = 'android-PHONE'
         ea.S3_BUCKET_NAME = 'test-bucket'
         self.ea = ea
 
     def tearDown(self):
+        # Put back whatever modules / sys.path other tests had, so loading the
+        # Android app here never leaks into the rest of the suite.
+        for n, mod in getattr(self, '_saved_modules', {}).items():
+            if mod is None:
+                sys.modules.pop(n, None)
+            else:
+                sys.modules[n] = mod
+        if hasattr(self, '_saved_path'):
+            sys.path[:] = self._saved_path
         for p in (self.pc_db, self.droid_db):
             try:
                 os.unlink(p)
